@@ -18,9 +18,24 @@ The analysis follows a systematic approach for each Level III ecoregion in the C
 
 3.  **Normalization**: To account for local climate variability, the rolling values are converted to a percentile rank. A custom percentile rank function (`my_percent_rank`) is used for zero-inflated variables to improve model sensitivity at low-to-moderate levels of dryness.
 
-4.  **Classifier Evaluation**: The performance of each climate indicator and rolling window width as a binary classifier of ignition (fire vs. no-fire ignition on that day) is evaluated using Receiver Operating Characteristic (ROC) curves. The Area Under the Curve (AUC) and partial AUC (pAUC) are used to identify the optimal predictor, prioritizing performance under the driest conditions (high pAUC).
+4.  **Classifier Evaluation**: The performance of each climate indicator and rolling window width as a binary classifier of ignition (fire vs. no-fire ignition on that day) is evaluated using Receiver Operating Characteristic (ROC) curves. The ROC curves represent the performance of a binary classifier (ignition or no ignition) by plotting the trade-off between true- and false-positive rates at varying thresholds of classification. The Area Under the Curve (AUC) and partial AUC (pAUC) are used to identify the optimal predictor, prioritizing performance under the driest conditions (high pAUC) because misclassification (false negative) of fire danger under the driest conditions has the potential to be more costly than misclassifications under wetter conditions where fires are likely to be less severe.
+
+<figure>
+    <img src="./assets/Roc_curve.png"
+         alt="Example ROC curves showing examples of 'better' and 'worse' classifiers">
+    <figcaption>Receiver Operating Characteristic (ROC) curve showing true and false positive rates. Performance of a random classifier is shown by the diagonal line which is analogous to predicting ignition using a coin flip. Three example classifiers are shown in blue, green, and orange. The best possible classification performance is represented by the point in the upper left of the plot, which has 100\% sensitivity (no false negatives) and 100\% specificity (no false positives).
+
+Image Source: cmglee, MartinThoma, \href{https://creativecommons.org/licenses/by-sa/4.0}{CC BY-SA 4.0}, via Wikimedia Commons</figcaption>
+</figure>
 
 5.  **Danger Rating System**: An empirical cumulative distribution function (eCDF) is generated for the best-performing indicator. This function maps a given dryness percentile to the historical proportion of wildfires that ignited at or below that level, creating a tunable, risk-based danger rating.
+
+<figure>
+    <img src="./assets/17-middle_rockies-forest-4-CWD-ecdf.png"
+         alt="Example eCDF for the Middle Rockeis (Percentile of 4 day rolling window of sum of CWD)">
+    <figcaption>Example Empirical Cumulative Distribution Function (eCDF) for the forest cover type in the Middle Rockies ecoregion. The curve shows the relationship between the percentile of dryness (based on a 4-day rolling sum of Climatic Water Deficit) and the cumulative proportion of historical wildfires that ignited at or below that dryness level. This function is used to establish a tunable, risk-based danger rating. For example, a manager can identify the dryness percentile that corresponds to a specific proportion of historical fire ignitions (e.g., 10%) and use it as a threshold for management actions.</figcaption>
+</figure>
+
 
 6.  **Projection (Example Application)**: The resulting model can be used with projected climate data (e.g., MACA) to map future changes in wildfire ignition danger.
 
@@ -48,6 +63,7 @@ The analysis follows a systematic approach for each Level III ecoregion in the C
 4. Prepare a list of bad sites based on missing or erroneous data using `02_data_qc.R`.
 5.  Ensure input data is correctly placed in the `data/` directory. The analysis expects pre-processed Parquet files of climate data linked to MTBS fire `Event_ID`s.
 6.  Execute the main analysis script: `Rscript src/03_dryness.R`
+7.  Results, including CSV files of AUC scores and the RDS files containing the eCDF objects for the best predictors for each ecoregion, will be saved in the `out/` directory.
 
 ## Acknowledgments
 This work was supported by funding provided by the National Park Service through an agreement with the [Northern Rockies Conservation Cooperative](https://nrccooperative.org/)
