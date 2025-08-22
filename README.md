@@ -23,7 +23,7 @@ The analysis follows a systematic approach for each Level III ecoregion in the C
 <figure>
     <img src="./assets/Roc_curve.png"
          alt="Example ROC curves showing examples of 'better' and 'worse' classifiers">
-    <figcaption>Receiver Operating Characteristic (ROC) curve showing true and false positive rates. Performance of a random classifier is shown by the diagonal line which is analogous to predicting ignition using a coin flip. Three example classifiers are shown in blue, green, and orange. The best possible classification performance is represented by the point in the upper left of the plot, which has 100\% sensitivity (no false negatives) and 100\% specificity (no false positives).
+    <figcaption>Receiver Operating Characteristic (ROC) curve showing true and false positive rates. Performance of a random classifier is shown by the diagonal line which is analogous to predicting ignition using a coin flip. Three example classifiers are shown in blue, green, and orange. The best possible classification performance is represented by the point in the upper left of the plot, which has 100% sensitivity (no false negatives) and 100% specificity (no false positives).
 
 Image Source: cmglee, MartinThoma, \href{https://creativecommons.org/licenses/by-sa/4.0}{CC BY-SA 4.0}, via Wikimedia Commons</figcaption>
 </figure>
@@ -34,8 +34,7 @@ Image Source: cmglee, MartinThoma, \href{https://creativecommons.org/licenses/by
     <img src="./assets/17-middle_rockies-forest-4-CWD-ecdf.png"
          alt="Example eCDF for the Middle Rockeis (Percentile of 4 day rolling window of sum of CWD)">
     <figcaption>Example Empirical Cumulative Distribution Function (eCDF) for the forest cover type in the Middle Rockies ecoregion. The curve shows the relationship between the percentile of dryness (based on a 4-day rolling sum of Climatic Water Deficit) and the cumulative proportion of historical wildfires that ignited at or below that dryness level. This function is used to establish a tunable, risk-based danger rating. For example, a manager can identify the dryness percentile that corresponds to a specific proportion of historical fire ignitions (e.g., 10%) and use it as a threshold for management actions.</figcaption>
-</figure>
-
+</figure>  
 
 6.  **Projection (Example Application)**: The resulting model can be used with projected climate data (e.g., MACA) to map future changes in wildfire ignition danger.
 
