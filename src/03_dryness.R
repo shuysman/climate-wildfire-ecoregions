@@ -10,6 +10,7 @@ library(janitor)
 library(RColorBrewer)
 library(future)
 library(furrr)
+library(Polychrome)
 
 plan(multisession, workers = 4) ## Runs take about ~25G of memory each, depending on Ecoregion size
 
@@ -50,7 +51,7 @@ my_percent_rank <- function(x) {
   return(x3)
 }
 
-prepare_climate_data_for_ecoregion <- function(mtbs_polys, flux_vars, state_vars, state_vars_no_floor, T_base) {
+prepare_climate_data_for_ecoregion <- function(mtbs_polys, flux_vars, state_vars, state_vars_no_floor) {
   gridmet_data <- open_dataset("data/gridmet_long_data.parquet")
   npswb_data <- open_dataset("data/npswb_long_data.parquet")
 
@@ -77,7 +78,10 @@ prepare_climate_data_for_ecoregion <- function(mtbs_polys, flux_vars, state_vars
       tmmn = tmmn - 273.15,
       tmmx = tmmx - 273.15,
       T = (tmmn + tmmx) / 2,
-      GDD = pmax(T - T_base, T_base),
+      GDD_0 = pmax(T - 0, 0),
+      GDD_5 = pmax(T - 5, 5),
+      GDD_10 = pmax(T - 10, 10),
+      GDD_15 = pmax(T - 15, 15),
       WHC = max(SOIL, na.rm = TRUE),
       SWD = WHC - SOIL
     ) %>%
@@ -103,7 +107,10 @@ process_roc <- function(climate_data, cover, windows, state_vars, state_vars_no_
   dir.create(ecdf_dir, showWarnings = FALSE, recursive = TRUE)
 
   roc_formula <- as.formula(paste("fire ~", paste(c(state_vars, state_vars_no_floor, flux_vars), collapse = " + ")))
-  color_palette <- c(brewer.pal(name = "Dark2", n = 8), brewer.pal(name = "Paired", n = 6))
+
+  n_vars <- length(c(state_vars, state_vars_no_floor, flux_vars))
+  color_palette <- glasbey.colors(n_vars + 1)[2:(n_vars + 1)]
+  names(color_palette) <- NULL ## GGplot only applies colors if names match levels
 
   auc_results_list <- map(windows, function(window) {
     message(glue("Processing window length of {window} on cover {cover} for ecoregion {ecoregion_id}: {ecoregion_name}"))
@@ -177,7 +184,7 @@ process_roc <- function(climate_data, cover, windows, state_vars, state_vars_no_
   return(list(auc = auc_data, best = best_predictors))
 }
 
-process_ecoregion_cover <- function(i, bad_sites, flux_vars, state_vars, state_vars_no_floor, windows, T_base) {
+process_ecoregion_cover <- function(i, bad_sites, flux_vars, state_vars, state_vars_no_floor, windows) {
   ecoregion <- ecoregions[i, ]
   ecoregion_id <- ecoregion$US_L3CODE
   ecoregion_name <- ecoregion$US_L3NAME
@@ -199,7 +206,7 @@ process_ecoregion_cover <- function(i, bad_sites, flux_vars, state_vars, state_v
   ggsave(file.path(map_img_dir, glue("{ecoregion_id}-{ecoregion_name_clean}-{cover}-map.png")))
 
   ## Analysis code
-  climate_ecoregion_cover <- prepare_climate_data_for_ecoregion(mtbs_data, flux_vars, state_vars, state_vars_no_floor, T_base)
+  climate_ecoregion_cover <- prepare_climate_data_for_ecoregion(mtbs_data, flux_vars, state_vars, state_vars_no_floor)
 
   roc_results <- process_roc(
     climate_data = climate_ecoregion_cover,
@@ -223,18 +230,17 @@ process_ecoregion_cover <- function(i, bad_sites, flux_vars, state_vars, state_v
 }
 
 ## Global parameters
-T_base <- 0 ## Temperature (C) for GDD calculations
 windows <- seq(1:31) ## Rolling window widths to test
 
 ### State variables: variables to average in rolling window calculations
-state_vars <- c("RD", "VPD", "SWD", "ACCUMSWE", "BI", "ERC", "FM100", "FM1000")
-## my_percent_rank() doesnt make sense for T because 0 is not an
-## absolute minimum (for T in C like we are using). my_percent_rank()
-## is intended to increase sensitivty to small changes above a
-## zero-value baseline
-state_vars_no_floor <- c("T")
+state_vars <- c("RD", "VPD", "SWD", "ACCUMSWE", "BI", "ERC")
+## my_percent_rank() doesnt make sense for fuel moisture because they
+## have an inverted scale where lower values are drier, more dangerous
+## conditions. my_percent_rank() is intended to increase sensitivty to
+## small changes above a zero-value baseline for zero-inflated variables
+state_vars_no_floor <- c("FM100", "FM1000")
 ### Flux Variables: varibles to sum in rolling window calculations
-flux_vars <- c("AET", "CWD", "PET", "RAIN", "RUNOFF")
+flux_vars <- c("AET", "CWD", "PET", "RAIN", "RUNOFF", "GDD_0", "GDD_5", "GDD_10", "GDD_15")
 
 ## Bad sites determined in 02_data_qc.R
 bad_sites <- read_lines("data/bad_sites.txt")
@@ -246,17 +252,18 @@ ecoregions <- read_csv("data/ecoregion_cover_counts.csv") %>%
 
 ## test Execution
 ## results_list <- future_map(
-##   9,
-##   ~ process_ecoregion(
+##   17,
+##   ~ process_ecoregion_cover(
 ##     i = .x,
 ##     bad_sites = bad_sites,
 ##     flux_vars = flux_vars,
 ##     state_vars = state_vars,
+##     state_vars_no_floor = state_vars_no_floor,
 ##     windows = 1,
-##     T_base = T_base
 ##   ),
 ##   .options = furrr_options(seed = TRUE)
 ## )
+## process_ecoregion_cover(i = 4, bad_sites = bad_sites, flux_vars = flux_vars, state_vars = state_vars, state_vars_no_floor = state_vars_no_floor, windows = 1)
 
 ## Main Execution
 results_list <- future_map(
@@ -267,8 +274,7 @@ results_list <- future_map(
     flux_vars = flux_vars,
     state_vars = state_vars,
     state_vars_no_floor = state_vars_no_floor,
-    windows = windows,
-    T_base = T_base
+    windows = windows
   ),
   .options = furrr_options(seed = TRUE),
   .progress = TRUE
