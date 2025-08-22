@@ -43,8 +43,11 @@ The analysis follows a systematic approach for each Level III ecoregion in the C
 ## How to Run
 
 1.  Prepare the environment by installing the required R packages using renv: `renv::install()`
-2.  Ensure input data is correctly placed in the `data/` directory. The analysis expects pre-processed Parquet files of climate data linked to MTBS fire `Event_ID`s.
-3.  Execute the main analysis script: `Rscript src/03_dryness.R`
+2.  Retrieve the required climate data. The analysis requires local copies of the required gridMET and NPSWB netCDF files. `00_download_gridmet.sh` can be used to retrieve CONUS grids for the required gridMET variables (requires approximately 57 GB of disk space). A similar script to download the CONUS grids for the NPS 1 km gridded water balance variables is not currently provided (TODO). 
+3.  Prepare the cover type (`01_extract_cover.R`) and climate data (`01_extract_gridmet.R` and `01_extract_npswb.R`) for each US L3 ecoregion.
+4. Prepare a list of bad sites based on missing or erroneous data using `02_data_qc.R`.
+5.  Ensure input data is correctly placed in the `data/` directory. The analysis expects pre-processed Parquet files of climate data linked to MTBS fire `Event_ID`s.
+6.  Execute the main analysis script: `Rscript src/03_dryness.R`
 
 ## Acknowledgments
 This work was supported by funding provided by the National Park Service through an agreement with the [Northern Rockies Conservation Cooperative](https://nrccooperative.org/)
