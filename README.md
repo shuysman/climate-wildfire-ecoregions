@@ -34,7 +34,7 @@ Image Source: cmglee, MartinThoma, \href{https://creativecommons.org/licenses/by
     <img src="./assets/17-middle_rockies-forest-4-CWD-ecdf.png"
          alt="Example eCDF for the Middle Rockeis (Percentile of 4 day rolling window of sum of CWD)">
     <figcaption>Example Empirical Cumulative Distribution Function (eCDF) for the forest cover type in the Middle Rockies ecoregion. The curve shows the relationship between the percentile of dryness (based on a 4-day rolling sum of Climatic Water Deficit) and the cumulative proportion of historical wildfires that ignited at or below that dryness level. This function is used to establish a tunable, risk-based danger rating. For example, a manager can identify the dryness percentile that corresponds to a specific proportion of historical fire ignitions (e.g., 10%) and use it as a threshold for management actions.</figcaption>
-</figure>  
+</figure>
 
 6.  **Projection (Example Application)**: The resulting model can be used with projected climate data (e.g., MACA) to map future changes in wildfire ignition danger.
 
@@ -58,6 +58,7 @@ Image Source: cmglee, MartinThoma, \href{https://creativecommons.org/licenses/by
 
 1.  Prepare the environment by installing the required R packages using renv: `renv::install()`
 2.  Retrieve the required climate data. The analysis requires local copies of the required gridMET and NPSWB netCDF files. `00_download_gridmet.sh` can be used to retrieve CONUS grids for the required gridMET variables (requires approximately 57 GB of disk space). A similar script to download the CONUS grids for the NPS 1 km gridded water balance variables is not currently provided (TODO). 
+3. Retrieve the required LANDFIRE Existing Vegetation Type (EVT) layer. This file is too large (8.96 GB) to be stored with Git LFS and must be downloaded separately. EVT 2023 is used in the analysis as the most recent cover data for the entire CONUS available in LANDFIRE: https://landfire.gov/data-downloads/US_240/LF2023_EVC_240_CONUS.zip . Extract this file to `data/LF2023_EVT_240_CONUS`.
 3.  Prepare the cover type (`01_extract_cover.R`) and climate data (`01_extract_gridmet.R` and `01_extract_npswb.R`) for each US L3 ecoregion.
 4. Prepare a list of bad sites based on missing or erroneous data using `02_data_qc.R`.
 5.  Ensure input data is correctly placed in the `data/` directory. The analysis expects pre-processed Parquet files of climate data linked to MTBS fire `Event_ID`s.
