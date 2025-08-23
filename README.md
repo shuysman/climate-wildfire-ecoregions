@@ -25,7 +25,7 @@ The analysis follows a systematic approach for each Level III ecoregion in the C
          alt="Example ROC curves showing examples of 'better' and 'worse' classifiers">
     <figcaption>Receiver Operating Characteristic (ROC) curve showing true and false positive rates. Performance of a random classifier is shown by the diagonal line which is analogous to predicting ignition using a coin flip. Three example classifiers are shown in blue, green, and orange. The best possible classification performance is represented by the point in the upper left of the plot, which has 100% sensitivity (no false negatives) and 100% specificity (no false positives).
 
-Image Source: cmglee, MartinThoma, \href{https://creativecommons.org/licenses/by-sa/4.0}{CC BY-SA 4.0}, via Wikimedia Commons</figcaption>
+Image Source: cmglee, MartinThoma, <a href="https://creativecommons.org/licenses/by-sa/4.0">CC BY-SA 4.0</a>, via Wikimedia Commons</figcaption>
 </figure>
 
 5.  **Danger Rating System**: An empirical cumulative distribution function (eCDF) is generated for the best-performing indicator. This function maps a given dryness percentile to the historical proportion of wildfires that ignited at or below that level, creating a tunable, risk-based danger rating.
