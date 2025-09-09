@@ -79,9 +79,9 @@ prepare_climate_data_for_ecoregion <- function(mtbs_polys, flux_vars, state_vars
       tmmx = tmmx - 273.15,
       T = (tmmn + tmmx) / 2,
       GDD_0 = pmax(T - 0, 0),
-      GDD_5 = pmax(T - 5, 5),
-      GDD_10 = pmax(T - 10, 10),
-      GDD_15 = pmax(T - 15, 15),
+      GDD_5 = pmax(T - 5, 0),
+      GDD_10 = pmax(T - 10, 0),
+      GDD_15 = pmax(T - 15, 0),
       WHC = max(SOIL, na.rm = TRUE),
       SWD = WHC - SOIL
     ) %>%
