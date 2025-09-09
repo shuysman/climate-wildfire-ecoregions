@@ -95,6 +95,28 @@ prepare_climate_data_for_ecoregion <- function(mtbs_polys, flux_vars, state_vars
   return(climate_ecoregion)
 }
 
+calculate_percentiles <- function(climate_data, window, state_vars, state_vars_no_floor, flux_vars) {
+  climate_data %>%
+    mutate(
+      across(all_of(state_vars), ~ slide_dbl(.x, .f = mean, .before = window - 1)),
+      across(all_of(state_vars_no_floor), ~ slide_dbl(.x, .f = mean, .before = window - 1)),
+      across(all_of(flux_vars), ~ slide_dbl(.x, .f = sum, .before = window - 1))
+    ) %>%
+    drop_na() %>%
+    mutate(
+      across(
+        all_of(c(flux_vars, state_vars)), my_percent_rank
+      ),
+      across(all_of(state_vars_no_floor), dplyr::percent_rank)
+    )
+}
+
+generate_ecdf <- function(climate_data, var_name, window, state_vars, state_vars_no_floor, flux_vars) {
+  climate_percentiles <- calculate_percentiles(climate_data, window, state_vars, state_vars_no_floor, flux_vars)
+  ignition_data <- filter(climate_percentiles, fire == 1)
+  ecdf(ignition_data[[var_name]])
+}
+
 process_roc <- function(climate_data, cover, windows, state_vars, state_vars_no_floor, flux_vars, ecoregion_id, ecoregion_name, ecoregion_name_clean) {
   best_pauc10 <- 0
   best_varname <- ""
@@ -115,19 +137,7 @@ process_roc <- function(climate_data, cover, windows, state_vars, state_vars_no_
   auc_results_list <- map(windows, function(window) {
     message(glue("Processing window length of {window} on cover {cover} for ecoregion {ecoregion_id}: {ecoregion_name}"))
 
-    climate_percentiles <- climate_data %>%
-      mutate(
-        across(all_of(state_vars), ~ slide_dbl(.x, .f = mean, .before = window - 1)),
-        across(all_of(state_vars_no_floor), ~ slide_dbl(.x, .f = mean, .before = window - 1)),
-        across(all_of(flux_vars), ~ slide_dbl(.x, .f = sum, .before = window - 1))
-      ) %>%
-      drop_na() %>%
-      mutate(
-        across(
-          all_of(c(flux_vars, state_vars)), my_percent_rank
-        ),
-        across(all_of(state_vars_no_floor), dplyr::percent_rank)
-      )
+    climate_percentiles <- calculate_percentiles(climate_data, window, state_vars, state_vars_no_floor, flux_vars)
 
     roc_list <- roc(roc_formula, data = climate_percentiles)
 
@@ -184,51 +194,6 @@ process_roc <- function(climate_data, cover, windows, state_vars, state_vars_no_
   return(list(auc = auc_data, best = best_predictors))
 }
 
-process_ecoregion_cover <- function(i, bad_sites, flux_vars, state_vars, state_vars_no_floor, windows) {
-  ecoregion <- ecoregions[i, ]
-  ecoregion_id <- ecoregion$US_L3CODE
-  ecoregion_name <- ecoregion$US_L3NAME
-  ecoregion_name_clean <- make_clean_names(ecoregion_name)
-  cover <- ecoregion$maj_veg_cl
-
-  mtbs_data <- vect("data/mtbs_polys_plus_cover_ecoregion.gpkg") %>%
-    filter(US_L3CODE == ecoregion_id, maj_veg_cl == cover) %>%
-    filter(!(Event_ID %in% bad_sites)) ## remove blacklisted sites
-
-  ## Map for each cover type for each ecoregion
-  map_img_dir <- "out/img/map/"
-  ecoregion_shp <- vect("data/us_eco_l3/us_eco_l3.shp") %>% filter(US_L3CODE == ecoregion_id)
-  dir.create(map_img_dir, showWarnings = FALSE, recursive = TRUE)
-  ggplot() +
-    geom_spatvector(data = ecoregion_shp) +
-    geom_spatvector(data = mtbs_data, fill = "blue", alpha = 0.5) +
-    labs(fill = "Cover")
-  ggsave(file.path(map_img_dir, glue("{ecoregion_id}-{ecoregion_name_clean}-{cover}-map.png")))
-
-  ## Analysis code
-  climate_ecoregion_cover <- prepare_climate_data_for_ecoregion(mtbs_data, flux_vars, state_vars, state_vars_no_floor)
-
-  roc_results <- process_roc(
-    climate_data = climate_ecoregion_cover,
-    cover = cover,
-    windows = windows,
-    state_vars = state_vars,
-    state_vars_no_floor = state_vars_no_floor,
-    flux_vars = flux_vars,
-    ecoregion_id = ecoregion_id,
-    ecoregion_name = ecoregion_name,
-    ecoregion_name_clean = ecoregion_name_clean
-  )
-
-  auc_data <- roc_results$auc
-  best_predictors <- roc_results$best
-
-  return(list(
-    auc = auc_data,
-    best = best_predictors
-  ))
-}
-
 ## Global parameters
 windows <- seq(1:31) ## Rolling window widths to test
 
@@ -264,28 +229,3 @@ ecoregions <- read_csv("data/ecoregion_cover_counts.csv") %>%
 ##   .options = furrr_options(seed = TRUE)
 ## )
 ## process_ecoregion_cover(i = 4, bad_sites = bad_sites, flux_vars = flux_vars, state_vars = state_vars, state_vars_no_floor = state_vars_no_floor, windows = 1)
-
-## Main Execution
-results_list <- future_map(
-  1:nrow(ecoregions),
-  ~ process_ecoregion_cover(
-    i = .x,
-    bad_sites = bad_sites,
-    flux_vars = flux_vars,
-    state_vars = state_vars,
-    state_vars_no_floor = state_vars_no_floor,
-    windows = windows
-  ),
-  .options = furrr_options(seed = TRUE),
-  .progress = TRUE
-)
-
-## Save results
-out_dir <- "out/"
-dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
-
-auc_data <- map_dfr(results_list, "auc")
-best_predictors <- map_dfr(results_list, "best")
-
-write_csv(best_predictors, file.path(out_dir, "best_predictors.csv"))
-write_csv(auc_data, file.path(out_dir, "auc_data.csv"))
