@@ -68,5 +68,5 @@ vpd_nf_ecdf <- generate_ecdf(
 )
 
 ## 4. (Optional) Plot and save the ECDF
-plot(vpd_nf_ecdf, main = "21-day VPD ECDF for Middle Rockies Non-forest")
+plot(vpd_nf_ecdf, main = "3-day VPD ECDF for Middle Rockies Non-forest")
 saveRDS(vpd_nf_ecdf, "17-middle_rockies-non_forest-3-VPD-ecdf.RDS")
