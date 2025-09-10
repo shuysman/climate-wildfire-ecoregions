@@ -91,7 +91,7 @@ basemap <- get_tiles(classified_rast, provider = "Esri.NatGeoWorldMap", zoom = 9
 
 # --- Pre-calculate rolling sums to avoid re-computing for each example ---
 forest_data_full <- terra::roll(vpd_data, n = 5, fun = mean, type = "to", circular = FALSE, overwrite = TRUE)
-non_forest_data_full <- terra::roll(vpd_data, n = 21, fun = mean, type = "to", circular = FALSE, overwrite = TRUE)
+non_forest_data_full <- terra::roll(vpd_data, n = 3, fun = mean, type = "to", circular = FALSE, overwrite = TRUE)
 
 
 # --- Master Function for Generating and Plotting Fire Danger ---
@@ -110,7 +110,7 @@ generate_and_plot_fire_danger <- function(dates, plot_title) {
 
   # Calculate fire danger for non-forest areas
   non_forest_fire_danger_rast <- rast()
-  non_forest_fire_danger_ecdf <- readRDS("/home/steve/sync/pyrome-fire/out/ecdf/17-middle_rockies-non_forest/17-middle_rockies-non_forest-21-VPD-ecdf.RDS")
+  non_forest_fire_danger_ecdf <- readRDS("/home/steve/sync/pyrome-fire/out/ecdf/17-middle_rockies-non_forest/17-middle_rockies-non_forest-3-VPD-ecdf.RDS")
   for (n in 1:nlyr(non_forest_data)) {
     non_forest_percentile_rast <- bin_rast(subset(non_forest_data, n), non_forest_quants_rast, probs)
     non_forest_fire_danger_rast <- c(non_forest_fire_danger_rast, terra::app(non_forest_percentile_rast, fun = \(x) non_forest_fire_danger_ecdf(x)))
