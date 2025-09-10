@@ -6,7 +6,7 @@ email: "shuysman@gmail.com"
 date: "`r Sys.Date()`"
 output:
   bookdown::html_document2:
-    theme: cerulean
+    theme: null
     number_sections: true
     toc: true
 ---
@@ -17,7 +17,9 @@ knitr::opts_chunk$set(echo = F, warning = F, message = F, fig.height = 12, fig.w
 
 # Example Fire Danger Maps for Historical Wet and Dry Periods
 
-This section generates fire danger maps for one-week periods during notable historical drought years (1988, 2016) and wet years (2011, 1993) to illustrate the model's behavior under different conditions.
+This document generates fire danger maps for one-week periods during notable historical drought years (1988, 2016) and wet years (2011, 1993) to illustrate the model's behavior under different conditions.
+
+Hybrid-resolution maps of wildfire ignition danger are created by combining data from two different scales by mapping coarse-resolution model predictions onto a fine-resolution landscape grid. For instance, a single fire danger value calculated from a 4km climate grid for a "forest" cover type is assigned to every individual 30m forest pixel that falls within that larger climate cell. This technique adds fine spatial detail, showing how danger varies by land cover. However, the map's precision is a "hybrid" because the fine-scale patterns are derived from the static 30m landscape, while the dynamic driver (the climate) is still assumed to be uniform across the coarse 4km area.
 
 ```{r data_setup_and_function_definition}
 library(tidyverse)
@@ -134,14 +136,22 @@ generate_and_plot_fire_danger <- function(dates, plot_title) {
 }
 ```
 
+## Cover Maps
+
+```{r}
+plot(cover_types)
+plot(classified_rast)
+
+```
+
 ## 1988 Drought Example
 
-A one-week period in August 1988, during the height of the Yellowstone fires.
+A one-week period in June 1988, before the height of the Yellowstone fires.
 
 ```{r}
 generate_and_plot_fire_danger(
-  dates = as_date("1988-07-05") + 0:7,
-  plot_title = "Fire Danger: August 1988 (Drought)"
+  dates = as_date("1988-06-03") + 0:7,
+  plot_title = "Fire Danger: June 1988 (Drought)"
 )
 ```
 
@@ -158,12 +168,12 @@ generate_and_plot_fire_danger(
 
 ## 2011 Wet Period Example
 
-A one-week period in July during the historically wet year of 2011.
+A one-week period in June during the historically wet year of 2011.
 
 ```{r}
 generate_and_plot_fire_danger(
-  dates = as_date("2011-07-20") + 0:7,
-  plot_title = "Fire Danger: Late July 2011 (Wet)"
+  dates = as_date("2011-06-04") + 0:7,
+  plot_title = "Fire Danger: June 2011 (Wet)"
 )
 ```
 
