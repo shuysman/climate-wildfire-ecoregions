@@ -117,8 +117,8 @@ generate_and_plot_fire_danger <- function(dates, plot_title) {
   }
   
   # Post-process rasters
-  forest_fire_danger_rast <- resample(forest_fire_danger_rast, classified_rast)
-  non_forest_fire_danger_rast <- resample(non_forest_fire_danger_rast, classified_rast)
+  forest_fire_danger_rast <- resample(forest_fire_danger_rast, classified_rast, method="near")
+  non_forest_fire_danger_rast <- resample(non_forest_fire_danger_rast, classified_rast, method="near")
 
   names(forest_fire_danger_rast) <- dates
   names(non_forest_fire_danger_rast) <- dates
@@ -138,7 +138,7 @@ generate_and_plot_fire_danger <- function(dates, plot_title) {
 
 ## Cover Maps
 
-```{r}
+```{r cover, fig.height = 10, fig.width = 6}
 plot(cover_types)
 plot(classified_rast)
 
