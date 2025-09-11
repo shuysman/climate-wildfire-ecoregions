@@ -15,17 +15,10 @@ library(glue)
 library(maptiles)
 library(climateR)
 
-replace_duplicated <- function(x) {
-  x[duplicated(x)] <- NA
-  return(x)
-}
-
 terraOptions(
   verbose = TRUE,
   memfrac = 0.9
 )
-
-out_dir <- file.path("out")
 
 ## Optimal rolling windows determined by dryness analysis script
 
@@ -34,12 +27,27 @@ probs <- seq(.01, 1.0, by = .01)
 nps_boundaries <- vect("data/nps_boundary/nps_boundary.shp") %>%
   filter(UNIT_CODE %in% c("YELL", "GRTE", "JODR"))
 
-forest_quants <- rast("./out/ecdf/17-middle_rockies-forest/17-middle_rockies-forest-5-VPD-quants.nc")
-non_forest_quants <- rast("./out/ecdf/17-middle_rockies-forest/17-middle_rockies-forest-5-VPD-quants.nc")
+forest_quants_rast <- rast("./out/ecdf/17-middle_rockies-forest/17-middle_rockies-forest-5-VPD-quants.nc")
+non_forest_quants_rast <- rast("./out/ecdf/17-middle_rockies-forest/17-middle_rockies-forest-5-VPD-quants.nc")
 
-vpd_forecast <- rast("http://thredds.northwestknowledge.net:8080/thredds/fileServer/NWCSC_INTEGRATED_SCENARIOS_ALL_CLIMATE/cfsv2_metdata_90day/cfsv2_metdata_forecast_vpd_daily.nc")
 
-time(vpd_forecast) <- as_date(depth(vpd_forecast), origin = "1900-01-01")
+### Today's Forecast File
+vpd_forecast_0 <- rast("data/vpd/cfsv2_metdata_forecast_vpd_daily_0.nc")
+time(vpd_forecast_0) <- as_date(depth(vpd_forecast_0), origin = "1900-01-01")
+
+### Yesterday's Forecast File
+vpd_forecast_1 <- rast("data/vpd/cfsv2_metdata_forecast_vpd_daily_1.nc")
+time(vpd_forecast_1) <- as_date(depth(vpd_forecast_1), origin = "1900-01-01")
+
+### Two Day old Forecast File
+vpd_forecast_2 <- rast("data/vpd/cfsv2_metdata_forecast_vpd_daily_2.nc")
+time(vpd_forecast_2) <- as_date(depth(vpd_forecast_2), origin = "1900-01-01")
+
+nps_boundaries <- project(nps_boundaries, crs(vpd_forecast_0))
+
+vpd_forecast_0 <- crop(vpd_forecast_0, nps_boundaries)
+vpd_forecast_1 <- crop(vpd_forecast_1, nps_boundaries)
+vpd_forecast_2 <- crop(vpd_forecast_2, nps_boundaries)
 
 gridmet_url <- "http://thredds.northwestknowledge.net:8080/thredds/dodsC/agg_met_vpd_1979_CurrentYear_CONUS.nc?daily_mean_vapor_pressure_deficit[0:4:0][0:100:0][0:100:0]"
 vpd_gridmet <- rast(gridmet_url)
@@ -54,6 +62,16 @@ vpd_gridmet <- getGridMET(
   endDate = today - 2,
   verbose = TRUE
 )
+
+vpd_gridmet <- vpd_gridmet$daily_mean_vapor_pressure_deficit %>%
+  project(crs(vpd_forecast_0)) %>%
+  crop(vpd_forecast_0)
+
+today_vpd <- subset(vpd_forecast_1, time(vpd_forecast_1) == today)
+yesterday_vpd <- subset(vpd_forecast_2, time(vpd_forecast_2) == today - 1)
+vpd_series <- c(vpd_gridmet, yesterday_vpd, today_vpd, vpd_forecast_0)
+
+dates <- time(vpd_series)
 
 bin_rast <- function(new_rast, quants_rast, probs) {
   # Count how many quantile layers the new value is greater than.
@@ -75,19 +93,26 @@ bin_rast <- function(new_rast, quants_rast, probs) {
 }
 
 
+forest_data <- terra::roll(vpd_series, n = 5, fun = mean, type = "to", circular = FALSE, overwrite = TRUE)
+non_forest_data <- terra::roll(vpd_series, n = 3, fun = mean, type = "to", circular = FALSE, overwrite = TRUE)
+
 forest_fire_danger_rast <- rast()
-for (n in 1:nlyr(forest_test)) {
-  forest_percentile_rast <- bin_rast(subset(forest_test, n), forest_quants_rast, probs)
-  forest_fire_danger_ecdf <- readRDS("/home/steve/sync/pyrome-fire/out/ecdf/17-middle_rockies-forest/17-middle_rockies-forest-5-VPD-ecdf.RDS")
+forest_fire_danger_ecdf <- readRDS("/home/steve/sync/pyrome-fire/out/ecdf/17-middle_rockies-forest/17-middle_rockies-forest-5-VPD-ecdf.RDS")
+for (n in 1:nlyr(forest_data)) {
+  forest_percentile_rast <- bin_rast(subset(forest_data, n), forest_quants_rast, probs)
   forest_fire_danger_rast <- c(forest_fire_danger_rast, terra::app(forest_percentile_rast, fun = \(x) forest_fire_danger_ecdf(x)))
 }
 
+time(forest_fire_danger_rast) <- dates
+
 non_forest_fire_danger_rast <- rast()
-for (n in 1:nlyr(non_forest_test)) {
-  non_forest_percentile_rast <- bin_rast(subset(non_forest_test, n), non_forest_quants_rast, probs)
-  non_forest_fire_danger_ecdf <- readRDS("/home/steve/sync/pyrome-fire/out/ecdf/17-middle_rockies-non_forest/17-middle_rockies-non_forest-21-VPD-ecdf.RDS")
+non_forest_fire_danger_ecdf <- readRDS("/home/steve/sync/pyrome-fire/out/ecdf/17-middle_rockies-non_forest/17-middle_rockies-non_forest-3-VPD-ecdf.RDS")
+for (n in 1:nlyr(non_forest_data)) {
+  non_forest_percentile_rast <- bin_rast(subset(non_forest_data, n), non_forest_quants_rast, probs)
   non_forest_fire_danger_rast <- c(non_forest_fire_danger_rast, terra::app(non_forest_percentile_rast, fun = \(x) non_forest_fire_danger_ecdf(x)))
 }
+
+time(non_forest_fire_danger_rast) <- dates
 
 cover_types <- rast("data/LF2023_EVT_240_CONUS/Tif/4326/LC23_EVT_240.tif") %>%
   crop(forest_fire_danger_rast)
@@ -136,11 +161,16 @@ non_forest_mask <- subst(non_forest_mask, FALSE, NA)
 basemap <- get_tiles(classified_rast, provider = "Esri.NatGeoWorldMap", zoom = 9) %>%
   crop(classified_rast)
 
-forest_fire_danger_rast <- forest_fire_danger_rast %>% resample(classified_rast)
-non_forest_fire_danger_rast <- non_forest_fire_danger_rast %>% resample(classified_rast)
+forest_fire_danger_rast <- forest_fire_danger_rast %>%
+  subset(time(.) >= today & time(.) <= today + 7) %>%
+  resample(classified_rast)
 
-names(forest_fire_danger_rast) <- test_dates
-names(non_forest_fire_danger_rast) <- test_dates
+non_forest_fire_danger_rast <- non_forest_fire_danger_rast %>%
+  subset(time(.) >= today & time(.) <= today + 7) %>%
+  resample(classified_rast)
+
+names(forest_fire_danger_rast) <- time(forest_fire_danger_rast)
+names(non_forest_fire_danger_rast) <- time(non_forest_fire_danger_rast)
 
 ggplot() +
   geom_spatraster_rgb(data = basemap) +
