@@ -16,9 +16,12 @@ library(maptiles)
 library(climateR)
 
 terraOptions(
-  verbose = TRUE,
+  verbose = FALSE,
   memfrac = 0.9
 )
+
+out_dir <- file.path("./out/forecasts")
+dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
 
 ## Optimal rolling windows determined by dryness analysis script
 
@@ -49,9 +52,7 @@ vpd_forecast_0 <- crop(vpd_forecast_0, nps_boundaries)
 vpd_forecast_1 <- crop(vpd_forecast_1, nps_boundaries)
 vpd_forecast_2 <- crop(vpd_forecast_2, nps_boundaries)
 
-gridmet_url <- "http://thredds.northwestknowledge.net:8080/thredds/dodsC/agg_met_vpd_1979_CurrentYear_CONUS.nc?daily_mean_vapor_pressure_deficit[0:4:0][0:100:0][0:100:0]"
-vpd_gridmet <- rast(gridmet_url)
-
+### Retrieve historical gridMET data through today - 2
 today <- today()
 start_date <- today - 40
 
@@ -150,8 +151,8 @@ new_levels <- data.frame(
 levels(classified_rast) <- new_levels
 
 # View the result
-print(classified_rast)
-plot(classified_rast)
+## print(classified_rast)
+## plot(classified_rast)
 
 forest_mask <- classified_rast == 2
 forest_mask <- subst(forest_mask, FALSE, NA)
@@ -175,9 +176,8 @@ names(non_forest_fire_danger_rast) <- time(non_forest_fire_danger_rast)
 ggplot() +
   geom_spatraster_rgb(data = basemap) +
   geom_spatraster(data = mask(forest_fire_danger_rast, forest_mask)) +
-  # scale_fill_viridis_c(option = "B", na.value = "transparent", limits = c(0, 1)) +
-  # ggnewscale::new_scale_fill() +
   geom_spatraster(data = mask(non_forest_fire_danger_rast, non_forest_mask)) +
   scale_fill_viridis_c(option = "B", na.value = "transparent", limits = c(0, 1)) +
-  facet_wrap(~lyr)
-# ggsave("fire_danger_example.png", height = 8, width = 10)
+  facet_wrap(~lyr, nrow = 2, ncol = 4) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+ggsave(file.path(out_dir, glue("YELL-GRTE-JODR_fire_danger_forecast_{today}.png")), height = 10, width = 12)
