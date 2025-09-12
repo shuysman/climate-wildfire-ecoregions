@@ -23,10 +23,6 @@ terraOptions(
 out_dir <- file.path("./out/forecasts")
 dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
 
-## Optimal rolling windows determined by dryness analysis script
-
-probs <- seq(.01, 1.0, by = .01)
-
 nps_boundaries <- vect("data/nps_boundary/nps_boundary.shp") %>%
   filter(UNIT_CODE %in% c("YELL", "GRTE", "JODR"))
 
