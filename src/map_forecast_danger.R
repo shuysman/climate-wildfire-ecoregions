@@ -187,6 +187,7 @@ ggplot() +
   scale_fill_viridis_c(option = "B", na.value = "transparent", limits = c(0, 1)) +
   facet_wrap(~lyr, nrow = 2, ncol = 4) +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  labs(title = glue("Wildfire danger forecast for YELL/GRTE/JODR from {today}"), fill = "Proportion of Fires") +
   scale_x_continuous(expand = c(0, 0)) +
   scale_y_continuous(expand = c(0, 0))
 ggsave(file.path(out_dir, glue("YELL-GRTE-JODR_fire_danger_forecast_{today}.png")), height = 10, width = 12)
