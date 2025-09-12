@@ -52,6 +52,13 @@ vpd_forecast_2 <- crop(vpd_forecast_2, nps_boundaries)
 today <- today()
 start_date <- today - 40
 
+### Check if most recent forecast is available or raise error
+### Most recent forecast should be vpd_forecast_0 which starts from tomorrow
+most_recent_forecast <- time(subset(vpd_forecast_0, 1))
+if (most_recent_forecast != today + 1) {
+  stop(glue("Most recent forecast date is {most_recent_forecast} but should be {most_recent_forecast + 1}. Exiting..."))
+}
+
 vpd_gridmet <- getGridMET(
   AOI = nps_boundaries,
   varname = "vpd",
