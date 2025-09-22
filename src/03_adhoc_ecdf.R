@@ -31,15 +31,15 @@ middle_rockies_climate <- prepare_climate_data_for_ecoregion(
 vpd_ecdf <- generate_ecdf(
   climate_data = middle_rockies_climate,
   var_name = "VPD",
-  window = 5,
+  window = 15,
   flux_vars = flux_vars,
   state_vars = state_vars,
   state_vars_no_floor = state_vars_no_floor
 )
 
 ## 4. (Optional) Plot and save the ECDF
-plot(vpd_ecdf, main = "5-day VPD ECDF for Middle Rockies Forest")
-saveRDS(vpd_ecdf, "17-middle_rockies-forest-5-VPD-ecdf.RDS")
+plot(vpd_ecdf, main = "15-day VPD ECDF for Middle Rockies Forest")
+saveRDS(vpd_ecdf, "17-middle_rockies-forest-15-VPD-ecdf.RDS")
 
 
 middle_rockies_non_forest_polys <- mtbs_polys_veg %>%
@@ -61,12 +61,12 @@ middle_rockies_nf_climate <- prepare_climate_data_for_ecoregion(
 vpd_nf_ecdf <- generate_ecdf(
   climate_data = middle_rockies_nf_climate,
   var_name = "VPD",
-  window = 3,
+  window = 5,
   flux_vars = flux_vars,
   state_vars = state_vars,
   state_vars_no_floor = state_vars_no_floor
 )
 
 ## 4. (Optional) Plot and save the ECDF
-plot(vpd_nf_ecdf, main = "3-day VPD ECDF for Middle Rockies Non-forest")
-saveRDS(vpd_nf_ecdf, "17-middle_rockies-non_forest-3-VPD-ecdf.RDS")
+plot(vpd_nf_ecdf, main = "5-day VPD ECDF for Middle Rockies Non-forest")
+saveRDS(vpd_nf_ecdf, "17-middle_rockies-non_forest-5-VPD-ecdf.RDS")

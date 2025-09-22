@@ -31,18 +31,18 @@ vpd_data <- rast(vpd_data_files) %>%
 
 time(vpd_data) <- as_date(depth(vpd_data), origin = "1900-01-01")
 
-forest_quants_rast <- terra::roll(vpd_data, n = 5, fun = mean, type = "to", circular = FALSE, overwrite = TRUE) %>%
+forest_quants_rast <- terra::roll(vpd_data, n = 15, fun = mean, type = "to", circular = FALSE, overwrite = TRUE) %>%
   terra::round(digits = 1) %>%
   subst(0, NA) %>%
   terra::app(function(x) replace_duplicated(x)) %>%
   terra::quantile(probs = probs, na.rm = TRUE)
 
-writeCDF(forest_quants_rast, "./out/ecdf/17-middle_rockies-forest/17-middle_rockies-forest-5-VPD-quants.nc", overwrite = TRUE, split = TRUE)
+writeCDF(forest_quants_rast, "./out/ecdf/17-middle_rockies-forest/17-middle_rockies-forest-15-VPD-quants.nc", overwrite = TRUE, split = TRUE)
 
-non_forest_quants_rast <- terra::roll(vpd_data, n = 3, fun = mean, type = "to", circular = FALSE, overwrite = TRUE) %>%
+non_forest_quants_rast <- terra::roll(vpd_data, n = 5, fun = mean, type = "to", circular = FALSE, overwrite = TRUE) %>%
   terra::round(digits = 1) %>%
   subst(0, NA) %>%
   terra::app(function(x) replace_duplicated(x)) %>%
   terra::quantile(probs = probs, na.rm = TRUE)
 
-writeCDF(non_forest_quants_rast, "./out/ecdf/17-middle_rockies-non_forest/17-middle_rockies-non_forest-3-VPD-quants.nc", overwrite = TRUE, split = TRUE)
+writeCDF(non_forest_quants_rast, "./out/ecdf/17-middle_rockies-non_forest/17-middle_rockies-non_forest-5-VPD-quants.nc", overwrite = TRUE, split = TRUE)

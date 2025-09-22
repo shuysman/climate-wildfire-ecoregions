@@ -90,7 +90,7 @@ prepare_climate_data_for_ecoregion <- function(mtbs_polys, flux_vars, state_vars
 
   climate_ecoregion <- climate_ecoregion %>%
     left_join(select(as.data.frame(mtbs_polys), Event_ID, Ig_Date, maj_veg_cl), by = "Event_ID") %>%
-    mutate(Ig_Date = as_date(Ig_Date)) %>% ### Cast Ig_Date as date instead of dttm, to allow comparison with daily dates
+    mutate(Ig_Date = as_date(with_tz(Ig_Date, "America/Denver"))) %>% ### Cast Ig_Date as date instead of dttm, to allow comparison with daily dates. Gridmet dates are in mountain timezone, so convert mtbs dates (UTC) to mountain time for proper comparison
     mutate(fire = if_else(date == Ig_Date, 1, 0))
 
   return(climate_ecoregion)

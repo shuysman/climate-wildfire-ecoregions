@@ -30,8 +30,8 @@ probs <- seq(.01, 1.0, by = .01)
 nps_boundaries <- vect("data/nps_boundary/nps_boundary.shp") %>%
   filter(UNIT_CODE %in% c("YELL", "GRTE", "JODR"))
 
-forest_quants_rast <- rast("./out/ecdf/17-middle_rockies-forest/17-middle_rockies-forest-5-VPD-quants.nc")
-non_forest_quants_rast <- rast("./out/ecdf/17-middle_rockies-forest/17-middle_rockies-forest-5-VPD-quants.nc")
+forest_quants_rast <- rast("./out/ecdf/17-middle_rockies-forest/17-middle_rockies-forest-15-VPD-quants.nc")
+non_forest_quants_rast <- rast("./out/ecdf/17-middle_rockies-non_forest/17-middle_rockies-non_forest-5-VPD-quants.nc")
 
 
 ### Today's Forecast File
@@ -101,11 +101,11 @@ bin_rast <- function(new_rast, quants_rast, probs) {
 }
 
 
-forest_data <- terra::roll(vpd_series, n = 5, fun = mean, type = "to", circular = FALSE, overwrite = TRUE)
-non_forest_data <- terra::roll(vpd_series, n = 3, fun = mean, type = "to", circular = FALSE, overwrite = TRUE)
+forest_data <- terra::roll(vpd_series, n = 15, fun = mean, type = "to", circular = FALSE, overwrite = TRUE)
+non_forest_data <- terra::roll(vpd_series, n = 5, fun = mean, type = "to", circular = FALSE, overwrite = TRUE)
 
 forest_fire_danger_rast <- rast()
-forest_fire_danger_ecdf <- readRDS("/home/steve/sync/pyrome-fire/out/ecdf/17-middle_rockies-forest/17-middle_rockies-forest-5-VPD-ecdf.RDS")
+forest_fire_danger_ecdf <- readRDS("/home/steve/sync/pyrome-fire/out/ecdf/17-middle_rockies-forest/17-middle_rockies-forest-15-VPD-ecdf.RDS")
 for (n in 1:nlyr(forest_data)) {
   forest_percentile_rast <- bin_rast(subset(forest_data, n), forest_quants_rast, probs)
   forest_fire_danger_rast <- c(forest_fire_danger_rast, terra::app(forest_percentile_rast, fun = \(x) forest_fire_danger_ecdf(x)))
@@ -114,7 +114,7 @@ for (n in 1:nlyr(forest_data)) {
 time(forest_fire_danger_rast) <- dates
 
 non_forest_fire_danger_rast <- rast()
-non_forest_fire_danger_ecdf <- readRDS("/home/steve/sync/pyrome-fire/out/ecdf/17-middle_rockies-non_forest/17-middle_rockies-non_forest-3-VPD-ecdf.RDS")
+non_forest_fire_danger_ecdf <- readRDS("/home/steve/sync/pyrome-fire/out/ecdf/17-middle_rockies-non_forest/17-middle_rockies-non_forest-5-VPD-ecdf.RDS")
 for (n in 1:nlyr(non_forest_data)) {
   non_forest_percentile_rast <- bin_rast(subset(non_forest_data, n), non_forest_quants_rast, probs)
   non_forest_fire_danger_rast <- c(non_forest_fire_danger_rast, terra::app(non_forest_percentile_rast, fun = \(x) non_forest_fire_danger_ecdf(x)))
@@ -186,8 +186,8 @@ ggplot() +
   geom_spatraster(data = mask(non_forest_fire_danger_rast, non_forest_mask)) +
   scale_fill_viridis_c(option = "B", na.value = "transparent", limits = c(0, 1)) +
   facet_wrap(~lyr, nrow = 2, ncol = 4) +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
   labs(title = glue("Wildfire danger forecast for YELL/GRTE/JODR from {today}"), fill = "Proportion of Fires") +
   scale_x_continuous(expand = c(0, 0)) +
   scale_y_continuous(expand = c(0, 0))
-ggsave(file.path(out_dir, glue("YELL-GRTE-JODR_fire_danger_forecast_{today}.png")), height = 10, width = 12)
+ggsave(file.path(out_dir, glue("YELL-GRTE-JODR_fire_danger_forecast_{today}.png")), height = 8, width = 12)
