@@ -207,7 +207,7 @@ server <- function(input, output, session) {
       addProviderTiles(providers$CartoDB.Positron) %>%
       addRasterImage(fire_danger_today, colors = pal, opacity = 0.8, project = TRUE) %>%
       addLegend(
-        pal = pal, values = values(fire_danger_today),
+        pal = pal, values = c(0, 1),
         title = "Fire Danger"
       ) %>%
       fitBounds(ext(fire_danger_today)$xmin[[1]], ext(fire_danger_today)$ymin[[1]], ext(fire_danger_today)$xmax[[1]], ext(fire_danger_today)$ymax[[1]])
