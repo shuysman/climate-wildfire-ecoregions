@@ -103,17 +103,21 @@ server <- function(input, output, session) {
 
     percent_above$date <- time(fire_danger_rast)
 
+    ## Split date for rectangle annotations on thresholdplot
+    split_date <- today() - 1.5
+
     ggplot(percent_above, aes(x = date, y = mean)) +
       annotate("rect",
-        xmin = min(percent_above$date), xmax = today() - 2,
+        xmin = min(percent_above$date), xmax = split_date,
         ymin = -Inf, ymax = Inf, fill = "blue", alpha = 0.2
       ) +
       annotate("rect",
-        xmin = today() - 1, xmax = max(percent_above$date),
+        xmin = split_date, xmax = max(percent_above$date),
         ymin = -Inf, ymax = Inf, fill = "green", alpha = 0.2
       ) +
       geom_col() +
-      geom_vline(xintercept = today(), color = "red", linetype = "dashed") +
+      geom_vline(xintercept = today(), color = "red", linetype = "dashed", size = 1.25) +
+      annotate("text", x = today(), y = Inf, label = "Today", vjust = -0.5, color = "red", fontface = "bold") +
       scale_x_date(date_breaks = "1 day") +
       theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
       scale_y_continuous(labels = scales::percent) +
@@ -166,7 +170,7 @@ server <- function(input, output, session) {
     fire_danger_rast <- fire_danger_rasters()
     if (!is.null(fire_danger_rast)) {
       bbox <- ext(fire_danger_rast)
-      api_url <- "https://api.weatherbit.io/v2.0/history/lightning?lat=43.5459517032319&lon=-111.162554452619&end_lat=45.1292422224309&end_lon=-109.829085745439&date=2025-09-21&key=79a7ca57b438429c93dbf9252c983550"
+      api_url <- glue("https://api.weatherbit.io/v2.0/history/lightning?lat=43.5459517032319&lon=-111.162554452619&end_lat=45.1292422224309&end_lon=-109.829085745439&date={today()}&key=79a7ca57b438429c93dbf9252c983550")
 
       tryCatch(
         {
@@ -209,7 +213,7 @@ server <- function(input, output, session) {
 
   observe({
     lightning <- lightning_data()
-    if (!is.null(lightning) && !is.null(lightning$lightning) && nrow(lightning$lightning) > 0) {
+    if (!is.null(lightning) && !is.null(lightning$lightning) && is.data.frame(lightning$lightning) && nrow(lightning$lightning) > 0) {
       fire_danger_rast <- fire_danger_rasters()
       if (is.null(fire_danger_rast)) {
         return()
