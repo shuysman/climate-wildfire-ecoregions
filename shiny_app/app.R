@@ -196,7 +196,7 @@ server <- function(input, output, session) {
     }
 
     # Get the fire danger for today
-    fire_danger_today <- fire_danger_rast[[which(time(fire_danger_rast) == today())]]
+    fire_danger_today <- fire_danger_rast %>% subset(time(.) == today())
     fire_danger_today <- aggregate(fire_danger_today, fact = 2)
     pal <- colorNumeric(viridisLite::viridis(256, option = "B"),
       domain = c(0, 1),
@@ -221,7 +221,7 @@ server <- function(input, output, session) {
         return()
       }
 
-      fire_danger_today <- fire_danger_rast[[which(time(fire_danger_rast) == today())]]
+      fire_danger_today <- fire_danger_rast %>% subset(time(.) == today())
       fire_danger_today <- aggregate(fire_danger_today, fact = 2)
 
       # Extract fire danger values for each lightning strike
