@@ -7,6 +7,7 @@ library(glue)
 library(here)
 library(leaflet)
 library(jsonlite)
+library(viridisLite)
 
 # Define UI
 ui <- fluidPage(
@@ -197,7 +198,7 @@ server <- function(input, output, session) {
     # Get the fire danger for today
     fire_danger_today <- fire_danger_rast[[which(time(fire_danger_rast) == today())]]
     fire_danger_today <- aggregate(fire_danger_today, fact = 2)
-    pal <- colorNumeric(c("#556B2F", "#FFFF00", "#FFA500", "#FF0000"),
+    pal <- colorNumeric(viridisLite::viridis(256, option = "B"),
       domain = c(0, 1),
       na.color = "transparent"
     )
@@ -227,7 +228,7 @@ server <- function(input, output, session) {
       lightning_vect <- vect(lightning$lightning, geom = c("lon", "lat"), crs = "EPSG:4326")
       fire_danger_values <- terra::extract(fire_danger_today, lightning_vect)
       # Create a color palette for the markers
-      marker_pal <- colorNumeric(c("#556B2F", "#FFFF00", "#FFA500", "#FF0000"), domain = c(0, 1), na.color = "#808080")
+      marker_pal <- colorNumeric(viridisLite::viridis(256, option = "B"), domain = c(0, 1), na.color = "#808080")
 
       # Get the colors for each marker
       marker_colors <- marker_pal(fire_danger_values[, 2])
