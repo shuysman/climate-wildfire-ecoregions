@@ -25,7 +25,8 @@ ui <- fluidPage(
         sidebarPanel(
           sliderInput("threshold", "Fire Danger Threshold:",
             min = 0, max = 1, value = 0.5, step = 0.01
-          )
+          ),
+          helpText("The fire danger threshold represents the proportion of historical fires that occurred at or below a certain dryness level. For example, a threshold of 0.5 means that 50% of historical fires occurred at or below the corresponding dryness level.")
         ),
         mainPanel(
           plotOutput("threshold_plot")
