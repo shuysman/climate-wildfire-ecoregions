@@ -195,6 +195,25 @@ process_roc <- function(climate_data, cover, windows, state_vars, state_vars_no_
   return(list(auc = auc_data, best = best_predictors))
 }
 
+bin_rast <- function(new_rast, quants_rast, probs) {
+  # Count how many quantile layers the new value is greater than.
+  # This results in a raster of integers from 0 to 9.
+  bin_index_rast <- sum(new_rast > quants_rast)
+
+  # Now, map this integer index back to a percentile value.
+  # We need a mapping from [0, 1, 2, ..., 9] to [0, 0.1, 0.2, ..., 0.9]
+  # A value of 0 means it was smaller than the 1st quantile (q_0.1)
+  # A value of 9 means it was larger than the 9th quantile (q_0.9)
+  percentile_map <- c(0, probs)
+  from_vals <- 0:length(probs)
+  rcl_matrix <- cbind(from_vals, percentile_map)
+
+  # Use classify to create the final approximate percentile raster
+  percentile_rast_binned <- classify(bin_index_rast, rcl = rcl_matrix)
+
+  return(percentile_rast_binned)
+}
+
 ## Global parameters
 windows <- seq(1:31) ## Rolling window widths to test
 
@@ -215,18 +234,3 @@ min_cover <- 20 ## Minimum samples for cover type to run analysis
 ecoregions <- read_csv("data/ecoregion_cover_counts.csv") %>%
   filter(!is.na(US_L3CODE)) %>%
   filter(n >= min_cover)
-
-## test Execution
-## results_list <- future_map(
-##   17,
-##   ~ process_ecoregion_cover(
-##     i = .x,
-##     bad_sites = bad_sites,
-##     flux_vars = flux_vars,
-##     state_vars = state_vars,
-##     state_vars_no_floor = state_vars_no_floor,
-##     windows = 1,
-##   ),
-##   .options = furrr_options(seed = TRUE)
-## )
-## process_ecoregion_cover(i = 4, bad_sites = bad_sites, flux_vars = flux_vars, state_vars = state_vars, state_vars_no_floor = state_vars_no_floor, windows = 1)
