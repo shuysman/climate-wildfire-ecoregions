@@ -20,11 +20,13 @@ For example, a VPD value might be normal for Arizona but extreme for Oregon. By 
 
 ### 3. The eCDF: Turning Weather into Risk
 
-The heart of our system is the **Empirical Cumulative Distribution Function (eCDF)** plot you see on this page. This plot shows the relationship between the local dryness percentile (on the x-axis) and the historical probability of a fire starting (on the y-axis).
+The heart of our system is the **Empirical Cumulative Distribution Function (eCDF)**. This plot shows the relationship between the local dryness percentile (on the x-axis) and the historical probability of a fire starting (on the y-axis).
+
+<img src="ecdf_example.png" alt="eCDF Example" style="max-height: 400px;">
 
 **How to Read the eCDF Plot:**
 
-*   The **x-axis** shows the dryness percentile. A value of 90 means that conditions are drier than 90% of all historical days for that location.
+*   The **x-axis** shows the dryness percentile. A value of 0.5 means that conditions are drier than 50% of all historical days for that location.
 *   The **y-axis** shows the cumulative probability of fire ignition. A value of 0.5 (or 50%) means that 50% of all historical fires in that ecoregion started at or below that dryness level.
 
 By looking at this plot, you can set a risk threshold that makes sense for your management needs. For example, you might decide to increase patrols or issue warnings when the fire danger index reaches a level that corresponds to 75% of historical fire ignitions.
@@ -39,3 +41,17 @@ To generate the daily forecast maps, the system performs the following steps eve
 4.  **Creates the Danger Map:** It uses the eCDF model to convert the percentile rank into a fire danger index (from 0 to 1) for each pixel, creating the final map you see on the "Map" tab.
 
 These daily forecasts are updated around 10 AM MST each day, depending on exact timing of availability from the Northwest Knowledge Network THREDDS server.
+
+### 5. Cover Type
+
+Cover type is a critical factor in fire behavior. This system uses the [LANDFIRE 2023 Existing Vegetation Type](https://www.landfire.gov/evt.php) dataset to distinguish between different vegetation types. The raw data provides detailed classifications, as shown below.
+
+<img src="cover-landfire.png" alt="LANDFIRE Cover Types" style="max-height: 600px;">
+
+To simplify the modeling process, these detailed classifications are grouped into two main categories: "forest" and "non-forest". The script at `src/01_extract_cover.R` automates this process by determining the majority cover type for each area. The resulting categorized data is shown below.
+
+<img src="cover-categorized.png" alt="Categorized Cover Types" style="max-height: 600px;">
+
+### 6. Separate Models for Each Cover Type
+
+A separate fire danger model is generated for each ecoregion and cover type combination. For example, the "Middle Rockies" ecoregion has both a "forest" and a "non-forest" model. This is crucial because fire behavior, and therefore fire danger, differs significantly between these two environments. The script at `src/map_forecast_danger.R` demonstrates how the appropriate model is selected based on the cover type of a given area, ensuring that the fire danger forecast is tailored to the specific vegetation on the ground.

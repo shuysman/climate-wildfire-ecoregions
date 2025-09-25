@@ -38,16 +38,7 @@ ui <- fluidPage(
     tabPanel("Lightning", leafletOutput("lightning_map", height = "800px")),
     tabPanel(
       "Info",
-      fluidRow(
-        column(
-          6,
-          plotOutput("ecdf_plot")
-        ),
-        column(
-          6,
-          includeMarkdown("info.md")
-        )
-      )
+      includeMarkdown("info.md")
     )
   )
 )
@@ -133,38 +124,7 @@ server <- function(input, output, session) {
       )
   })
 
-  output$ecdf_plot <- renderPlot({
-    ecdf <- read_rds("../out/ecdf/17-middle_rockies-forest/17-middle_rockies-forest-15-VPD-ecdf.RDS")
-
-    ecdf_df <- tibble(
-      value = environment(ecdf)$x,
-      probability = environment(ecdf)$y
-    )
-
-    ggplot(ecdf_df, aes(x = value, y = probability)) +
-      annotate("rect", xmin = -Inf, xmax = Inf, ymin = 0, ymax = 0.1, fill = "green", alpha = 0.3) +
-      annotate("rect", xmin = -Inf, xmax = Inf, ymin = 0.1, ymax = 0.4, fill = "yellow", alpha = 0.3) +
-      annotate("rect", xmin = -Inf, xmax = Inf, ymin = 0.4, ymax = 0.75, fill = "orange", alpha = 0.3) +
-      annotate("rect", xmin = -Inf, xmax = Inf, ymin = 0.75, ymax = 1.0, fill = "red", alpha = 0.3) +
-      geom_step(color = "black", size = 1.5) +
-      labs(
-        title = str_wrap("VPD Empirical Cumulative Distribution Function (eCDF)", width = 40),
-        subtitle = str_wrap("Background color indicates percentile-based danger level", width = 40),
-        x = str_wrap("Percentile of 15-day rolling mean of Vapor Pressure Deficit (VPD)", width = 40),
-        y = "Proportion of historical fires (%)"
-      ) +
-      scale_y_continuous(expand = c(0, 0), labels = scales::percent_format()) +
-      scale_x_continuous(expand = c(0, 0)) +
-      theme_bw(base_size = 16) +
-      theme(
-        plot.title = element_text(hjust = 0.5, face = "bold", size = 18, lineheight = 1.1),
-        plot.subtitle = element_text(hjust = 0.5, size = 18, lineheight = 1.1),
-        axis.title.x = element_text(size = 18, lineheight = 1.1),
-        axis.title.y = element_text(size = 18),
-        axis.text = element_text(size = 18),
-        panel.grid.minor = element_blank()
-      )
-  })
+  
 
   lightning_data <- reactiveVal(NULL)
   api_timer <- reactiveTimer(600000) # 10 minutes in milliseconds
