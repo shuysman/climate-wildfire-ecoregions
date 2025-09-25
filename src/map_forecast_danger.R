@@ -170,20 +170,24 @@ basemap <- get_tiles(classified_rast, provider = "Esri.NatGeoWorldMap", zoom = 9
   crop(classified_rast)
 
 forest_fire_danger_rast <- forest_fire_danger_rast %>%
-  subset(time(.) >= today & time(.) <= today + 7) %>%
+  # subset(time(.) >= today & time(.) <= today + 7) %>%
   resample(classified_rast)
 
 non_forest_fire_danger_rast <- non_forest_fire_danger_rast %>%
-  subset(time(.) >= today & time(.) <= today + 7) %>%
+  # subset(time(.) >= today & time(.) <= today + 7) %>%
   resample(classified_rast)
 
 names(forest_fire_danger_rast) <- time(forest_fire_danger_rast)
 names(non_forest_fire_danger_rast) <- time(non_forest_fire_danger_rast)
 
+combined_fire_danger_rast <- cover(
+  mask(forest_fire_danger_rast, forest_mask),
+  mask(non_forest_fire_danger_rast, non_forest_mask)
+)
+
 ggplot() +
   geom_spatraster_rgb(data = basemap) +
-  geom_spatraster(data = mask(forest_fire_danger_rast, forest_mask)) +
-  geom_spatraster(data = mask(non_forest_fire_danger_rast, non_forest_mask)) +
+  geom_spatraster(data = subset(combined_fire_danger_rast, time(combined_fire_danger_rast) >= today & time(combined_fire_danger_rast) <= today + 7)) +
   scale_fill_viridis_c(option = "B", na.value = "transparent", limits = c(0, 1)) +
   facet_wrap(~lyr, nrow = 2, ncol = 4) +
   theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
@@ -191,3 +195,6 @@ ggplot() +
   scale_x_continuous(expand = c(0, 0)) +
   scale_y_continuous(expand = c(0, 0))
 ggsave(file.path(out_dir, glue("YELL-GRTE-JODR_fire_danger_forecast_{today}.png")), height = 8, width = 12)
+
+forecast_rast <- subset(combined_fire_danger_rast, time(combined_fire_danger_rast) %in% dates[15:length(dates)]) ### Filter out early dates because the earliest date without NAs for forest is start_date + 14 due to rolling window calculation
+saveRDS(forecast_rast, file.path(out_dir, glue("fire_danger_forecast_{today}.rds")))
