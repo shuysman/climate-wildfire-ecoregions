@@ -8,6 +8,7 @@ library(here)
 library(leaflet)
 library(jsonlite)
 library(viridisLite)
+library(cachem)
 
 # Define UI
 ui <- fluidPage(
@@ -53,6 +54,8 @@ ui <- fluidPage(
 
 # Define server logic
 server <- function(input, output, session) {
+  # Create a cache object
+  lightning_cache <- cachem::cache_disk(here::here("shiny_app", "cache"))
   # Reactive expression to load fire danger rasters
   fire_danger_rasters <- reactive({
     today <- today()
@@ -169,20 +172,29 @@ server <- function(input, output, session) {
   observe({
     api_timer() # Invalidate this observer every 10 minutes
 
-    fire_danger_rast <- fire_danger_rasters()
-    if (!is.null(fire_danger_rast)) {
-      bbox <- ext(fire_danger_rast)
-      api_url <- glue("https://api.weatherbit.io/v2.0/history/lightning?lat=43.5459517032319&lon=-111.162554452619&end_lat=45.1292422224309&end_lon=-109.829085745439&date={today()}&key=79a7ca57b438429c93dbf9252c983550")
+    # Check for cached data
+    cached_data <- lightning_cache$get("lightning_data")
 
-      tryCatch(
-        {
-          new_data <- fromJSON(api_url)
-          lightning_data(new_data)
-        },
-        error = function(e) {
-          message("Error fetching lightning data: ", e$message)
-        }
-      )
+    if (!is.null(cached_data)) {
+      lightning_data(cached_data)
+    } else {
+      fire_danger_rast <- fire_danger_rasters()
+      if (!is.null(fire_danger_rast)) {
+        bbox <- ext(fire_danger_rast)
+        api_url <- glue("https://api.weatherbit.io/v2.0/history/lightning?lat=43.5459517032319&lon=-111.162554452619&end_lat=45.1292422224309&end_lon=-109.829085745439&date={today()}&key=79a7ca57b438429c93dbf9252c983550")
+
+        tryCatch(
+          {
+            new_data <- fromJSON(api_url)
+            lightning_data(new_data)
+            # Cache the new data for 1 hour
+            lightning_cache$set("lightning_data", new_data, expire = 3600)
+          },
+          error = function(e) {
+            message("Error fetching lightning data: ", e$message)
+          }
+        )
+      }
     }
   })
 
