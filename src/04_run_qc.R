@@ -2,7 +2,7 @@ library(tidyverse)
 library(terra)
 library(tidyterra)
 library(RColorBrewer)
-#library(ggpattern)
+# library(ggpattern)
 
 auc_data <- read_csv("out/auc_data.csv")
 
@@ -21,7 +21,8 @@ best_predictors %>%
 ## Rolling window by predictor variable
 best_predictors %>%
   ggplot() +
-  geom_density(aes(window, color = var))
+  geom_density(aes(window, color = var)) +
+  theme_bw()
 
 
 ecoregions <- vect("data/us_eco_l3/us_eco_l3.shp") %>%
@@ -38,7 +39,7 @@ nps_boundaries <- vect("./data/nps_boundary/nps_boundary.shp") %>%
 ggplot() +
   geom_spatvector(data = ecoregions, fill = "white") +
   geom_spatvector(data = forest, aes(fill = var)) +
-  #geom_sf_pattern(data = nps_boundaries, pattern = "crosshatch", pattern_fill = "white") +
+  # geom_sf_pattern(data = nps_boundaries, pattern = "crosshatch", pattern_fill = "white") +
   scale_fill_brewer(palette = "Set3") +
   ggtitle("Best fire predictors—forest")
 ggsave("forest-predictors.png")
