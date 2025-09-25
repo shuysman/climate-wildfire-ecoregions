@@ -120,7 +120,7 @@ server <- function(input, output, session) {
       geom_col() +
       geom_vline(xintercept = today(), color = "red", linetype = "dashed", size = 1.25) +
       annotate("text", x = today(), y = Inf, label = "Today", vjust = -0.5, color = "red", fontface = "bold") +
-      scale_x_date(date_breaks = "1 day") +
+      scale_x_date(date_breaks = "1 day", expand = c(0, 0)) +
       theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
       scale_y_continuous(labels = scales::percent) +
       labs(
