@@ -110,11 +110,11 @@ server <- function(input, output, session) {
 
     ggplot(percent_above, aes(x = date, y = mean)) +
       annotate("rect",
-        xmin = min(percent_above$date), xmax = split_date,
+        xmin = min(percent_above$date) - .5, xmax = split_date,
         ymin = -Inf, ymax = Inf, fill = "blue", alpha = 0.2
       ) +
       annotate("rect",
-        xmin = split_date, xmax = max(percent_above$date),
+        xmin = split_date, xmax = max(percent_above$date) + .5,
         ymin = -Inf, ymax = Inf, fill = "green", alpha = 0.2
       ) +
       geom_col() +
