@@ -35,10 +35,17 @@ ui <- fluidPage(
         )
       )
     ),
-    tabPanel("Lightning", leafletOutput("lightning_map", height = "800px")),
+    tabPanel(
+      "Lightning",
+      leafletOutput("lightning_map")
+    ),
     tabPanel(
       "Info",
       includeMarkdown("info.md")
+    ),
+    tabPanel(
+      "Lightning Strikes (Demo)",
+      leafletOutput("lightning_map_demo")
     )
   )
 )
@@ -124,7 +131,7 @@ server <- function(input, output, session) {
       )
   })
 
-  
+
 
   lightning_data <- reactiveVal(NULL)
   api_timer <- reactiveTimer(600000) # 10 minutes in milliseconds
@@ -164,7 +171,7 @@ server <- function(input, output, session) {
       return(leaflet() %>%
         addProviderTiles(providers$CartoDB.Positron) %>%
         setView(lng = -110.5, lat = 44.5, zoom = 8) %>%
-        addControl("Forecast data not available.", position = "topright"))
+        addControl("<h2>Forecast data not available.</h2><p>Please check if the forecast has been generated for today.</p>", position = "topright"))
     }
 
     # Get the fire danger for today
@@ -194,7 +201,7 @@ server <- function(input, output, session) {
       }
 
       fire_danger_today <- fire_danger_rast %>% subset(time(.) == today())
-      fire_danger_today <- aggregate(fire_danger_today, fact = 2)
+      fire_danger_today <- aggregate(fire_danger_today, fact = 4)
 
       # Extract fire danger values for each lightning strike
       lightning_vect <- vect(lightning$lightning, geom = c("lon", "lat"), crs = "EPSG:4326")
@@ -211,7 +218,68 @@ server <- function(input, output, session) {
           data = lightning$lightning, lng = ~lon, lat = ~lat, popup = ~ paste("Time:", timestamp_utc),
           color = marker_colors, radius = 5, stroke = FALSE, fillOpacity = 0.8
         )
+    } else {
+      leafletProxy("lightning_map") %>% clearMarkers()
     }
+  })
+
+  output$lightning_map_demo <- renderLeaflet({
+    fire_danger_rast <- fire_danger_rasters()
+    if (is.null(fire_danger_rast)) {
+      return(leaflet() %>%
+        addProviderTiles(providers$CartoDB.Positron) %>%
+        setView(lng = -110.5, lat = 44.5, zoom = 8) %>%
+        addControl("Forecast data not available.", position = "topright"))
+    }
+
+    # Get the fire danger for today
+    # fire_danger_today <- fire_danger_rast %>% subset(time(.) == today())
+    fire_danger_today <- fire_danger_rast %>% subset(time(.) == "2025-09-29")
+    fire_danger_today <- aggregate(fire_danger_today, fact = 4)
+    pal <- colorNumeric(viridisLite::viridis(256, option = "B"),
+      domain = c(0, 1),
+      na.color = "transparent"
+    )
+
+    # Load sample lightning data
+    lightning_strikes <- terra::vect(here("data", "sample-lightning-strikes.gpkg"))
+    lightning_strikes <- terra::extract(fire_danger_today, lightning_strikes, bind = TRUE)
+
+    getColor <- function(lightning_strikes) {
+      sapply(values(lightning_strikes)[, 1], function(mag) {
+        if (mag <= .1) {
+          "black"
+        } else if (mag <= .25) {
+          "orange"
+        } else if (mag <= .5) {
+          "red"
+        } else {
+          "darkred"
+        }
+      })
+    }
+
+    icons <- awesomeIcons(
+      icon = "ios-close",
+      iconColor = "black",
+      library = "ion",
+      text = "🗲",
+      markerColor = getColor(lightning_strikes)
+    )
+
+    labels <- round(values(lightning_strikes)[, 1], 2)
+
+    leaflet() %>%
+      addProviderTiles(providers$CartoDB.Positron) %>%
+      addRasterImage(fire_danger_today, colors = pal, opacity = 0.8, project = TRUE) %>%
+      addLegend(
+        pal = pal, values = c(0, 1),
+        title = "Fire Danger"
+      ) %>%
+      fitBounds(ext(fire_danger_today)$xmin[[1]], ext(fire_danger_today)$ymin[[1]], ext(fire_danger_today)$xmax[[1]], ext(fire_danger_today)$ymax[[1]]) %>%
+      addAwesomeMarkers(
+        data = lightning_strikes, icon = icons, label = ~labels
+      )
   })
 }
 
