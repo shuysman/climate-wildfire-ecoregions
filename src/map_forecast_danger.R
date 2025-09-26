@@ -8,7 +8,10 @@
 ### proportion of wildfires that burned at or below the corresponding
 ### percentile of dryness.
 
-source("./src/03_dryness.R")
+library(tidyverse)
+library(terra)
+library(tidyterra)
+library(glue)
 library(maptiles)
 library(climateR)
 
