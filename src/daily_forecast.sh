@@ -18,5 +18,8 @@ Rscript ./src/map_forecast_danger.R
 # Run the threshold plot generation script
 Rscript ./src/generate_threshold_plots.R
 
+# Generate the daily HTML report
+./src/generate_daily_html.sh
+
 echo "Daily forecast generation complete."
 echo "$(date)"

@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daily Fire Danger Forecast</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            background-color: #f4f4f9;
+            color: #333;
+        }
+        header {
+            background-color: #4a4a4a;
+            color: white;
+            padding: 1rem 0;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding-left: 220px; /* Make space for the navbar */
+        }
+        h1, h2, h3 {
+            text-align: center;
+        }
+        .main-container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-left: 220px; /* Make space for the navbar */
+        }
+        .container {
+            background-color: white;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+            width: 100%;
+        }
+        .hidden {
+            display: none;
+        }
+        img {
+            max-width: 100%;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            cursor: pointer;
+        }
+        iframe {
+            width: 100%;
+            height: 800px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .navbar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 200px;
+            height: 100%;
+            background-color: #333;
+            padding-top: 20px;
+        }
+        .navbar ul {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+        }
+        .navbar li a {
+            display: block;
+            color: white;
+            padding: 15px 20px;
+            text-decoration: none;
+        }
+        .navbar li a:hover {
+            background-color: #555;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.9);
+        }
+        .modal-content {
+            margin: auto;
+            display: block;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            max-width: 90vw;
+            max-height: 90vh;
+        }
+        .close {
+            position: absolute;
+            top: 15px;
+            right: 35px;
+            color: #f1f1f1;
+            font-size: 40px;
+            font-weight: bold;
+            transition: 0.3s;
+        }
+        .close:hover,
+        .close:focus {
+            color: #bbb;
+            text-decoration: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <ul>
+            <li><a href="#forecast-map">7-Day Forecast</a></li>
+            <li><a href="#threshold-plots">Threshold Plots</a></li>
+            <li><a href="#lightning-map">Lightning Map</a></li>
+            <li><a href="#info">Info</a></li>
+        </ul>
+    </nav>
+
+    <header>
+        <h1>Daily Fire Danger Forecast for __DATE__</h1>
+    </header>
+
+    <div class="main-container">
+        <div id="forecast-map" class="container content-section">
+            <h2>7-Day Forecast Map</h2>
+            <img src="YELL-GRTE-JODR_fire_danger_forecast___DATE__.png" alt="7-Day Fire Danger Forecast Map">
+        </div>
+
+        <div id="threshold-plots" class="container content-section">
+            <h2>Fire Danger Threshold Plots</h2>
+            <p>These plots show the percentage of the park area that is at or above a specific fire danger threshold. The fire danger threshold represents the proportion of historical fires that occurred at or below a certain dryness level.</p>
+
+            <h3>Threshold: 0.25</h3>
+            <img src="threshold_plot_0.25.png" alt="Fire Danger Threshold Plot at 0.25">
+
+            <h3>Threshold: 0.50</h3>
+            <img src="threshold_plot_0.5.png" alt="Fire Danger Threshold Plot at 0.50">
+
+            <h3>Threshold: 0.75</h3>
+            <img src="threshold_plot_0.75.png" alt="Fire Danger Threshold Plot at 0.75">
+        </div>
+
+        <div id="lightning-map" class="container content-section">
+            <h2>Lightning Map</h2>
+            <iframe src="lightning_map___DATE__.html"></iframe>
+        </div>
+
+        <div id="info" class="container content-section">
+            <h2>How This Fire Danger System Works</h2>
+
+            <p>This tool provides a daily forecast of wildfire ignition danger, designed to be both scientifically robust and easy for land managers to use. Here’s a simplified overview of how it works:</p>
+
+            <h3>1. Finding the Best Weather Indicators</h3>
+
+            <p>Our goal was to find the simplest and most effective weather signals for predicting when and where a fire is likely to start. We analyzed decades of historical data on wildfires and weather, looking at variables like:</p>
+
+            <ul>
+                <li><strong>Vapor Pressure Deficit (VPD):</strong> A measure of how dry the air is.</li>
+                <li><strong>Climatic Water Deficit (CWD):</strong> An indicator of drought stress in plants.</li>
+                <li><strong>Temperature</strong></li>
+            </ul>
+
+            <p>We tested these indicators over different time windows (e.g., the last 3 days, 7 days, etc.) to find the combination that best predicted past fire ignitions for each specific ecoregion.</p>
+
+            <h3>2. Creating a Local "Normal"</h3>
+
+            <p>A hot, dry day in a desert is very different from a hot, dry day in a forest. To account for these local differences, we don’t use the raw weather values. Instead, we convert them to a <strong>percentile rank</strong>.</p>
+
+            <p>For example, a VPD value might be normal for Arizona but extreme for Oregon. By converting it to a percentile, we can see that it’s the 99th percentile of dryness for that specific location in Oregon, indicating a much higher risk than the raw value would suggest.</p>
+
+            <h3>3. The eCDF: Turning Weather into Risk</h3>
+
+            <p>The heart of our system is the <strong>Empirical Cumulative Distribution Function (eCDF)</strong>. This plot shows the relationship between the local dryness percentile (on the x-axis) and the historical probability of a fire starting (on the y-axis).</p>
+
+            <img src="ecdf_example.png" alt="eCDF Example" style="max-height: 400px;">
+
+            <p><strong>How to Read the eCDF Plot:</strong></p>
+
+            <ul>
+                <li>The <strong>x-axis</strong> shows the dryness percentile. A value of 0.5 means that conditions are drier than 50% of all historical days for that location.</li>
+                <li>The <strong>y-axis</strong> shows the cumulative probability of fire ignition. A value of 0.5 (or 50%) means that 50% of all historical fires in that ecoregion started at or below that dryness level.</li>
+            </ul>
+
+            <p>By looking at this plot, you can set a risk threshold that makes sense for your management needs. For example, you might decide to increase patrols or issue warnings when the fire danger index reaches a level that corresponds to 75% of historical fire ignitions.</p>
+
+            <h3>4. Daily Forecasting</h3>
+
+            <p>To generate the daily forecast maps, the system performs the following steps every day:</p>
+
+            <ol>
+                <li><strong>Gets the Latest Data:</strong> It automatically downloads the latest historical weather data and the newest 7-day weather forecast.</li>
+                <li><strong>Calculates Dryness:</strong> It calculates the best-performing dryness indicator (like the 5-day average VPD) for the forecast period.</li>
+                <li><strong>Compares to Normal:</strong> It compares the forecast dryness to the pre-calculated local "normal" for every pixel on the map to get a percentile rank.</li>
+                <li><strong>Creates the Danger Map:</strong> It uses the eCDF model to convert the percentile rank into a fire danger index (from 0 to 1) for each pixel, creating the final map you see on the "Map" tab.</li>
+            </ol>
+
+            <p>These daily forecasts are updated around 10 AM MST each day, depending on exact timing of availability from the Northwest Knowledge Network THREDDS server.</p>
+
+            <h3>5. Cover Type</h3>
+
+            <p>Cover type is a critical factor in fire behavior. This system uses the <a href="https://www.landfire.gov/evt.php">LANDFIRE 2023 Existing Vegetation Type</a> dataset to distinguish between different vegetation types. The raw data provides detailed classifications, as shown below.</p>
+
+            <img src="cover-landfire.png" alt="LANDFIRE Cover Types" style="max-height: 600px;">
+
+            <p>To simplify the modeling process, these detailed classifications are grouped into two main categories: "forest" and "non-forest". The script at <code>src/01_extract_cover.R</code> automates this process by determining the majority cover type for each area. The resulting categorized data is shown below.</p>
+
+            <img src="cover-categorized.png" alt="Categorized Cover Types" style="max-height: 600px;">
+
+            <h3>6. Separate Models for Each Cover Type</h3>
+
+            <p>A separate fire danger model is generated for each ecoregion and cover type combination. For example, the "Middle Rockies" ecoregion has both a "forest" and a "non-forest" model. This is crucial because fire behavior, and therefore fire danger, differs significantly between these two environments. The script at <code>src/map_forecast_danger.R</code> demonstrates how the appropriate model is selected based on the cover type of a given area, ensuring that the fire danger forecast is tailored to the specific vegetation on the ground.</p>
+        </div>
+    </div>
+
+    <div id="myModal" class="modal">
+        <span class="close">&times;</span>
+        <img class="modal-content" id="img01">
+    </div>
+
+    <script>
+        // Image modal
+        var modal = document.getElementById("myModal");
+        var modalImg = document.getElementById("img01");
+        var images = document.getElementsByTagName("img");
+        for (var i = 0; i < images.length; i++) {
+            images[i].onclick = function(){
+                modal.style.display = "block";
+                modalImg.src = this.src;
+            }
+        }
+        var span = document.getElementsByClassName("close")[0];
+        span.onclick = function() { 
+            modal.style.display = "none";
+        }
+        modal.onclick = function(event) {
+            if (event.target == modal) {
+                modal.style.display = "none";
+            }
+        }
+
+        // Close modal on escape key press
+        document.addEventListener("keydown", function(event) {
+            if (event.key === "Escape" && modal.style.display === "block") {
+                modal.style.display = "none";
+            }
+        });
+
+        // Navigation
+        function showContent(id) {
+            var sections = document.getElementsByClassName("content-section");
+            for (var i = 0; i < sections.length; i++) {
+                sections[i].classList.add("hidden");
+            }
+            document.getElementById(id).classList.remove("hidden");
+        }
+
+        window.onhashchange = function() {
+            var hash = window.location.hash.substring(1);
+            if (hash) {
+                showContent(hash);
+            } else {
+                showContent("forecast-map");
+            }
+        }
+
+        // Initial load
+        var initialHash = window.location.hash.substring(1);
+        if (initialHash) {
+            showContent(initialHash);
+        } else {
+            showContent("forecast-map");
+        }
+    </script>
+
+</body>
+</html>
