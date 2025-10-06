@@ -84,6 +84,28 @@ These are the master scripts that control the execution of the entire system.
     3.  Generates a self-contained, interactive Leaflet map as an HTML file.
     4.  This map includes a header with the time of the last update and a table of lightning strikes, including their location and the fire danger at that point. If there are no strikes, it displays a message indicating that.
 
+```mermaid
+graph TD
+    subgraph Daily Process
+        A[daily_forecast.sh] --> B(update_rotate_vpd_forecasts.sh);
+        B --> C{{VPD Forecast Data}};
+        A --> D(map_forecast_danger.R);
+        C --> D;
+        D --> E{{Forecast Raster (.rds)}};
+        D --> F[7-Day Forecast Map (.png)];
+        A --> G(generate_threshold_plots.R);
+        E --> G;
+        G --> H[Threshold Plots (.png)];
+    end
+
+    subgraph Hourly Process
+        I[hourly_lightning_map.sh] --> J(map_lightning.R);
+        E --> J;
+        K{{Weatherbit API}} --> J;
+        J --> L[Lightning Map (.html)];
+    end
+```
+
 ## Data Sources
 
 *   **Wildfire Data**: [Monitoring Trends in Burn Severity (MTBS)](https://www.mtbs.gov/)
