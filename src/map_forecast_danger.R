@@ -15,6 +15,26 @@ library(glue)
 library(maptiles)
 library(climateR)
 
+bin_rast <- function(new_rast, quants_rast, probs) {
+  # Count how many quantile layers the new value is greater than.
+  # This results in a raster of integers from 0 to 9.
+  bin_index_rast <- sum(new_rast > quants_rast)
+
+  # Now, map this integer index back to a percentile value.
+  # We need a mapping from [0, 1, 2, ..., 9] to [0, 0.1, 0.2, ..., 0.9]
+  # A value of 0 means it was smaller than the 1st quantile (q_0.1)
+  # A value of 9 means it was larger than the 9th quantile (q_0.9)
+  percentile_map <- c(0, probs)
+  from_vals <- 0:length(probs)
+  rcl_matrix <- cbind(from_vals, percentile_map)
+
+  # Use classify to create the final approximate percentile raster
+  percentile_rast_binned <- classify(bin_index_rast, rcl = rcl_matrix)
+
+  return(percentile_rast_binned)
+}
+
+
 terraOptions(
   verbose = FALSE,
   memfrac = 0.9
