@@ -2,14 +2,15 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-echo "Starting daily forecast generation ${date} ..."
+echo "Starting daily forecast generation..."
+echo "$(date)"
 
 PROJECT_DIR=/home/steve/sync/pyrome-fire
 
 cd $PROJECT_DIR
 
 # Run the update script
-#./src/update_rotate_vpd_forecasts.sh
+./src/update_rotate_vpd_forecasts.sh
 
 # Run the map generation script
 Rscript ./src/map_forecast_danger.R
@@ -17,4 +18,5 @@ Rscript ./src/map_forecast_danger.R
 # Run the threshold plot generation script
 Rscript ./src/generate_threshold_plots.R
 
-echo "Daily forecast generation complete ${date}."
+echo "Daily forecast generation complete."
+echo "$(date)"
