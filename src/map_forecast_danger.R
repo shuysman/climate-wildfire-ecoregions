@@ -83,17 +83,28 @@ if (most_recent_forecast != today + 1) {
   stop(glue("Most recent forecast date is {most_recent_forecast} but should be {most_recent_forecast + 1}. Exiting..."))
 }
 
-vpd_gridmet <- getGridMET(
-  AOI = nps_boundaries,
-  varname = "vpd",
-  startDate = start_date,
-  endDate = today - 2,
-  verbose = TRUE
+vpd_gridmet <- tryCatch(
+  {
+    getGridMET(
+      AOI = nps_boundaries,
+      varname = "vpd",
+      startDate = start_date,
+      endDate = today - 2,
+      verbose = TRUE
+    )$daily_mean_vapor_pressure_deficit %>%
+      project(crs(vpd_forecast_0)) %>%
+      crop(vpd_forecast_0)
+  },
+  error = function(e) {
+    warning("Failed to retrieve gridMET data. Using older forecast data as a fallback. Forecast accuracy may be reduced.")
+    # Fallback to using older forecast data
+    c(
+      subset(vpd_forecast_2, time(vpd_forecast_2) < today - 1),
+      subset(vpd_forecast_1, time(vpd_forecast_1) < today)
+    )
+  }
 )
 
-vpd_gridmet <- vpd_gridmet$daily_mean_vapor_pressure_deficit %>%
-  project(crs(vpd_forecast_0)) %>%
-  crop(vpd_forecast_0)
 
 today_vpd <- subset(vpd_forecast_1, time(vpd_forecast_1) == today)
 yesterday_vpd <- subset(vpd_forecast_2, time(vpd_forecast_2) == today - 1)
@@ -190,14 +201,14 @@ combined_fire_danger_rast <- cover(
 
 ggplot() +
   geom_spatraster_rgb(data = basemap) +
-  geom_spatraster(data = subset(combined_fire_danger_rast, time(combined_fire_danger_rast) >= today & time(combined_fire_danger_rast) <= today + 7)) +
+  geom_spatraster(data = subset(combined_fire_danger_rast, time(combined_fire_danger_rast) >= today - 1)) +
   scale_fill_viridis_c(option = "B", na.value = "transparent", limits = c(0, 1)) +
-  facet_wrap(~lyr, nrow = 2, ncol = 4) +
+  facet_wrap(~lyr, ncol = 5) +
   theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
   labs(title = glue("Wildfire danger forecast for YELL/GRTE/JODR from {today}"), fill = "Proportion of Fires") +
   scale_x_continuous(expand = c(0, 0)) +
   scale_y_continuous(expand = c(0, 0))
-ggsave(file.path(out_dir, glue("YELL-GRTE-JODR_fire_danger_forecast_{today}.png")), height = 8, width = 12)
+ggsave(file.path(out_dir, glue("YELL-GRTE-JODR_fire_danger_forecast_{today}.png")), width = 12, height = 20)
 
 forecast_rast <- subset(combined_fire_danger_rast, time(combined_fire_danger_rast) %in% dates[15:length(dates)]) ### Filter out early dates because the earliest date without NAs for forest is start_date + 14 due to rolling window calculation
 saveRDS(forecast_rast, file.path(out_dir, glue("fire_danger_forecast_{today}.rds")))

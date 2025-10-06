@@ -72,7 +72,7 @@ These are the master scripts that control the execution of the entire system.
     3.  Calculates rolling averages of VPD for both forest and non-forest areas.
     4.  Compares these averages to historical norms to calculate a fire danger percentile.
     5.  Saves the processed forecast data as an `.rds` file for other scripts to use.
-    6.  Generates a 7-day forecast map as a PNG image.
+    6.  Generates a 1-month forecast map as a PNG image.
 
 ### 4. Static Analysis and Visualization
 
