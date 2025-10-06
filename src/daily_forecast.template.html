@@ -98,14 +98,23 @@
             max-width: 90vw;
             max-height: 90vh;
         }
+        .modal-content-pannable {
+            margin: auto;
+            display: block;
+            width: auto;
+            height: auto;
+            max-width: none;
+            max-height: none;
+        }
         .close {
-            position: absolute;
+            position: fixed;
             top: 15px;
             right: 35px;
             color: #f1f1f1;
             font-size: 40px;
             font-weight: bold;
             transition: 0.3s;
+            z-index: 1001;
         }
         .close:hover,
         .close:focus {
@@ -132,8 +141,9 @@
 
     <div class="main-container">
               <div id="forecast-map" class="container content-section">
-                  <h2>1-Month Forecast Map</h2>
-                  <img src="YELL-GRTE-JODR_fire_danger_forecast___DATE__.png" alt="1-Month Fire Danger Forecast Map">
+                <h2>1-Month Forecast Map</h2>
+		<center><p>Click to enlarge image.</p></center>
+                  <img src="YELL-GRTE-JODR_fire_danger_forecast___DATE__.png" alt="1-Month Fire Danger Forecast Map" class="pannable-image">
               </div>
       <div id="threshold-plots" class="container content-section">
         <h2>Fire Danger Threshold Plots</h2>
@@ -233,31 +243,56 @@
       <img class="modal-content" id="img01">
     </div>
 
+    <div id="myPannableModal" class="modal">
+      <span class="close">&times;</span>
+      <img class="modal-content-pannable" id="img02">
+    </div>
+
     <script>
-        // Image modal
+        // Get the modals
         var modal = document.getElementById("myModal");
+        var pannableModal = document.getElementById("myPannableModal");
+
+        // Get the image and insert it inside the modal - use its "alt" text as a caption
         var modalImg = document.getElementById("img01");
+        var pannableModalImg = document.getElementById("img02");
         var images = document.getElementsByTagName("img");
         for (var i = 0; i < images.length; i++) {
             images[i].onclick = function(){
-                modal.style.display = "block";
-                modalImg.src = this.src;
+                if (this.classList.contains("pannable-image")) {
+                    pannableModal.style.display = "block";
+                    pannableModalImg.src = this.src;
+                } else {
+                    modal.style.display = "block";
+                    modalImg.src = this.src;
+                }
             }
         }
-        var span = document.getElementsByClassName("close")[0];
-        span.onclick = function() { 
-            modal.style.display = "none";
+
+        // Get the <span> element that closes the modal
+        var spans = document.getElementsByClassName("close");
+        for (var i = 0; i < spans.length; i++) {
+            spans[i].onclick = function() { 
+                modal.style.display = "none";
+                pannableModal.style.display = "none";
+            }
         }
+
+        // When the user clicks anywhere outside of the image, close the modal
         modal.onclick = function(event) {
             if (event.target == modal) {
                 modal.style.display = "none";
             }
         }
+        pannableModalImg.onclick = function(event) {
+            pannableModal.style.display = "none";
+        }
 
         // Close modal on escape key press
         document.addEventListener("keydown", function(event) {
-            if (event.key === "Escape" && modal.style.display === "block") {
+            if (event.key === "Escape" && (modal.style.display === "block" || pannableModal.style.display === "block")) {
                 modal.style.display = "none";
+                pannableModal.style.display = "none";
             }
         });
 
