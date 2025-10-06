@@ -201,7 +201,7 @@ combined_fire_danger_rast <- cover(
 
 ggplot() +
   geom_spatraster_rgb(data = basemap) +
-  geom_spatraster(data = subset(combined_fire_danger_rast, time(combined_fire_danger_rast) >= today - 1)) +
+  geom_spatraster(data = subset(combined_fire_danger_rast, time(combined_fire_danger_rast) >= today)) +
   scale_fill_viridis_c(option = "B", na.value = "transparent", limits = c(0, 1)) +
   facet_wrap(~lyr, ncol = 5) +
   theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
