@@ -88,10 +88,10 @@ These are the master scripts that control the execution of the entire system.
 graph TD
     subgraph Daily Process
         A[daily_forecast.sh] --> B(update_rotate_vpd_forecasts.sh);
-        B --> C{{VPD Forecast Data}};
+        B --> C[VPD Forecast Data];
         A --> D(map_forecast_danger.R);
         C --> D;
-        D --> E{{Forecast Raster (rds)}};
+        D --> E[Forecast Raster (rds)];
         D --> F[7-Day Forecast Map (png)];
         A --> G(generate_threshold_plots.R);
         E --> G;
@@ -101,7 +101,7 @@ graph TD
     subgraph Hourly Process
         I[hourly_lightning_map.sh] --> J(map_lightning.R);
         E --> J;
-        K{{Weatherbit API}} --> J;
+        K[Weatherbit API] --> J;
         J --> L[Lightning Map (html)];
     end
 ```
