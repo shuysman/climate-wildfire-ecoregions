@@ -17,7 +17,6 @@
             padding: 1rem 0;
             text-align: center;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            padding-left: 220px; /* Make space for the navbar */
         }
         h1, h2, h3 {
             text-align: center;
@@ -29,7 +28,6 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding-left: 220px; /* Make space for the navbar */
         }
         .container {
             background-color: white;
@@ -55,23 +53,20 @@
             border-radius: 4px;
         }
         .navbar {
-            position: fixed;
-            left: 0;
-            top: 0;
-            width: 200px;
-            height: 100%;
             background-color: #333;
-            padding-top: 20px;
+            overflow: hidden;
         }
         .navbar ul {
             list-style-type: none;
             padding: 0;
             margin: 0;
+            display: flex;
+            justify-content: center;
         }
         .navbar li a {
             display: block;
             color: white;
-            padding: 15px 20px;
+            padding: 14px 20px;
             text-decoration: none;
         }
         .navbar li a:hover {
@@ -122,9 +117,19 @@
             text-decoration: none;
             cursor: pointer;
         }
+        @media screen and (max-width: 600px) {
+            .navbar ul {
+                flex-direction: column;
+            }
+        }
     </style>
   </head>
   <body>
+    <header>
+      <h1>Daily Fire Danger Forecast for __DATE__</h1>
+      <h2>YELL/GRTE/JODR</h2>
+    </header>
+
     <nav class="navbar">
       <ul>
         <li><a href="#forecast-map">Forecast Map</a></li>
@@ -134,14 +139,9 @@
       </ul>
     </nav>
 
-    <header>
-      <h1>Daily Fire Danger Forecast for __DATE__</h1>
-      <h2>YELL/GRTE/JODR</h2>
-    </header>
-
     <div class="main-container">
               <div id="forecast-map" class="container content-section">
-                <h2>1-Month Forecast Map</h2>
+                  <h2>1-Month Forecast Map</h2>
 		<center><p>Click to enlarge image.</p></center>
                   <img src="YELL-GRTE-JODR_fire_danger_forecast___DATE__.png" alt="1-Month Fire Danger Forecast Map" class="pannable-image">
               </div>
