@@ -11,7 +11,7 @@ library(htmlwidgets)
 library(htmltools)
 
 # Load fire danger raster
-today <- today()
+today <- today(tzone = "America/Denver")
 forecast_file <- here("out", "forecasts", glue("fire_danger_forecast_{today}.rds"))
 
 if (!file.exists(forecast_file)) {
