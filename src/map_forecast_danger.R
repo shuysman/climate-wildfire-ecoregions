@@ -73,7 +73,7 @@ vpd_forecast_1 <- crop(vpd_forecast_1, nps_boundaries)
 vpd_forecast_2 <- crop(vpd_forecast_2, nps_boundaries)
 
 ### Retrieve historical gridMET data through today - 2
-today <- today()
+today <- today(tzone = "America/Denver")
 start_date <- today - 40
 
 ### Check if most recent forecast is available or raise error
