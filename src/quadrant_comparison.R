@@ -9,12 +9,16 @@ quadrant_raws <- terra::vect(matrix(c(-110.99, 44.927619), ncol = 2), type = "po
 
 ggplot() +
   geom_spatvector(data = nps_boundaries) +
-  geom_spatvector(data = quadrant_raws)
+  geom_spatvector(data = quadrant_raws, shape = 4, size = 5) +
+  geom_spatvector_text(data = quadrant_raws, label = "Quadrant", hjust = -.3) +
+  xlab("") +
+  ylab("")
+ggsave("quadrant_map.png")
 
-quadrant_forest_danger <- extract(forest_fire_danger_rast, quadrant_raws) %>%
+quadrant_forest_danger <- terra::extract(forest_fire_danger_rast, quadrant_raws) %>%
   pivot_longer(cols = -ID, names_to = "date", values_to = "Fire_danger") %>%
   mutate(cover = "forest")
-quadrant_non_forest_danger <- extract(non_forest_fire_danger_rast, quadrant_raws) %>%
+quadrant_non_forest_danger <- terra::extract(non_forest_fire_danger_rast, quadrant_raws) %>%
   pivot_longer(cols = -ID, names_to = "date", values_to = "Fire_danger") %>%
   mutate(cover = "non_forest")
 
@@ -40,10 +44,10 @@ ggplot() +
   geom_ribbon(data = filter(random_pts_fire_danger, ID == 1), aes(x = date, ymin = 0.4, ymax = 0.75, group = ID), fill = "orange") +
   geom_ribbon(data = filter(random_pts_fire_danger, ID == 1), aes(x = date, ymin = 0.75, ymax = 1.0, group = ID), fill = "red") +
   geom_line(data = random_pts_fire_danger, aes(x = date, y = Fire_danger, group = ID), alpha = 0.5) +
-  geom_line(data = quadrant_fire_danger, aes(x = date, y = Fire_danger, group = ID), color = "purple", lwd = 5) +
-  geom_label(data = quadrant_fire_danger[5, ], aes(x = date, y = Fire_danger, label = "Quadrant"), alpha = 0.5) +
+  geom_line(data = quadrant_fire_danger, aes(x = date, y = Fire_danger, group = ID), color = "purple", lwd = 3) +
+  # geom_label(data = quadrant_fire_danger[5, ], aes(x = date, y = Fire_danger, label = "Quadrant"), alpha = 0.5) +
   ylim(0, 1) +
   facet_wrap("~cover") +
-  ggtitle("Quadrant vs. 1024 Random Points") +
+  ggtitle("Quadrant (purple) vs. 1024 Random Points (black)") +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
-ggsave("quadrant_comparison.png")
+ggsave("quadrant_comparison.png", height = 4, width = 5)
