@@ -28,7 +28,7 @@ for (threshold in thresholds) {
   percent_above$date <- time(fire_danger_rast)
 
   ## Split date for rectangle annotations on thresholdplot
-  split_date <- today() - 1.5
+  split_date <- today - 1.5
 
   p <- ggplot(percent_above, aes(x = date, y = mean)) +
     annotate("rect",
@@ -40,8 +40,8 @@ for (threshold in thresholds) {
       ymin = -Inf, ymax = Inf, fill = "green", alpha = 0.2
     ) +
     geom_col() +
-    geom_vline(xintercept = today(), color = "red", linetype = "dashed", size = 1.25) +
-    annotate("text", x = today(), y = Inf, label = "Today", vjust = -0.5, color = "red", fontface = "bold") +
+    geom_vline(xintercept = today, color = "red", linetype = "dashed", size = 1.25) +
+    annotate("text", x = today, y = Inf, label = "Today", vjust = -0.5, color = "red", fontface = "bold") +
     scale_x_date(date_breaks = "1 day", expand = c(0, 0)) +
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
     scale_y_continuous(labels = scales::percent, limits = c(0, 1)) +

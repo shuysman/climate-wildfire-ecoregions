@@ -21,18 +21,21 @@ if (!file.exists(forecast_file)) {
 fire_danger_rast <- readRDS(forecast_file)
 
 # Get the fire danger for today
-fire_danger_today <- fire_danger_rast %>% subset(time(.) == today())
+fire_danger_today <- fire_danger_rast %>% subset(time(.) == today)
 fire_danger_today <- aggregate(fire_danger_today, fact = 2)
 
 # Fetch lightning data
-api_url <- glue("https://api.weatherbit.io/v2.0/history/lightning?lat=43.5459517032319&lon=-111.162554452619&end_lat=45.1292422224309&end_lon=-109.829085745439&date={today()}&key=79a7ca57b438429c93dbf9252c983550")
+api_url <- glue("https://api.weatherbit.io/v2.0/history/lightning?lat=43.5459517032319&lon=-111.162554452619&end_lat=45.1292422224309&end_lon=-109.829085745439&date={today}&key=79a7ca57b438429c93dbf9252c983550")
 
-lightning_data <- tryCatch({
-  fromJSON(api_url)
-}, error = function(e) {
-  message("Error fetching lightning data: ", e$message)
-  NULL
-})
+lightning_data <- tryCatch(
+  {
+    fromJSON(api_url)
+  },
+  error = function(e) {
+    message("Error fetching lightning data: ", e$message)
+    NULL
+  }
+)
 
 # Create leaflet map
 pal <- colorNumeric(viridisLite::viridis(256, option = "B"),
