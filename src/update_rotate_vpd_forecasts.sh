@@ -2,10 +2,17 @@
 set -euo pipefail
 IFS=$'\n\t'
 
+# Get the project directory
+PROJECT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")"/.. &> /dev/null && pwd)
+
 # --- Configuration ---
-VPD_DATA_DIR="${HOME}/sync/pyrome-fire/data/vpd/"
-LOG_FILE="${HOME}/log/vpd.log"
+VPD_DATA_DIR="$PROJECT_DIR/data/vpd/"
+LOG_DIR="$PROJECT_DIR/log"
+LOG_FILE="$LOG_DIR/vpd.log"
 VPD_DATA_URL="http://thredds.northwestknowledge.net:8080/thredds/fileServer/NWCSC_INTEGRATED_SCENARIOS_ALL_CLIMATE/cfsv2_metdata_90day/cfsv2_metdata_forecast_vpd_daily.nc"
+
+# Create log directory if it doesn't exist
+mkdir -p "$LOG_DIR"
 
 # Retry logic parameters
 MAX_RETRIES=12 # Try every 30 minutes for 6 hours

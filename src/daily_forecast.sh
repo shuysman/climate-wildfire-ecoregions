@@ -5,12 +5,12 @@ IFS=$'\n\t'
 echo "Starting daily forecast generation..."
 echo "$(date)"
 
-PROJECT_DIR=/home/steve/sync/pyrome-fire
+PROJECT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")"/.. &> /dev/null && pwd)
 
 cd $PROJECT_DIR
 
 # Run the update script
-./src/update_rotate_vpd_forecasts.sh
+#./src/update_rotate_vpd_forecasts.sh
 
 # Run the map generation script
 Rscript ./src/map_forecast_danger.R

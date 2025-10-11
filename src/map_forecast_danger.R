@@ -119,7 +119,7 @@ forest_data <- terra::roll(vpd_series, n = 15, fun = mean, type = "to", circular
 non_forest_data <- terra::roll(vpd_series, n = 5, fun = mean, type = "to", circular = FALSE, overwrite = TRUE)
 
 forest_fire_danger_rast <- rast()
-forest_fire_danger_ecdf <- readRDS("/home/steve/sync/pyrome-fire/out/ecdf/17-middle_rockies-forest/17-middle_rockies-forest-15-VPD-ecdf.RDS")
+forest_fire_danger_ecdf <- readRDS("./out/ecdf/17-middle_rockies-forest/17-middle_rockies-forest-15-VPD-ecdf.RDS")
 for (n in 1:nlyr(forest_data)) {
   forest_percentile_rast <- bin_rast(subset(forest_data, n), forest_quants_rast, probs)
   forest_fire_danger_rast <- c(forest_fire_danger_rast, terra::app(forest_percentile_rast, fun = \(x) forest_fire_danger_ecdf(x)))
@@ -128,7 +128,7 @@ for (n in 1:nlyr(forest_data)) {
 time(forest_fire_danger_rast) <- dates
 
 non_forest_fire_danger_rast <- rast()
-non_forest_fire_danger_ecdf <- readRDS("/home/steve/sync/pyrome-fire/out/ecdf/17-middle_rockies-non_forest/17-middle_rockies-non_forest-5-VPD-ecdf.RDS")
+non_forest_fire_danger_ecdf <- readRDS("./out/ecdf/17-middle_rockies-non_forest/17-middle_rockies-non_forest-5-VPD-ecdf.RDS")
 for (n in 1:nlyr(non_forest_data)) {
   non_forest_percentile_rast <- bin_rast(subset(non_forest_data, n), non_forest_quants_rast, probs)
   non_forest_fire_danger_rast <- c(non_forest_fire_danger_rast, terra::app(non_forest_percentile_rast, fun = \(x) non_forest_fire_danger_ecdf(x)))
