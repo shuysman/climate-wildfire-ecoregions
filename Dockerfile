@@ -41,6 +41,7 @@ RUN R -e "renv::restore()"
 
 # Copy Project Files
 COPY ./src /app/src
+COPY ./.weatherbit_api_key /app/
 
 # Make Scripts Executable
 RUN chmod +x /app/src/*.sh
