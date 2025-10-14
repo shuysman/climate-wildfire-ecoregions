@@ -1,0 +1,205 @@
+---
+title:  "Wildfire ignition danger maps for Yellowstone National Park, Grand Teton National Park, and John D. Rockefeller, Jr. Memorial Parkway"
+author: 
+  - Stephen Huysman, shuysman@gmail.com
+email: "shuysman@gmail.com"
+date: "`r Sys.Date()`"
+output:
+  bookdown::html_document2:
+    theme: null
+    number_sections: true
+    toc: true
+---
+
+```{r setup, echo=F, warning=F, message=F}
+knitr::opts_chunk$set(echo = F, warning = F, message = F, fig.height = 6, fig.width = 12)
+```
+
+# Example Fire Danger Maps for Historical Wet and Dry Periods
+
+This document generates fire danger maps for one-week periods during notable historical drought years (1988, 2016) and wet years (2011, 1993) to illustrate the model's behavior under different conditions.
+
+Hybrid-resolution maps of wildfire ignition danger are created by combining data from two different scales by mapping coarse-resolution model predictions onto a fine-resolution landscape grid. For instance, a single fire danger value calculated from a 4km climate grid for a "forest" cover type is assigned to every individual 30m forest pixel that falls within that larger climate cell. This technique adds fine spatial detail, showing how danger varies by land cover. However, the map's precision is a "hybrid" because the fine-scale patterns are derived from the static 30m landscape, while the dynamic driver (the climate) is still assumed to be uniform across the coarse 4km area.
+
+```{r data_setup_and_function_definition}
+library(tidyverse)
+library(terra)
+library(tidyterra)
+library(glue)
+library(maptiles)
+
+# Helper function to handle duplicated values in a time series
+replace_duplicated <- function(x) {
+  x[duplicated(x)] <- NA
+  return(x)
+}
+
+# Helper function to bin a raster based on pre-calculated quantiles
+bin_rast <- function(new_rast, quants_rast, probs) {
+  bin_index_rast <- sum(new_rast > quants_rast)
+  percentile_map <- c(0, probs)
+  from_vals <- 0:length(probs)
+  rcl_matrix <- cbind(from_vals, percentile_map)
+  percentile_rast_binned <- classify(bin_index_rast, rcl = rcl_matrix)
+  return(percentile_rast_binned)
+}
+
+terraOptions(
+  verbose = FALSE,
+  memfrac = 0.9
+)
+
+# --- Data Loading and Pre-processing ---
+probs <- seq(.01, 1.0, by = .01)
+
+nps_boundaries <- vect("data/nps_boundary/nps_boundary.shp") %>%
+  filter(UNIT_CODE %in% c("YELL", "GRTE", "JODR"))
+
+vpd_data_dir <- file.path("/media/steve/THREDDS/gridmet/")
+vpd_data_files <- list.files(vpd_data_dir, pattern = "vpd.*.nc", full.names = TRUE)
+vpd_data <- rast(vpd_data_files) %>%
+  crop(project(nps_boundaries, crs(.))) %>%
+  mask(project(nps_boundaries, crs(.)))
+
+time(vpd_data) <- as_date(depth(vpd_data), origin = "1900-01-01")
+
+forest_quants_rast <- rast("./out/ecdf/17-middle_rockies-forest/17-middle_rockies-forest-15-VPD-quants.nc")
+non_forest_quants_rast <- rast("./out/ecdf/17-middle_rockies-non_forest/17-middle_rockies-non_forest-5-VPD-quants.nc")
+
+# --- Vegetation Classification ---
+cover_types <- rast("data/LF2023_EVT_240_CONUS/Tif/4326/LC23_EVT_240.tif") %>%
+  crop(vpd_data)
+activeCat(cover_types) <- "EVT_LF"
+categories_df <- levels(cover_types)[[1]] %>%
+  mutate(veg_class_id = case_match(
+    EVT_LF,
+    c("Herb", "Shrub", "Sparse") ~ 1,
+    "Tree" ~ 2,
+    .default = NA_integer_
+  ))
+rcl_matrix <- categories_df[, c("Value", "veg_class_id")]
+classified_rast <- classify(cover_types, rcl = rcl_matrix, right = NA)
+levels(classified_rast) <- data.frame(ID = c(1, 2), cover = c("non_forest", "forest"))
+
+forest_mask <- classified_rast == 2
+forest_mask <- subst(forest_mask, FALSE, NA)
+non_forest_mask <- classified_rast == 1
+non_forest_mask <- subst(non_forest_mask, FALSE, NA)
+
+basemap <- get_tiles(classified_rast, provider = "Esri.NatGeoWorldMap", zoom = 9) %>%
+  crop(classified_rast)
+
+# --- Pre-calculate rolling sums to avoid re-computing for each example ---
+forest_data_full <- terra::roll(vpd_data, n = 15, fun = mean, type = "to", circular = FALSE, overwrite = TRUE)
+non_forest_data_full <- terra::roll(vpd_data, n = 5, fun = mean, type = "to", circular = FALSE, overwrite = TRUE)
+
+
+# --- Master Function for Generating and Plotting Fire Danger ---
+generate_and_plot_fire_danger <- function(dates, plot_title) {
+  # Subset the pre-calculated rolling sums for the target dates
+  forest_data <- forest_data_full %>% subset(time(.) %in% dates)
+  non_forest_data <- non_forest_data_full %>% subset(time(.) %in% dates)
+
+  # Calculate fire danger for forest areas
+  forest_fire_danger_rast <- rast()
+  forest_fire_danger_ecdf <- readRDS("/home/steve/sync/pyrome-fire/out/ecdf/17-middle_rockies-forest/17-middle_rockies-forest-15-VPD-ecdf.RDS")
+  for (n in 1:nlyr(forest_data)) {
+    forest_percentile_rast <- bin_rast(subset(forest_data, n), forest_quants_rast, probs)
+    forest_fire_danger_rast <- c(forest_fire_danger_rast, terra::app(forest_percentile_rast, fun = \(x) forest_fire_danger_ecdf(x)))
+  }
+
+  # Calculate fire danger for non-forest areas
+  non_forest_fire_danger_rast <- rast()
+  non_forest_fire_danger_ecdf <- readRDS("/home/steve/sync/pyrome-fire/out/ecdf/17-middle_rockies-non_forest/17-middle_rockies-non_forest-5-VPD-ecdf.RDS")
+  for (n in 1:nlyr(non_forest_data)) {
+    non_forest_percentile_rast <- bin_rast(subset(non_forest_data, n), non_forest_quants_rast, probs)
+    non_forest_fire_danger_rast <- c(non_forest_fire_danger_rast, terra::app(non_forest_percentile_rast, fun = \(x) non_forest_fire_danger_ecdf(x)))
+  }
+  
+  # Post-process rasters
+  forest_fire_danger_rast <- resample(forest_fire_danger_rast, classified_rast)
+  non_forest_fire_danger_rast <- resample(non_forest_fire_danger_rast, classified_rast)
+
+  names(forest_fire_danger_rast) <- dates
+  names(non_forest_fire_danger_rast) <- dates
+
+  # Generate the plot
+  p <- ggplot() +
+      geom_spatraster_rgb(data = basemap) +
+      geom_spatraster(data = mask(forest_fire_danger_rast, forest_mask)) +
+      geom_spatraster(data = mask(non_forest_fire_danger_rast, non_forest_mask)) +
+      scale_fill_viridis_c(
+          option = "B",
+          na.value = "transparent",
+          limits = c(0, 1),
+          breaks = c(0, 1),
+          labels = c("0.0 (Low Danger)", "1.0 (High Danger)")
+      ) +
+      facet_wrap(~lyr, nrow = 2, ncol = 4) +
+      labs(title = plot_title, fill = "Proportion of Fires") +
+      theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1), plot.title = element_text(size = 20)) +
+      scale_x_continuous(expand = c(0, 0)) +
+      scale_y_continuous(expand = c(0, 0))
+  
+  print(p)
+}
+```
+
+## Cover Maps
+
+```{r cover, fig.height = 10, fig.width = 6}
+plot(cover_types)
+plot(classified_rast)
+
+```
+
+## 1988 Drought Example
+
+A one-week period in June 1988, before the height of the Yellowstone fires.
+
+```{r}
+generate_and_plot_fire_danger(
+  dates = as_date("1988-06-03") + 0:7,
+  plot_title = "Wildfire ignition danger: Conditions prior to height of 1988 Yellowstone Wildfires"
+)
+```
+
+```{r}
+generate_and_plot_fire_danger(
+  dates = as_date("1988-06-15") + 0:3,
+  plot_title = "Wildfire ignition danger: Conditions prior to height of 1988 Yellowstone Wildfires"
+)
+```
+
+## 2016 Drought Example
+
+A one-week period during a mid-August drying spell in 2016.
+
+```{r}
+generate_and_plot_fire_danger(
+  dates = as_date("2016-07-18") + 0:3,
+  plot_title = "Wildfire ignition danger: Conditions prior to Berry Fire (Ig Date 7-26-2016)"
+)
+```
+
+## 2011 Wet Period Example
+
+A one-week period in June during the historically wet year of 2011.
+
+```{r}
+generate_and_plot_fire_danger(
+  dates = as_date("2011-06-04") + 0:3,
+  plot_title = "Wildfire ignition danger: June 2011 (Wet Year)"
+)
+```
+
+## 1993 Wet Period Example
+
+A one-week period in July during the historically wet year of 1993.
+
+```{r}
+generate_and_plot_fire_danger(
+  dates = as_date("1993-07-20") + 0:3,
+  plot_title = "Wildfire ignition danger: July 1993 (Wet Year)"
+)
+```
