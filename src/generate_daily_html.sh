@@ -5,16 +5,37 @@ IFS=$'\n\t'
 # Get the project directory
 PROJECT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")"/.. &> /dev/null && pwd)
 
-# Get the current date
+# Define dates
 TODAY=$(date +%Y-%m-%d)
+YESTERDAY=$(date -d "yesterday" +%Y-%m-%d)
 
-# Path to the template file
+# --- Define placeholder values ---
+
+# The display date in the title is always today
+DISPLAY_DATE="$TODAY"
+
+# The lightning map always uses today's date in its filename because it has its own internal fallback
+LIGHTNING_MAP_DATE="$TODAY"
+
+# For the main forecast map, check if today's exists and fall back to yesterday's if not
+TODAY_FORECAST_MAP="$PROJECT_DIR/out/forecasts/YELL-GRTE-JODR_fire_danger_forecast_${TODAY}.png"
+
+if [ -f "$TODAY_FORECAST_MAP" ]; then
+  FORECAST_MAP_DATE="$TODAY"
+else
+  echo "Warning: Today's forecast map not found. Falling back to yesterday's map."
+  FORECAST_MAP_DATE="$YESTERDAY"
+fi
+
+# --- Paths ---
 TEMPLATE_FILE="$PROJECT_DIR/src/daily_forecast.template.html"
-
-# Path to the output file
 OUTPUT_FILE="$PROJECT_DIR/out/forecasts/daily_forecast.html"
 
-# Use sed to replace the placeholder with the current date
-sed "s/__DATE__/$TODAY/g" "$TEMPLATE_FILE" > "$OUTPUT_FILE"
+# --- Generate HTML ---
+# Use a chain of sed commands to replace each unique placeholder
+sed -e "s/__DISPLAY_DATE__/$DISPLAY_DATE/g" \
+    -e "s/__FORECAST_MAP_DATE__/$FORECAST_MAP_DATE/g" \
+    -e "s/__LIGHTNING_MAP_DATE__/$LIGHTNING_MAP_DATE/g" \
+    "$TEMPLATE_FILE" > "$OUTPUT_FILE"
 
 echo "Successfully generated daily_forecast.html"
