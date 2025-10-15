@@ -7,8 +7,8 @@ echo "Starting hourly lightning map generation..."
 TODAY=$(date +%Y-%m-%d)
 YESTERDAY=$(date -d "yesterday" +%Y-%m-%d)
 
-TODAY_FORECAST_FILE="out/forecasts/fire_danger_forecast_${TODAY}.rds"
-YESTERDAY_FORECAST_FILE="out/forecasts/fire_danger_forecast_${YESTERDAY}.rds"
+TODAY_FORECAST_FILE="out/forecasts/fire_danger_forecast_${TODAY}.nc"
+YESTERDAY_FORECAST_FILE="out/forecasts/fire_danger_forecast_${YESTERDAY}.nc"
 
 FORECAST_TO_USE=""
 FORECAST_STATUS=""

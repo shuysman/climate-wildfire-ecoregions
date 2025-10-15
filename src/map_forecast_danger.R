@@ -114,8 +114,6 @@ vpd_series <- c(vpd_gridmet, yesterday_vpd, today_vpd, vpd_forecast_0)
 dates <- time(vpd_series)
 
 
-
-
 forest_data <- terra::roll(vpd_series, n = 15, fun = mean, type = "to", circular = FALSE, overwrite = TRUE)
 non_forest_data <- terra::roll(vpd_series, n = 5, fun = mean, type = "to", circular = FALSE, overwrite = TRUE)
 
@@ -212,4 +210,4 @@ ggplot() +
 ggsave(file.path(out_dir, glue("YELL-GRTE-JODR_fire_danger_forecast_{today}.png")), width = 12, height = 20)
 
 forecast_rast <- subset(combined_fire_danger_rast, time(combined_fire_danger_rast) %in% dates[15:length(dates)]) ### Filter out early dates because the earliest date without NAs for forest is start_date + 14 due to rolling window calculation
-saveRDS(forecast_rast, file.path(out_dir, glue("fire_danger_forecast_{today}.rds")))
+terra::writeCDF(forecast_rast, file.path(out_dir, glue("fire_danger_forecast_{today}.nc")), overwrite = TRUE)

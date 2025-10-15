@@ -27,7 +27,7 @@ if (!file.exists(forecast_file)) {
   stop("Forecast file not found at: ", forecast_file)
 }
 
-fire_danger_rast <- readRDS(forecast_file)
+fire_danger_rast <- rast(forecast_file)
 
 # Get the fire danger for the specified date
 fire_danger_today <- fire_danger_rast %>% subset(time(.) == forecast_date)
