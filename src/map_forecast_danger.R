@@ -14,6 +14,7 @@ library(tidyterra)
 library(glue)
 library(maptiles)
 library(climateR)
+library(ncdf4)
 
 bin_rast <- function(new_rast, quants_rast, probs) {
   # Count how many quantile layers the new value is greater than.
