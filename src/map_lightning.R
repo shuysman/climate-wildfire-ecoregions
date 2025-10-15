@@ -83,34 +83,53 @@ if (forecast_status != "Current") {
 if (!is.null(lightning_data) && !is.null(lightning_data$lightning) && is.data.frame(lightning_data$lightning) && nrow(lightning_data$lightning) > 0) {
   lightning_vect <- vect(lightning_data$lightning, geom = c("lon", "lat"), crs = "EPSG:4326")
   fire_danger_values <- terra::extract(fire_danger_today, lightning_vect)
-  marker_pal <- colorNumeric(viridisLite::viridis(256, option = "B"), domain = c(0, 1), na.color = "#808080")
-  marker_colors <- marker_pal(fire_danger_values[, 2])
 
-  m <- m %>%
-    addCircleMarkers(
-      data = lightning_data$lightning, lng = ~lon, lat = ~lat, popup = ~ paste("Time:", timestamp_utc),
-      color = marker_colors, radius = 5, stroke = FALSE, fillOpacity = 0.8
+  # Filter out strikes that are outside the raster's non-NA area
+  valid_strikes_idx <- !is.na(fire_danger_values[, 2])
+  filtered_lightning_data <- lightning_data$lightning[valid_strikes_idx, ]
+  filtered_fire_danger_values <- fire_danger_values[valid_strikes_idx, ]
+
+  if (nrow(filtered_lightning_data) > 0) {
+    marker_pal <- colorNumeric(viridisLite::viridis(256, option = "B"), domain = c(0, 1), na.color = "transparent")
+    marker_colors <- marker_pal(filtered_fire_danger_values[, 2])
+
+    m <- m %>%
+      addCircleMarkers(
+        data = filtered_lightning_data, lng = ~lon, lat = ~lat, popup = ~ paste("Time:", timestamp_utc),
+        color = marker_colors, radius = 5, stroke = FALSE, fillOpacity = 0.8
+      )
+
+    # Create a data frame for the table using only filtered strikes
+    lightning_table_data <- data.frame(
+      Latitude = filtered_lightning_data$lat,
+      Longitude = filtered_lightning_data$lon,
+      Timestamp = filtered_lightning_data$timestamp_utc,
+      Fire_Danger = round(filtered_fire_danger_values[, 2], 2)
     )
 
-  # Create a data frame for the table
-  lightning_table_data <- data.frame(
-    Latitude = lightning_data$lightning$lat,
-    Longitude = lightning_data$lightning$lon,
-    Timestamp = lightning_data$lightning$timestamp_utc,
-    Fire_Danger = round(fire_danger_values[, 2], 2)
-  )
+    # Create the HTML table
+    lightning_table_html <- paste(
+      "<table class=\"table table-striped\">",
+      "<thead><tr><th>Latitude</th><th>Longitude</th><th>Timestamp</th><th>Fire Danger</th></tr></thead>",
+      "<tbody>",
+      paste(apply(lightning_table_data, 1, function(row) {
+        paste("<tr><td>", row["Latitude"], "</td><td>", row["Longitude"], "</td><td>", row["Timestamp"], "</td><td>", row["Fire_Danger"], "</td></tr>")
+      }), collapse = ""),
+      "</tbody></table>"
+    )
 
-  # Create the HTML table
-  lightning_table <- paste(
-    "<table class=\"table table-striped\">",
-    "<thead><tr><th>Latitude</th><th>Longitude</th><th>Timestamp</th><th>Fire Danger</th></tr></thead>",
-    "<tbody>",
-    paste(apply(lightning_table_data, 1, function(row) {
-      paste("<tr><td>", row["Latitude"], "</td><td>", row["Longitude"], "</td><td>", row["Timestamp"], "</td><td>", row["Fire_Danger"], "</td></tr>")
-    }), collapse = ""),
-    "</tbody></table>"
-  )
-  header_content <- paste(header_title, update_time, forecast_notice, lightning_table)
+    # Wrap the table in a scrollable div
+    lightning_table <- paste0(
+      "<div style=\"max-height: 400px; overflow-y: auto; border: 1px solid #ddd;\">",
+      lightning_table_html,
+      "</div>"
+    )
+
+    header_content <- paste(header_title, update_time, forecast_notice, lightning_table)
+  } else {
+    no_strikes_message <- paste0("<p>No lightning strikes recorded within the forecast area for ", forecast_date_str, ".</p>")
+    header_content <- paste(header_title, update_time, forecast_notice, no_strikes_message)
+  }
 } else {
   no_strikes_message <- paste0("<p>No lightning strikes recorded for ", forecast_date_str, ".</p>")
   header_content <- paste(header_title, update_time, forecast_notice, no_strikes_message)
