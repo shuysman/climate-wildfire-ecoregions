@@ -114,24 +114,62 @@ vpd_series <- c(vpd_gridmet, yesterday_vpd, today_vpd, vpd_forecast_0)
 dates <- time(vpd_series)
 
 
-forest_data <- terra::roll(vpd_series, n = 15, fun = mean, type = "to", circular = FALSE, overwrite = TRUE)
-non_forest_data <- terra::roll(vpd_series, n = 5, fun = mean, type = "to", circular = FALSE, overwrite = TRUE)
+# Create temporary files for intermediate rasters to reduce memory usage
+# These files will be written to the session's temporary directory and cleaned up automatically
+forest_data_file <- tempfile(fileext = ".tif")
+non_forest_data_file <- tempfile(fileext = ".tif")
+forest_danger_file <- tempfile(fileext = ".tif")
+non_forest_danger_file <- tempfile(fileext = ".tif")
 
-forest_fire_danger_rast <- rast()
+message("Calculating rolling averages and writing to temporary files...")
+forest_data <- terra::roll(vpd_series, n = 15, fun = mean, type = "to", circular = FALSE, filename = forest_data_file)
+non_forest_data <- terra::roll(vpd_series, n = 5, fun = mean, type = "to", circular = FALSE, filename = non_forest_data_file)
+
+# Define functions to process each layer (binning + ecdf)
 forest_fire_danger_ecdf <- readRDS("./out/ecdf/17-middle_rockies-forest/17-middle_rockies-forest-15-VPD-ecdf.RDS")
-for (n in 1:nlyr(forest_data)) {
-  forest_percentile_rast <- bin_rast(subset(forest_data, n), forest_quants_rast, probs)
-  forest_fire_danger_rast <- c(forest_fire_danger_rast, terra::app(forest_percentile_rast, fun = \(x) forest_fire_danger_ecdf(x)))
+process_forest_layer <- function(layer) {
+  percentile_rast <- bin_rast(layer, forest_quants_rast, probs)
+  terra::app(percentile_rast, fun = forest_fire_danger_ecdf)
+}
+
+non_forest_fire_danger_ecdf <- readRDS("./out/ecdf/17-middle_rockies-non_forest/17-middle_rockies-non_forest-5-VPD-ecdf.RDS")
+process_non_forest_layer <- function(layer) {
+  percentile_rast <- bin_rast(layer, non_forest_quants_rast, probs)
+  terra::app(percentile_rast, fun = non_forest_fire_danger_ecdf)
+}
+
+message("Applying fire danger models...")
+
+# Create an empty shell raster on disk for the output
+message("Pre-allocating output files on disk...")
+forest_fire_danger_rast <- rast(forest_data) # Use forest_data as a template
+values(forest_fire_danger_rast) <- NA # Set all values to NA
+writeRaster(forest_fire_danger_rast, forest_danger_file, overwrite = TRUE)
+forest_fire_danger_rast <- rast(forest_danger_file) # Re-open the file for updating
+
+non_forest_fire_danger_rast <- rast(non_forest_data)
+values(non_forest_fire_danger_rast) <- NA
+writeRaster(non_forest_fire_danger_rast, non_forest_danger_file, overwrite = TRUE)
+non_forest_fire_danger_rast <- rast(non_forest_danger_file)
+
+# Process layer by layer to conserve memory
+for (i in 1:nlyr(forest_data)) {
+  message(paste("Processing forest layer", i, "of", nlyr(forest_data)))
+  layer_in <- subset(forest_data, i)
+  layer_out <- process_forest_layer(layer_in)
+  # Use replacement method to write to the correct layer on disk
+  forest_fire_danger_rast[[i]] <- layer_out
+}
+
+for (i in 1:nlyr(non_forest_data)) {
+  message(paste("Processing non-forest layer", i, "of", nlyr(non_forest_data)))
+  layer_in <- subset(non_forest_data, i)
+  layer_out <- process_non_forest_layer(layer_in)
+  # Use replacement method to write to the correct layer on disk
+  non_forest_fire_danger_rast[[i]] <- layer_out
 }
 
 time(forest_fire_danger_rast) <- dates
-
-non_forest_fire_danger_rast <- rast()
-non_forest_fire_danger_ecdf <- readRDS("./out/ecdf/17-middle_rockies-non_forest/17-middle_rockies-non_forest-5-VPD-ecdf.RDS")
-for (n in 1:nlyr(non_forest_data)) {
-  non_forest_percentile_rast <- bin_rast(subset(non_forest_data, n), non_forest_quants_rast, probs)
-  non_forest_fire_danger_rast <- c(non_forest_fire_danger_rast, terra::app(non_forest_percentile_rast, fun = \(x) non_forest_fire_danger_ecdf(x)))
-}
 
 time(non_forest_fire_danger_rast) <- dates
 
@@ -182,22 +220,31 @@ non_forest_mask <- subst(non_forest_mask, FALSE, NA)
 basemap <- get_tiles(classified_rast, provider = "Esri.NatGeoWorldMap", zoom = 9) %>%
   crop(classified_rast)
 
-forest_fire_danger_rast <- forest_fire_danger_rast %>%
-  # subset(time(.) >= today & time(.) <= today + 7) %>%
-  resample(classified_rast)
+# Define new temp files for the resampled outputs
+resampled_forest_file <- tempfile(fileext = ".tif")
+resampled_non_forest_file <- tempfile(fileext = ".tif")
 
-non_forest_fire_danger_rast <- non_forest_fire_danger_rast %>%
-  # subset(time(.) >= today & time(.) <= today + 7) %>%
-  resample(classified_rast)
+message("Resampling forecast rasters...")
+forest_fire_danger_rast <- resample(forest_fire_danger_rast, classified_rast, filename = resampled_forest_file, overwrite = TRUE)
+
+non_forest_fire_danger_rast <- resample(non_forest_fire_danger_rast, classified_rast, filename = resampled_non_forest_file, overwrite = TRUE)
+
 
 names(forest_fire_danger_rast) <- time(forest_fire_danger_rast)
 names(non_forest_fire_danger_rast) <- time(non_forest_fire_danger_rast)
 
+# Define a temp file for the combined output
+combined_rast_file <- tempfile(fileext = ".tif")
+
+message("Combining forest and non-forest rasters to disk...")
 combined_fire_danger_rast <- cover(
   mask(forest_fire_danger_rast, forest_mask),
-  mask(non_forest_fire_danger_rast, non_forest_mask)
+  mask(non_forest_fire_danger_rast, non_forest_mask),
+  filename = combined_rast_file,
+  overwrite = TRUE
 )
 
+message("Creating forecast maps...")
 ggplot() +
   geom_spatraster_rgb(data = basemap) +
   geom_spatraster(data = subset(combined_fire_danger_rast, time(combined_fire_danger_rast) >= today)) +
@@ -209,5 +256,9 @@ ggplot() +
   scale_y_continuous(expand = c(0, 0))
 ggsave(file.path(out_dir, glue("YELL-GRTE-JODR_fire_danger_forecast_{today}.png")), width = 12, height = 20)
 
+message("Saving final forecast raster...")
 forecast_rast <- subset(combined_fire_danger_rast, time(combined_fire_danger_rast) %in% dates[15:length(dates)]) ### Filter out early dates because the earliest date without NAs for forest is start_date + 14 due to rolling window calculation
 terra::writeCDF(forecast_rast, file.path(out_dir, glue("fire_danger_forecast_{today}.nc")), overwrite = TRUE)
+
+
+message("Forecast generation complete.")
