@@ -48,8 +48,8 @@ dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
 
 probs <- seq(.01, 1.0, by = .01)
 
-nps_boundaries <- vect("data/nps_boundary/nps_boundary.shp") %>%
-  filter(UNIT_CODE %in% c("YELL", "GRTE", "JODR"))
+middle_rockies <- vect("data/us_eco_l3/us_eco_l3.shp") %>%
+  filter(US_L3NAME == "Middle Rockies")
 
 forest_quants_rast <- rast("./out/ecdf/17-middle_rockies-forest/17-middle_rockies-forest-15-VPD-quants.nc")
 non_forest_quants_rast <- rast("./out/ecdf/17-middle_rockies-non_forest/17-middle_rockies-non_forest-5-VPD-quants.nc")
@@ -67,11 +67,11 @@ time(vpd_forecast_1) <- as_date(depth(vpd_forecast_1), origin = "1900-01-01")
 vpd_forecast_2 <- rast("data/vpd/cfsv2_metdata_forecast_vpd_daily_2.nc")
 time(vpd_forecast_2) <- as_date(depth(vpd_forecast_2), origin = "1900-01-01")
 
-nps_boundaries <- project(nps_boundaries, crs(vpd_forecast_0))
+middle_rockies <- project(middle_rockies, crs(vpd_forecast_0))
 
-vpd_forecast_0 <- crop(vpd_forecast_0, nps_boundaries)
-vpd_forecast_1 <- crop(vpd_forecast_1, nps_boundaries)
-vpd_forecast_2 <- crop(vpd_forecast_2, nps_boundaries)
+vpd_forecast_0 <- crop(vpd_forecast_0, middle_rockies)
+vpd_forecast_1 <- crop(vpd_forecast_1, middle_rockies)
+vpd_forecast_2 <- crop(vpd_forecast_2, middle_rockies)
 
 ### Retrieve historical gridMET data through today - 2
 today <- today()
@@ -87,7 +87,7 @@ if (most_recent_forecast != today + 1) {
 vpd_gridmet <- tryCatch(
   {
     getGridMET(
-      AOI = nps_boundaries,
+      AOI = middle_rockies,
       varname = "vpd",
       startDate = start_date,
       endDate = today - 2,
@@ -122,8 +122,8 @@ forest_danger_file <- tempfile(fileext = ".tif")
 non_forest_danger_file <- tempfile(fileext = ".tif")
 
 message("Calculating rolling averages and writing to temporary files...")
-forest_data <- terra::roll(vpd_series, n = 15, fun = mean, type = "to", circular = FALSE, filename = forest_data_file)
-non_forest_data <- terra::roll(vpd_series, n = 5, fun = mean, type = "to", circular = FALSE, filename = non_forest_data_file)
+forest_data <- terra::roll(vpd_series, n = 15, fun = mean, type = "to", circular = FALSE, filename = forest_data_file, wopt=list(gdal=c("COMPRESS=NONE")))
+non_forest_data <- terra::roll(vpd_series, n = 5, fun = mean, type = "to", circular = FALSE, filename = non_forest_data_file, wopt=list(gdal=c("COMPRESS=NONE")))
 
 # Define functions to process each layer (binning + ecdf)
 forest_fire_danger_ecdf <- readRDS("./out/ecdf/17-middle_rockies-forest/17-middle_rockies-forest-15-VPD-ecdf.RDS")
@@ -144,12 +144,12 @@ message("Applying fire danger models...")
 message("Pre-allocating output files on disk...")
 forest_fire_danger_rast <- rast(forest_data) # Use forest_data as a template
 values(forest_fire_danger_rast) <- NA # Set all values to NA
-writeRaster(forest_fire_danger_rast, forest_danger_file, overwrite = TRUE)
+writeRaster(forest_fire_danger_rast, forest_danger_file, overwrite = TRUE, wopt=list(gdal=c("COMPRESS=NONE")))
 forest_fire_danger_rast <- rast(forest_danger_file) # Re-open the file for updating
 
 non_forest_fire_danger_rast <- rast(non_forest_data)
 values(non_forest_fire_danger_rast) <- NA
-writeRaster(non_forest_fire_danger_rast, non_forest_danger_file, overwrite = TRUE)
+writeRaster(non_forest_fire_danger_rast, non_forest_danger_file, overwrite = TRUE, wopt=list(gdal=c("COMPRESS=NONE")))
 non_forest_fire_danger_rast <- rast(non_forest_danger_file)
 
 # Process layer by layer to conserve memory
@@ -208,15 +208,13 @@ new_levels <- data.frame(
 )
 levels(classified_rast) <- new_levels
 
-# View the result
-## print(classified_rast)
-## plot(classified_rast)
-
+# Create high-resolution masks
 forest_mask <- classified_rast == 2
 forest_mask <- subst(forest_mask, FALSE, NA)
 non_forest_mask <- classified_rast == 1
 non_forest_mask <- subst(non_forest_mask, FALSE, NA)
 
+# Get basemap based on the high-resolution grid
 basemap <- get_tiles(classified_rast, provider = "Esri.NatGeoWorldMap", zoom = 9) %>%
   crop(classified_rast)
 
@@ -224,10 +222,11 @@ basemap <- get_tiles(classified_rast, provider = "Esri.NatGeoWorldMap", zoom = 9
 resampled_forest_file <- tempfile(fileext = ".tif")
 resampled_non_forest_file <- tempfile(fileext = ".tif")
 
-message("Resampling forecast rasters...")
-forest_fire_danger_rast <- resample(forest_fire_danger_rast, classified_rast, filename = resampled_forest_file, overwrite = TRUE)
+message("Upsampling forecast rasters to cover resolution...")
+# Upsample the data to the mask resolution, writing to disk memory-safely
+forest_fire_danger_rast <- resample(forest_fire_danger_rast, classified_rast, threads = TRUE, filename = resampled_forest_file, overwrite = TRUE, wopt=list(gdal=c("COMPRESS=NONE")))
 
-non_forest_fire_danger_rast <- resample(non_forest_fire_danger_rast, classified_rast, filename = resampled_non_forest_file, overwrite = TRUE)
+non_forest_fire_danger_rast <- resample(non_forest_fire_danger_rast, classified_rast, threads = TRUE, filename = resampled_non_forest_file, overwrite = TRUE, wopt=list(gdal=c("COMPRESS=NONE")))
 
 
 names(forest_fire_danger_rast) <- time(forest_fire_danger_rast)
@@ -237,11 +236,12 @@ names(non_forest_fire_danger_rast) <- time(non_forest_fire_danger_rast)
 combined_rast_file <- tempfile(fileext = ".tif")
 
 message("Combining forest and non-forest rasters to disk...")
-combined_fire_danger_rast <- cover(
-  mask(forest_fire_danger_rast, forest_mask),
-  mask(non_forest_fire_danger_rast, non_forest_mask),
-  filename = combined_rast_file,
-  overwrite = TRUE
+combined_fire_danger_rast <- ifel(classified_rast == 2, 
+                                  forest_fire_danger_rast, 
+                                  non_forest_fire_danger_rast,
+                                  filename = combined_rast_file,
+                                  overwrite = TRUE,
+                                  wopt=list(gdal=c("COMPRESS=NONE"))
 )
 
 message("Creating forecast maps...")
