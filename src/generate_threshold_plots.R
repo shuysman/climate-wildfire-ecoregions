@@ -9,13 +9,13 @@ thresholds <- c(0.25, 0.5, 0.75)
 
 # Load fire danger raster
 today <- today()
-forecast_file <- here("out", "forecasts", glue("fire_danger_forecast_{today}.rds"))
+forecast_file <- here("out", "forecasts", glue("fire_danger_forecast_{today}.nc"))
 
 if (!file.exists(forecast_file)) {
   stop("Forecast file not found at: ", forecast_file)
 }
 
-fire_danger_rast <- readRDS(forecast_file)
+fire_danger_rast <- rast(forecast_file)
 
 # Loop through thresholds and generate plots
 for (threshold in thresholds) {
