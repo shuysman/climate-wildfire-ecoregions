@@ -15,6 +15,8 @@ library(glue)
 library(maptiles)
 library(climateR)
 library(ncdf4)
+library(rcdo)
+
 # --- Force GDAL/Terra to use a local temp directory ---
 # This is a more robust method than just terraOptions() as it forces the underlying
 # GDAL library to use the specified directory, which is crucial on systems
@@ -245,17 +247,43 @@ non_forest_fire_danger_rast <- resample(non_forest_fire_danger_rast, classified_
 names(forest_fire_danger_rast) <- time(forest_fire_danger_rast)
 names(non_forest_fire_danger_rast) <- time(non_forest_fire_danger_rast)
 
-# Define a temp file for the combined output
-combined_rast_file <- tempfile(fileext = ".tif")
+# --- Combine Rasters using CDO for performance ---
 
-message("Combining forest and non-forest rasters to disk...")
-combined_fire_danger_rast <- ifel(classified_rast == 2, 
-                                  forest_fire_danger_rast, 
-                                  non_forest_fire_danger_rast,
-                                  filename = combined_rast_file,
-                                  overwrite = TRUE,
-                                  wopt=list(gdal=c("COMPRESS=NONE"))
-)
+message("Combining forest and non-forest rasters using cdo...")
+
+# 1. Define temporary NetCDF file paths for cdo inputs
+cdo_forest_in_file <- tempfile(fileext = ".nc")
+cdo_nonforest_in_file <- tempfile(fileext = ".nc")
+cdo_condition_file <- tempfile(fileext = ".nc")
+
+# 2. Write the required SpatRasters to NetCDF files
+message("Writing temporary NetCDF files for CDO...")
+writeCDF(forest_fire_danger_rast, cdo_forest_in_file, overwrite = TRUE, varname = "fire_danger")
+writeCDF(non_forest_fire_danger_rast, cdo_nonforest_in_file, overwrite = TRUE, varname = "fire_danger")
+writeCDF(classified_rast == 2, cdo_condition_file, overwrite = TRUE, varname = "mask")
+
+# 3. Call the cdo wrapper function
+# The output is a character string path to a new temporary file
+message("Running cdo_ifthenelse...")
+cdo_out_file <- cdo_ifthenelse(ifile = cdo_condition_file, 
+                               thenfile = cdo_forest_in_file, 
+                               elsefile = cdo_nonforest_in_file)
+
+# 4. Load the result from the CDO output file
+if (!file.exists(cdo_out_file)) {
+  stop("cdo_ifthenelse command failed to create output file. Is `cdo` installed and in the system PATH?")
+}
+combined_fire_danger_rast <- rast(cdo_out_file)
+
+# 5. Clean up temporary input files
+unlink(c(cdo_forest_in_file, cdo_nonforest_in_file, cdo_condition_file))
+
+
+# --- Plotting ---
+
+# Get the basemap based on the final combined raster's extent
+basemap <- get_tiles(combined_fire_danger_rast, provider = "Esri.NatGeoWorldMap", zoom = 9) %>%
+  crop(combined_fire_danger_rast)
 
 message("Creating forecast maps...")
 ggplot() +
