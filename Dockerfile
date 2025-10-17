@@ -4,6 +4,7 @@ FROM docker.io/rocker/r-ver:4.5.1
 RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     cargo \
+    cdo \
     cmake \
     gdal-bin \
     libcurl4-openssl-dev \
