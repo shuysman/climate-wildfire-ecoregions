@@ -21,5 +21,8 @@ Rscript ./src/generate_threshold_plots.R
 # Generate the daily HTML report
 ./src/generate_daily_html.sh
 
+# Create the Cloud-Optimized GeoTIFF for today for web mapping use
+./src/create_cog_for_today.sh
+
 echo "Daily forecast generation complete."
 echo "$(date)"

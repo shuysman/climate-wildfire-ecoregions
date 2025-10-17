@@ -11,26 +11,24 @@ library(viridisLite)
 library(htmlwidgets)
 library(htmltools)
 
-# Get command line arguments
-args <- commandArgs(trailingOnly = TRUE)
-if (length(args) != 3) {
-  stop("Usage: Rscript map_lightning.R <forecast_file_path> <forecast_status> <forecast_date>", call. = FALSE)
+# Get command line arguments, using a unique variable name to avoid conflicts
+cmd_args <- commandArgs(trailingOnly = TRUE)
+if (length(cmd_args) != 3) {
+  stop("Usage: Rscript map_lightning.R <cog_file> <forecast_status> <forecast_date>", call. = FALSE)
 }
 
-forecast_file <- args[1]
-forecast_status <- args[2]
-forecast_date_str <- args[3]
+cog_file <- cmd_args[1]
+forecast_status <- cmd_args[2]
+forecast_date_str <- cmd_args[3]
 forecast_date <- as.Date(forecast_date_str)
 
-# Load fire danger raster
-if (!file.exists(forecast_file)) {
-  stop("Forecast file not found at: ", forecast_file)
+# Load the single-layer COG file
+if (!file.exists(cog_file)) {
+  stop("COG file not found at: ", cog_file)
 }
 
-fire_danger_rast <- rast(forecast_file)
-
-# Get the fire danger for the specified date
-fire_danger_today <- fire_danger_rast %>% subset(time(.) == forecast_date)
+# The input is now a single-layer raster for today, so no subsetting is needed.
+fire_danger_today <- rast(cog_file)
 fire_danger_today <- aggregate(fire_danger_today, fact = 2)
 
 # Fetch lightning data
