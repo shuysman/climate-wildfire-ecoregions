@@ -12,7 +12,7 @@ library(glue)
 
 # Input files
 # Using the path from the working map_forecast_danger.R script
-landfire_conus_file <- "data/LF2023_EVT_240_CONUS/Tif/LC23_EVT_240.tif"
+landfire_conus_file <- "data/LF2023_EVT_240_CONUS/Tif/4326/LC23_EVT_240.tif"
 ecoregions_file <- "data/us_eco_l3/us_eco_l3.shp"
 
 # Output directory
