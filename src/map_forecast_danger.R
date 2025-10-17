@@ -17,21 +17,8 @@ library(climateR)
 library(ncdf4)
 library(rcdo)
 
-# --- Force GDAL/Terra to use a local temp directory ---
-# This is a more robust method than just terraOptions() as it forces the underlying
-# GDAL library to use the specified directory, which is crucial on systems
-# where /tmp is a RAM disk (tmpfs).
-temp_dir <- file.path(getwd(), "tmp")
-if (!dir.exists(temp_dir)) {
-  dir.create(temp_dir)
-}
-# Set the environment variable for GDAL
-Sys.setenv(GDAL_TMPDIR = temp_dir)
-# Set the terra options as well for good measure
-terraOptions(tempdir = temp_dir)
-
-
 bin_rast <- function(new_rast, quants_rast, probs) {
+  # Approximate conversion of percentile of dryness (VPD) to proportion of historical fires that burned at or above that %ile of VPD (fire danger)
   # Count how many quantile layers the new value is greater than.
   # This results in a raster of integers from 0 to 9.
   bin_index_rast <- sum(new_rast > quants_rast)
@@ -55,6 +42,8 @@ terraOptions(
   verbose = FALSE,
   memfrac = 0.9
 )
+
+nthreads <- 16
 
 out_dir <- file.path("./out/forecasts")
 dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
@@ -83,6 +72,10 @@ vpd_forecast_2 <- rast("data/vpd/cfsv2_metdata_forecast_vpd_daily_2.nc")
 time(vpd_forecast_2) <- as_date(depth(vpd_forecast_2), origin = "1900-01-01")
 
 middle_rockies <- project(middle_rockies, crs(vpd_forecast_0))
+
+# Rasterize the ecoregion polygon to create a processing mask
+message("Rasterizing ecoregion polygon for masking...")
+processing_mask <- rasterize(middle_rockies, vpd_forecast_0)
 
 vpd_forecast_0 <- crop(vpd_forecast_0, middle_rockies)
 vpd_forecast_1 <- crop(vpd_forecast_1, middle_rockies)
@@ -126,8 +119,6 @@ today_vpd <- subset(vpd_forecast_1, time(vpd_forecast_1) == today)
 yesterday_vpd <- subset(vpd_forecast_2, time(vpd_forecast_2) == today - 1)
 vpd_series <- c(vpd_gridmet, yesterday_vpd, today_vpd, vpd_forecast_0)
 
-dates <- time(vpd_series)
-
 
 # Create temporary files for intermediate rasters to reduce memory usage
 # These files will be written to the session's temporary directory and cleaned up automatically
@@ -137,8 +128,10 @@ forest_danger_file <- tempfile(fileext = ".tif")
 non_forest_danger_file <- tempfile(fileext = ".tif")
 
 message("Calculating rolling averages and writing to temporary files...")
-forest_data <- terra::roll(vpd_series, n = 15, fun = mean, type = "to", circular = FALSE, filename = forest_data_file, wopt=list(gdal=c("COMPRESS=NONE")))
-non_forest_data <- terra::roll(vpd_series, n = 5, fun = mean, type = "to", circular = FALSE, filename = non_forest_data_file, wopt=list(gdal=c("COMPRESS=NONE")))
+forest_data <- terra::roll(vpd_series, n = 15, fun = mean, type = "to", circular = FALSE, filename = forest_data_file, wopt = list(gdal = c("COMPRESS=NONE"))) %>% subset(time(.) >= today())
+non_forest_data <- terra::roll(vpd_series, n = 5, fun = mean, type = "to", circular = FALSE, filename = non_forest_data_file, wopt = list(gdal = c("COMPRESS=NONE"))) %>% subset(time(.) >= today())
+
+dates <- time(forest_data)
 
 # Define functions to process each layer (binning + ecdf)
 forest_fire_danger_ecdf <- readRDS("./out/ecdf/17-middle_rockies-forest/17-middle_rockies-forest-15-VPD-ecdf.RDS")
@@ -153,142 +146,114 @@ process_non_forest_layer <- function(layer) {
   terra::app(percentile_rast, fun = non_forest_fire_danger_ecdf)
 }
 
-message("Applying fire danger models...")
+# --- Streaming Pipeline to Process Data Day-by-Day ---
 
-# Create an empty shell raster on disk for the output
-message("Pre-allocating output files on disk...")
-forest_fire_danger_rast <- rast(forest_data) # Use forest_data as a template
-values(forest_fire_danger_rast) <- NA # Set all values to NA
-writeRaster(forest_fire_danger_rast, forest_danger_file, overwrite = TRUE, wopt=list(gdal=c("COMPRESS=NONE")))
-forest_fire_danger_rast <- rast(forest_danger_file) # Re-open the file for updating
-
-non_forest_fire_danger_rast <- rast(non_forest_data)
-values(non_forest_fire_danger_rast) <- NA
-writeRaster(non_forest_fire_danger_rast, non_forest_danger_file, overwrite = TRUE, wopt=list(gdal=c("COMPRESS=NONE")))
-non_forest_fire_danger_rast <- rast(non_forest_danger_file)
-
-# Process layer by layer to conserve memory
-for (i in 1:nlyr(forest_data)) {
-  message(paste("Processing forest layer", i, "of", nlyr(forest_data)))
-  layer_in <- subset(forest_data, i)
-  layer_out <- process_forest_layer(layer_in)
-  # Use replacement method to write to the correct layer on disk
-  forest_fire_danger_rast[[i]] <- layer_out
+# --- Load Pre-generated Classified Cover Raster ---
+# This file is created by the src/01a_pregenerate_cover.R script
+message("Loading pre-generated classified cover raster for ecoregion 17...")
+# NOTE: This is hardcoded to Middle Rockies (17) for now.
+# A more advanced version would determine the ecoregion dynamically.
+classified_rast_file <- "out/classified_cover/ecoregion_17_classified.tif"
+if (!file.exists(classified_rast_file)) {
+  stop(paste("Classified cover file not found:", classified_rast_file, "\nPlease run src/01a_pregenerate_cover.R first."))
 }
+classified_rast <- rast(classified_rast_file) %>% project(crs(forest_data))
 
-for (i in 1:nlyr(non_forest_data)) {
-  message(paste("Processing non-forest layer", i, "of", nlyr(non_forest_data)))
-  layer_in <- subset(non_forest_data, i)
-  layer_out <- process_non_forest_layer(layer_in)
-  # Use replacement method to write to the correct layer on disk
-  non_forest_fire_danger_rast[[i]] <- layer_out
-}
+# 2. Copy the pre-generated template file for today's forecast
+message("Copying pre-generated template for today's forecast...")
+template_file <- "out/templates/middle_rockies_forecast_shell.nc"
+final_output_file <- file.path(out_dir, glue("fire_danger_forecast_{today}.nc"))
 
-time(forest_fire_danger_rast) <- dates
-
-time(non_forest_fire_danger_rast) <- dates
-
-cover_types <- rast("data/LF2023_EVT_240_CONUS/Tif/4326/LC23_EVT_240.tif") %>%
-  crop(forest_fire_danger_rast)
-
-activeCat(cover_types) <- "EVT_LF"
-
-# 1. Extract the category levels into a data frame
-# The [[1]] is used because levels() returns a list, one for each layer.
-categories_df <- levels(cover_types)[[1]]
-
-# 2. Add a new column with the desired classification using your rules
-# We will create numeric codes: 1 for non_forest, 2 for forest.
-# Everything else will become NA.
-categories_df <- categories_df %>%
-  mutate(veg_class_id = case_match(
-    EVT_LF,
-    c("Herb", "Shrub", "Sparse") ~ 1,
-    "Tree" ~ 2,
-    .default = NA_integer_
+if (!file.exists(template_file)) {
+  stop(paste(
+    "Forecast template shell file not found:", template_file,
+    "\nPlease run src/01b_create_forecast_template.R first."
   ))
-
-# 3. Create the reclassification matrix from the original ID to the new ID
-# The matrix should have two columns: 'from' (original ID) and 'to' (new ID).
-# The original raster values are in the 'ID' or 'value' column of the levels table.
-rcl_matrix <- categories_df[, c("Value", "veg_class_id")]
-
-# 4. Classify the raster using this matrix
-classified_rast <- classify(cover_types, rcl = rcl_matrix, right = NA)
-
-# 5. (Optional but recommended) Assign new category labels to the output raster
-new_levels <- data.frame(
-  ID = c(1, 2),
-  cover = c("non_forest", "forest")
-)
-levels(classified_rast) <- new_levels
-
-# Create high-resolution masks
-forest_mask <- classified_rast == 2
-forest_mask <- subst(forest_mask, FALSE, NA)
-non_forest_mask <- classified_rast == 1
-non_forest_mask <- subst(non_forest_mask, FALSE, NA)
-
-# Get basemap based on the high-resolution grid
-basemap <- get_tiles(classified_rast, provider = "Esri.NatGeoWorldMap", zoom = 9) %>%
-  crop(classified_rast)
-
-# Define new temp files for the resampled outputs
-resampled_forest_file <- tempfile(fileext = ".tif")
-resampled_non_forest_file <- tempfile(fileext = ".tif")
-
-message("Upsampling forecast rasters to cover resolution...")
-# Upsample the data to the mask resolution, writing to disk memory-safely
-forest_fire_danger_rast <- resample(forest_fire_danger_rast, classified_rast, threads = TRUE, filename = resampled_forest_file, overwrite = TRUE, wopt=list(gdal=c("COMPRESS=NONE")))
-
-non_forest_fire_danger_rast <- resample(non_forest_fire_danger_rast, classified_rast, threads = TRUE, filename = resampled_non_forest_file, overwrite = TRUE, wopt=list(gdal=c("COMPRESS=NONE")))
-
-
-names(forest_fire_danger_rast) <- time(forest_fire_danger_rast)
-names(non_forest_fire_danger_rast) <- time(non_forest_fire_danger_rast)
-
-# --- Combine Rasters using CDO for performance ---
-
-message("Combining forest and non-forest rasters using cdo...")
-
-# 1. Define temporary NetCDF file paths for cdo inputs
-cdo_forest_in_file <- tempfile(fileext = ".nc")
-cdo_nonforest_in_file <- tempfile(fileext = ".nc")
-cdo_condition_file <- tempfile(fileext = ".nc")
-
-# 2. Write the required SpatRasters to NetCDF files
-message("Writing temporary NetCDF files for CDO...")
-writeCDF(forest_fire_danger_rast, cdo_forest_in_file, overwrite = TRUE, varname = "fire_danger")
-writeCDF(non_forest_fire_danger_rast, cdo_nonforest_in_file, overwrite = TRUE, varname = "fire_danger")
-writeCDF(classified_rast == 2, cdo_condition_file, overwrite = TRUE, varname = "mask")
-
-# 3. Call the cdo wrapper function
-# The output is a character string path to a new temporary file
-message("Running cdo_ifthenelse...")
-cdo_out_file <- cdo_ifthenelse(ifile = cdo_condition_file, 
-                               thenfile = cdo_forest_in_file, 
-                               elsefile = cdo_nonforest_in_file)
-
-# 4. Load the result from the CDO output file
-if (!file.exists(cdo_out_file)) {
-  stop("cdo_ifthenelse command failed to create output file. Is `cdo` installed and in the system PATH?")
 }
-combined_fire_danger_rast <- rast(cdo_out_file)
 
-# 5. Clean up temporary input files
-unlink(c(cdo_forest_in_file, cdo_nonforest_in_file, cdo_condition_file))
+file.copy(template_file, final_output_file, overwrite = TRUE)
+
+# Re-open the newly copied file for writing into
+final_output_rast <- rast(final_output_file)
+
+# Set time and names for the output file immediately after creation
+time(final_output_rast) <- dates
+names(final_output_rast) <- dates
+
+# 3. Loop through each day, process, and write to a temporary file
+message(glue("Starting day-by-day processing pipeline for {N_DAYS} days..."))
+
+# A list to store the filenames of the final processed layers
+final_layer_files <- c()
+
+for (i in 1:N_DAYS) {
+  day <- dates[i]
+  message(paste("Processing day", i, glue("of {N_DAYS} days ({day})...")))
+
+  # --- Create iteration-specific temp files ---
+  # This loop is designed to be maximally memory- and disk-efficient.
+  # Each major step writes its output to a new temporary file on disk rather than
+  # holding large intermediate rasters in RAM. This is critical for environments
+  # with limited RAM or ephemeral storage (like AWS Fargate).
+  resampled_forest_file <- tempfile(fileext = ".tif")
+  resampled_nonforest_file <- tempfile(fileext = ".tif")
+  combined_layer_file <- tempfile(fileext = ".tif")
+
+  # Get single low-res layer for this day
+  forest_layer_lowres <- subset(forest_data, time(forest_data) == day)
+  nonforest_layer_lowres <- subset(non_forest_data, time(non_forest_data) == day)
+
+  # Process it (binning + ecdf)
+  processed_forest <- process_forest_layer(forest_layer_lowres)
+  processed_nonforest <- process_non_forest_layer(nonforest_layer_lowres)
+
+  # Resample, writing directly to disk (uncompressed is faster for these intermediate steps)
+  resample(processed_forest, classified_rast, filename = resampled_forest_file, threads = nthreads, wopt = list(gdal = c("COMPRESS=NONE")))
+  resample(processed_nonforest, classified_rast, filename = resampled_nonforest_file, threads = nthreads, wopt = list(gdal = c("COMPRESS=NONE")))
+
+  # Combine, writing to a *compressed* temporary file to save disk space during the loop
+  ifel(classified_rast == 2, rast(resampled_forest_file), rast(resampled_nonforest_file), filename = combined_layer_file, wopt = list(gdal = c("COMPRESS=DEFLATE")))
+
+  # Add the final filename to our list. This file will be kept until the final assembly.
+  final_layer_files <- c(final_layer_files, combined_layer_file)
+
+  # Explicitly remove intermediate R objects and the uncompressed temp files for this iteration
+  rm(forest_layer_lowres, nonforest_layer_lowres, processed_forest, processed_nonforest)
+  unlink(c(resampled_forest_file, resampled_nonforest_file))
+  gc()
+}
+
+# --- Assemble, Save, and Cleanup ---
+message("Processing complete. Assembling final raster...")
+
+# Create the final multi-layer raster. This is a memory-efficient "lazy load".
+# It creates a SpatRaster object that points to the list of single-layer files on disk
+# without loading all the pixel data into RAM.
+final_output_rast <- rast(final_layer_files)
+
+# Set the correct time information
+time(final_output_rast) <- dates
+names(final_output_rast) <- dates
+
+# Save the final, compressed NetCDF file. This is the first time all the
+# processed pixel data is read from the temporary files and written into a
+# single, final file.
+message("Saving final compressed NetCDF...")
+writeCDF(final_output_rast, final_output_file, overwrite = TRUE, varname = "fire_danger", compression = 4)
+
+# Now that the final file is saved, clean up all temporary files from the loop
+message("Cleaning up intermediate files...")
+unlink(c(forest_data_file, non_forest_data_file, final_layer_files))
 
 
-# --- Plotting ---
-
-# Get the basemap based on the final combined raster's extent
-basemap <- get_tiles(combined_fire_danger_rast, provider = "Esri.NatGeoWorldMap", zoom = 9) %>%
-  crop(combined_fire_danger_rast)
-
+# The plotting logic now uses the final raster
 message("Creating forecast maps...")
+basemap <- get_tiles(final_output_rast, provider = "Esri.NatGeoWorldMap", zoom = 9) %>%
+  crop(final_output_rast)
+
 ggplot() +
   geom_spatraster_rgb(data = basemap) +
-  geom_spatraster(data = subset(combined_fire_danger_rast, time(combined_fire_danger_rast) >= today)) +
+  geom_spatraster(data = subset(final_output_rast, time(final_output_rast) >= today)) +
   scale_fill_viridis_c(option = "B", na.value = "transparent", limits = c(0, 1)) +
   facet_wrap(~lyr, ncol = 5) +
   theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
@@ -296,10 +261,6 @@ ggplot() +
   scale_x_continuous(expand = c(0, 0)) +
   scale_y_continuous(expand = c(0, 0))
 ggsave(file.path(out_dir, glue("YELL-GRTE-JODR_fire_danger_forecast_{today}.png")), width = 12, height = 20)
-
-message("Saving final forecast raster...")
-forecast_rast <- subset(combined_fire_danger_rast, time(combined_fire_danger_rast) %in% dates[15:length(dates)]) ### Filter out early dates because the earliest date without NAs for forest is start_date + 14 due to rolling window calculation
-terra::writeCDF(forecast_rast, file.path(out_dir, glue("fire_danger_forecast_{today}.nc")), overwrite = TRUE)
 
 
 message("Forecast generation complete.")
