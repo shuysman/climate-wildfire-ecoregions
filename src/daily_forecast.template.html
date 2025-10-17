@@ -152,14 +152,91 @@
         <h2>Fire Danger Threshold Plots</h2>
         <p>These plots show the percentage of the park area that is at or above a specific fire danger threshold. The fire danger threshold represents the proportion of historical fires that occurred at or below a certain dryness level. Different management objects may require different thresholds to inform decisions. The thresholds provided here give an overview of the total area in the parks above a low (0.25), medium (0.5), or high (0.75) danger of wildfire, which can be used to identify windows of opportunity for varying management objectives.</p>
 
-        <h3>Threshold: 0.25</h3>
-        <img src="threshold_plot_0.25.png" alt="Fire Danger Threshold Plot at 0.25">
+        <nav class="navbar sub-navbar">
+          <ul>
+            <li><a href="javascript:void(0)" class="park-link active" onclick="showPark('YELL')">YELL</a></li>
+            <li><a href="javascript:void(0)" class="park-link" onclick="showPark('GRTE')">GRTE</a></li>
+            <li><a href="javascript:void(0)" class="park-link" onclick="showPark('JODR')">JODR</a></li>
+            <li><a href="javascript:void(0)" class="park-link" onclick="showPark('JECA')">JECA</a></li>
+            <li><a href="javascript:void(0)" class="park-link" onclick="showPark('GRKO')">GRKO</a></li>
+            <li><a href="javascript:void(0)" class="park-link" onclick="showPark('DETO')">DETO</a></li>
+            <li><a href="javascript:void(0)" class="park-link" onclick="showPark('WICA')">WICA</a></li>
+            <li><a href="javascript:void(0)" class="park-link" onclick="showPark('MORU')">MORU</a></li>
+          </ul>
+        </nav>
 
-        <h3>Threshold: 0.50</h3>
-        <img src="threshold_plot_0.5.png" alt="Fire Danger Threshold Plot at 0.50">
+        <div id="YELL" class="park-plots">
+          <h3>Threshold: 0.25</h3>
+          <img src="YELL/threshold_plot_0.25.png" alt="Fire Danger Threshold Plot at 0.25 for YELL">
+          <h3>Threshold: 0.50</h3>
+          <img src="YELL/threshold_plot_0.5.png" alt="Fire Danger Threshold Plot at 0.50 for YELL">
+          <h3>Threshold: 0.75</h3>
+          <img src="YELL/threshold_plot_0.75.png" alt="Fire Danger Threshold Plot at 0.75 for YELL">
+        </div>
 
-        <h3>Threshold: 0.75</h3>
-        <img src="threshold_plot_0.75.png" alt="Fire Danger Threshold Plot at 0.75">
+        <div id="GRTE" class="park-plots" style="display:none;">
+          <h3>Threshold: 0.25</h3>
+          <img src="GRTE/threshold_plot_0.25.png" alt="Fire Danger Threshold Plot at 0.25 for GRTE">
+          <h3>Threshold: 0.50</h3>
+          <img src="GRTE/threshold_plot_0.5.png" alt="Fire Danger Threshold Plot at 0.50 for GRTE">
+          <h3>Threshold: 0.75</h3>
+          <img src="GRTE/threshold_plot_0.75.png" alt="Fire Danger Threshold Plot at 0.75 for GRTE">
+        </div>
+
+        <div id="JODR" class="park-plots" style="display:none;">
+          <h3>Threshold: 0.25</h3>
+          <img src="JODR/threshold_plot_0.25.png" alt="Fire Danger Threshold Plot at 0.25 for JODR">
+          <h3>Threshold: 0.50</h3>
+          <img src="JODR/threshold_plot_0.5.png" alt="Fire Danger Threshold Plot at 0.50 for JODR">
+          <h3>Threshold: 0.75</h3>
+          <img src="JODR/threshold_plot_0.75.png" alt="Fire Danger Threshold Plot at 0.75 for JODR">
+        </div>
+
+        <div id="JECA" class="park-plots" style="display:none;">
+          <h3>Threshold: 0.25</h3>
+          <img src="JECA/threshold_plot_0.25.png" alt="Fire Danger Threshold Plot at 0.25 for JECA">
+          <h3>Threshold: 0.50</h3>
+          <img src="JECA/threshold_plot_0.5.png" alt="Fire Danger Threshold Plot at 0.50 for JECA">
+          <h3>Threshold: 0.75</h3>
+          <img src="JECA/threshold_plot_0.75.png" alt="Fire Danger Threshold Plot at 0.75 for JECA">
+        </div>
+
+        <div id="GRKO" class="park-plots" style="display:none;">
+          <h3>Threshold: 0.25</h3>
+          <img src="GRKO/threshold_plot_0.25.png" alt="Fire Danger Threshold Plot at 0.25 for GRKO">
+          <h3>Threshold: 0.50</h3>
+          <img src="GRKO/threshold_plot_0.5.png" alt="Fire Danger Threshold Plot at 0.50 for GRKO">
+          <h3>Threshold: 0.75</h3>
+          <img src="GRKO/threshold_plot_0.75.png" alt="Fire Danger Threshold Plot at 0.75 for GRKO">
+        </div>
+
+        <div id="DETO" class="park-plots" style="display:none;">
+          <h3>Threshold: 0.25</h3>
+          <img src="DETO/threshold_plot_0.25.png" alt="Fire Danger Threshold Plot at 0.25 for DETO">
+          <h3>Threshold: 0.50</h3>
+          <img src="DETO/threshold_plot_0.5.png" alt="Fire Danger Threshold Plot at 0.50 for DETO">
+          <h3>Threshold: 0.75</h3>
+          <img src="DETO/threshold_plot_0.75.png" alt="Fire Danger Threshold Plot at 0.75 for DETO">
+        </div>
+
+        <div id="WICA" class="park-plots" style="display:none;">
+          <h3>Threshold: 0.25</h3>
+          <img src="WICA/threshold_plot_0.25.png" alt="Fire Danger Threshold Plot at 0.25 for WICA">
+          <h3>Threshold: 0.50</h3>
+          <img src="WICA/threshold_plot_0.5.png" alt="Fire Danger Threshold Plot at 0.50 for WICA">
+          <h3>Threshold: 0.75</h3>
+          <img src="WICA/threshold_plot_0.75.png" alt="Fire Danger Threshold Plot at 0.75 for WICA">
+        </div>
+
+        <div id="MORU" class="park-plots" style="display:none;">
+          <h3>Threshold: 0.25</h3>
+          <img src="MORU/threshold_plot_0.25.png" alt="Fire Danger Threshold Plot at 0.25 for MORU">
+          <h3>Threshold: 0.50</h3>
+          <img src="MORU/threshold_plot_0.5.png" alt="Fire Danger Threshold Plot at 0.50 for MORU">
+          <h3>Threshold: 0.75</h3>
+          <img src="MORU/threshold_plot_0.75.png" alt="Fire Danger Threshold Plot at 0.75 for MORU">
+        </div>
+
       </div>
 
       <div id="lightning-map" class="container content-section">
@@ -353,6 +430,22 @@
             }
         } else {
             showContent("forecast-map");
+        }
+
+        function showPark(parkCode) {
+            // Hide all park plot divs
+            var parkPlots = document.getElementsByClassName('park-plots');
+            for (var i = 0; i < parkPlots.length; i++) {
+                parkPlots[i].style.display = 'none';
+            }
+            // Deactivate all park links
+            var parkLinks = document.getElementsByClassName('park-link');
+            for (var i = 0; i < parkLinks.length; i++) {
+                parkLinks[i].classList.remove('active');
+            }
+            // Show the selected park's plots and activate its link
+            document.getElementById(parkCode).style.display = 'block';
+            event.currentTarget.classList.add('active');
         }
     </script>
 
