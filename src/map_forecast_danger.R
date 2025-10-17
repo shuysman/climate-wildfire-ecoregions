@@ -180,6 +180,9 @@ final_output_rast <- rast(final_output_file)
 time(final_output_rast) <- dates
 names(final_output_rast) <- dates
 
+# Number of days in analysis
+N_DAYS <- length(dates)
+
 # 3. Loop through each day, process, and write to a temporary file
 message(glue("Starting day-by-day processing pipeline for {N_DAYS} days..."))
 
