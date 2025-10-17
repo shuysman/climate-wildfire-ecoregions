@@ -15,6 +15,19 @@ library(glue)
 library(maptiles)
 library(climateR)
 library(ncdf4)
+# --- Force GDAL/Terra to use a local temp directory ---
+# This is a more robust method than just terraOptions() as it forces the underlying
+# GDAL library to use the specified directory, which is crucial on systems
+# where /tmp is a RAM disk (tmpfs).
+temp_dir <- file.path(getwd(), "tmp")
+if (!dir.exists(temp_dir)) {
+  dir.create(temp_dir)
+}
+# Set the environment variable for GDAL
+Sys.setenv(GDAL_TMPDIR = temp_dir)
+# Set the terra options as well for good measure
+terraOptions(tempdir = temp_dir)
+
 
 bin_rast <- function(new_rast, quants_rast, probs) {
   # Count how many quantile layers the new value is greater than.
