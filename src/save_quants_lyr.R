@@ -20,14 +20,14 @@ terraOptions(
 
 probs <- seq(.01, 1.0, by = .01)
 
-nps_boundaries <- vect("data/nps_boundary/nps_boundary.shp") %>%
-  filter(UNIT_CODE %in% c("YELL", "GRTE", "JODR"))
+middle_rockies <- vect("data/us_eco_l3/us_eco_l3.shp") %>%
+  filter(US_L3NAME == "Middle Rockies")
 
 vpd_data_dir <- file.path("/media/steve/THREDDS/gridmet/")
 vpd_data_files <- list.files(vpd_data_dir, pattern = "vpd.*.nc", full.names = TRUE)
 vpd_data <- rast(vpd_data_files) %>%
-  crop(project(nps_boundaries, crs(.))) %>%
-  mask(project(nps_boundaries, crs(.)))
+  crop(project(middle_rockies, crs(.))) %>%
+  mask(project(middle_rockies, crs(.)))
 
 time(vpd_data) <- as_date(depth(vpd_data), origin = "1900-01-01")
 
