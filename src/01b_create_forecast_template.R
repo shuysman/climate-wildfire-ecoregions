@@ -15,10 +15,8 @@ library(glue)
 # This is for the Middle Rockies (Ecoregion 17).
 classified_cover_file <- "out/classified_cover/ecoregion_17_classified.tif"
 
-# Define the number of layers for the template.
-# This should be slightly larger than the typical number of forecast days (~69)
-# to ensure there's always enough space.
-NUM_LAYERS <- 70
+# This should match the desired number of forecast days (29 = today + 28 forecast days).
+NUM_LAYERS <- 29
 
 # Define the output directory and final template file path.
 output_dir <- "out/templates"
