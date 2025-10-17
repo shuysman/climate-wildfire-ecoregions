@@ -59,7 +59,7 @@ pal <- colorNumeric(viridisLite::viridis(256, option = "B"),
 
 m <- leaflet() %>%
   addProviderTiles(providers$CartoDB.Positron) %>%
-  addRasterImage(fire_danger_today, colors = pal, opacity = 0.8, project = TRUE) %>%
+  addRasterImage(fire_danger_today, colors = pal, opacity = 0.8, project = TRUE, maxBytes = 32 * 1024 * 1024) %>%
   addLegend(
     pal = pal, values = c(0, 1),
     title = "Fire Danger"
