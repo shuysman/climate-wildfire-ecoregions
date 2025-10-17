@@ -17,6 +17,9 @@ library(climateR)
 library(ncdf4)
 library(rcdo)
 
+# Record start time
+start_time <- Sys.time()
+
 bin_rast <- function(new_rast, quants_rast, probs) {
   # Approximate conversion of percentile of dryness (VPD) to proportion of historical fires that burned at or above that %ile of VPD (fire danger)
   # Count how many quantile layers the new value is greater than.
@@ -265,3 +268,8 @@ message("Cleaning up intermediate files...")
 unlink(c(forest_data_file, non_forest_data_file, final_layer_files))
 
 message("Forecast generation complete.")
+
+# Calculate and print total runtime
+end_time <- Sys.time()
+elapsed_time <- end_time - start_time
+message(paste("Total script runtime:", format(elapsed_time)))
