@@ -244,10 +244,6 @@ names(final_output_rast) <- dates
 message("Saving final compressed NetCDF...")
 writeCDF(final_output_rast, final_output_file, overwrite = TRUE, varname = "fire_danger", compression = 4)
 
-# Now that the final file is saved, clean up all temporary files from the loop
-message("Cleaning up intermediate files...")
-unlink(c(forest_data_file, non_forest_data_file, final_layer_files))
-
 
 # The plotting logic now uses the final raster
 message("Creating forecast maps...")
@@ -265,5 +261,8 @@ ggplot() +
   scale_y_continuous(expand = c(0, 0))
 ggsave(file.path(out_dir, glue("YELL-GRTE-JODR_fire_danger_forecast_{today}.png")), width = 12, height = 20)
 
+# Now that the final file is saved, clean up all temporary files from the loop
+message("Cleaning up intermediate files...")
+unlink(c(forest_data_file, non_forest_data_file, final_layer_files))
 
 message("Forecast generation complete.")
