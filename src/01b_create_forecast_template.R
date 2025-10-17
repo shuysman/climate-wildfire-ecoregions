@@ -38,6 +38,7 @@ if (!file.exists(classified_cover_file)) {
 # 2. Create a single-layer template raster from the cover file's grid
 message("Creating single-layer grid template...")
 grid_template <- rast(classified_cover_file)
+values(grid_template) <- NA
 temp_template_file <- tempfile(fileext = ".nc")
 writeCDF(grid_template, temp_template_file, overwrite = TRUE, varname = "fire_danger")
 
