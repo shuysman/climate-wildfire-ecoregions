@@ -242,8 +242,7 @@ names(final_output_rast) <- dates
 # processed pixel data is read from the temporary files and written into a
 # single, final file.
 message("Saving final compressed NetCDF...")
-writeCDF(final_output_rast, final_output_file, overwrite = TRUE, varname = "fire_danger", compression = 4)
-
+writeCDF(final_output_rast, final_output_file, overwrite = TRUE, varname = "fire_danger", compression = 2)
 
 # The plotting logic now uses the final raster
 message("Creating forecast maps...")
