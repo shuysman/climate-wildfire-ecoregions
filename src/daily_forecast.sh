@@ -2,6 +2,17 @@
 set -euo pipefail
 IFS=$'\n\t'
 
+if [ "${ENVIRONMENT}" = "cloud" ]; then
+  if [ -z "${S3_BUCKET_PATH}" ]; then
+    echo "Error: S3_BUCKET_PATH environment variable must be set in cloud mode." >&2
+    exit 1
+  fi
+  echo "--- Running in cloud mode: Syncing data from S3 ---"
+  aws s3 sync "${S3_BUCKET_PATH}/data" /app/data
+else
+  echo "--- Running in local mode: Skipping S3 sync ---"
+fi
+
 echo "Starting daily forecast generation..."
 echo "$(date)"
 
@@ -23,6 +34,11 @@ Rscript ./src/generate_threshold_plots.R
 
 # Create the Cloud-Optimized GeoTIFF for today for web mapping use
 ./src/create_cog_for_today.sh
+
+if [ "${ENVIRONMENT}" = "cloud" ]; then
+  echo "--- Running in cloud mode: Syncing output to S3 ---"
+  aws s3 sync /app/out ${S3_BUCKET_PATH}/out
+fi
 
 echo "Daily forecast generation complete."
 echo "$(date)"

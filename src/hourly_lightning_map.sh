@@ -2,6 +2,17 @@
 set -euo pipefail
 IFS=$'\n\t'
 
+if [ "${ENVIRONMENT}" = "cloud" ]; then
+  if [ -z "${S3_BUCKET_PATH}" ]; then
+    echo "Error: S3_BUCKET_PATH environment variable must be set in cloud mode." >&2
+    exit 1
+  fi
+  echo "--- Running in cloud mode: Syncing data from S3 ---"
+  aws s3 sync "${S3_BUCKET_PATH}/out" /app/out
+else
+  echo "--- Running in local mode: Skipping S3 sync ---"
+fi
+
 # This script orchestrates the creation of the hourly lightning map.
 
 echo "Starting hourly lightning map generation..."
@@ -35,5 +46,10 @@ fi
 Rscript ./src/map_lightning.R "$COG_TO_USE" "$FORECAST_STATUS" "$TODAY"
 
 ./src/generate_daily_html.sh
+
+if [ "${ENVIRONMENT}" = "cloud" ]; then
+  echo "--- Running in cloud mode: Syncing output to S3 ---"
+  aws s3 sync /app/out ${S3_BUCKET_PATH}/out
+fi
 
 echo "Hourly lightning map generation complete."
