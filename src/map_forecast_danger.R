@@ -20,6 +20,13 @@ library(rcdo)
 # Record start time
 start_time <- Sys.time()
 
+# Current Ecoregion
+# Hardcoded to Middle Rockies for now. Should be set for each ecoregion dynamically when batched for other areas
+ecoregion_name <- "Middle Rockies"
+# Cleaned name for machine-readable access, i.e., for filenames
+ecoregion_name_clean <- str_to_lower(str_replace_all(ecoregion_name, " ", "_"))
+
+
 bin_rast <- function(new_rast, quants_rast, probs) {
   # Approximate conversion of percentile of dryness (VPD) to proportion of historical fires that burned at or above that %ile of VPD (fire danger)
   # Count how many quantile layers the new value is greater than.
@@ -56,7 +63,7 @@ dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
 probs <- seq(.01, 1.0, by = .01)
 
 middle_rockies <- vect("data/us_eco_l3/us_eco_l3.shp") %>%
-  filter(US_L3NAME == "Middle Rockies")
+  filter(US_L3NAME == ecoregion_name)
 
 forest_quants_rast <- rast("./out/ecdf/17-middle_rockies-forest/17-middle_rockies-forest-15-VPD-quants.nc")
 non_forest_quants_rast <- rast("./out/ecdf/17-middle_rockies-non_forest/17-middle_rockies-non_forest-5-VPD-quants.nc")
@@ -261,7 +268,7 @@ ggplot() +
   labs(title = glue("Wildfire danger forecast for YELL/GRTE/JODR from {today}"), fill = "Proportion of Fires") +
   scale_x_continuous(expand = c(0, 0)) +
   scale_y_continuous(expand = c(0, 0))
-ggsave(file.path(out_dir, glue("YELL-GRTE-JODR_fire_danger_forecast_{today}.png")), width = 12, height = 20)
+ggsave(file.path(out_dir, glue("{ecoregion_name_clean}_fire_danger_forecast_{today}.png")), width = 20, height = 20)
 
 # Now that the final file is saved, clean up all temporary files from the loop
 message("Cleaning up intermediate files...")
