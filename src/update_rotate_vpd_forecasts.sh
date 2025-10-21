@@ -5,6 +5,16 @@ IFS=$'\n\t'
 # Get the project directory
 PROJECT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")"/.. &> /dev/null && pwd)
 
+# --- S3 Pre-flight (only in cloud mode) ---
+if [ "${ENVIRONMENT}" = "cloud" ]; then
+  if [ -z "${S3_BUCKET_PATH}" ]; then
+    echo "Error: S3_BUCKET_PATH environment variable must be set in cloud mode." >&2
+    exit 1
+  fi
+  echo "--- Running in cloud mode: Syncing existing data from S3 ---"
+  aws s3 sync "${S3_BUCKET_PATH}/data/vpd/" "$PROJECT_DIR/data/vpd/"
+fi
+
 # --- Configuration ---
 VPD_DATA_DIR="$PROJECT_DIR/data/vpd/"
 LOG_DIR="$PROJECT_DIR/log"
@@ -36,6 +46,13 @@ log() {
 cleanup() {
   # Ensure the temporary file is removed on script exit
   rm -f "$TEMP_FILENAME"
+
+  # --- S3 Post-flight (only in cloud mode) ---
+  if [ "${ENVIRONMENT}" = "cloud" ]; then
+    echo "--- Running in cloud mode: Syncing results to S3 ---"
+    aws s3 sync "$VPD_DATA_DIR" "${S3_BUCKET_PATH}/data/vpd/"
+    aws s3 sync "$LOG_DIR" "${S3_BUCKET_PATH}/log/"
+  fi
 }
 
 
