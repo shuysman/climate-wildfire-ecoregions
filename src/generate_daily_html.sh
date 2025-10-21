@@ -18,7 +18,7 @@ DISPLAY_DATE="$TODAY"
 LIGHTNING_MAP_DATE="$TODAY"
 
 # For the main forecast map, check if today's exists and fall back to yesterday's if not
-TODAY_FORECAST_MAP="$PROJECT_DIR/out/forecasts/YELL-GRTE-JODR_fire_danger_forecast_${TODAY}.png"
+TODAY_FORECAST_MAP="$PROJECT_DIR/out/forecasts/middle_rockies_fire_danger_forecast_${TODAY}.png"
 
 if [ -f "$TODAY_FORECAST_MAP" ]; then
   FORECAST_MAP_DATE="$TODAY"
