@@ -9,6 +9,7 @@ if [ "${ENVIRONMENT}" = "cloud" ]; then
   fi
   echo "--- Running in cloud mode: Syncing data from S3 ---"
   aws s3 sync "${S3_BUCKET_PATH}/data" /app/data
+  aws s3 sync "${S3_BUCKET_PATH}/out" /app/out
 else
   echo "--- Running in local mode: Skipping S3 sync ---"
 fi
