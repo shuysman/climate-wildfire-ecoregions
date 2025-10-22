@@ -102,9 +102,15 @@ if (most_recent_forecast != today + 1) {
   stop(glue("Most recent forecast date is {most_recent_forecast} but should be {most_recent_forecast + 1}. Exiting..."))
 }
 
+# Define cache path
+cache_dir <- "./out/cache"
+dir.create(cache_dir, showWarnings = FALSE, recursive = TRUE)
+gridmet_cache_file <- file.path(cache_dir, "latest_gridmet.nc")
+
 vpd_gridmet <- tryCatch(
   {
-    getGridMET(
+    message("Attempting to download fresh gridMET data...")
+    fresh_gridmet <- getGridMET(
       AOI = middle_rockies,
       varname = "vpd",
       startDate = start_date,
@@ -113,21 +119,53 @@ vpd_gridmet <- tryCatch(
     )$daily_mean_vapor_pressure_deficit %>%
       project(crs(vpd_forecast_0)) %>%
       crop(vpd_forecast_0)
+
+    message("Successfully downloaded fresh gridMET data. Caching to NetCDF file.")
+    # Save the fresh data to the cache file
+    writeCDF(fresh_gridmet, gridmet_cache_file, overwrite = TRUE, varname = "vpd")
+
+    fresh_gridmet # Return the fresh data
   },
   error = function(e) {
-    warning("Failed to retrieve gridMET data. Using older forecast data as a fallback. Forecast accuracy may be reduced.")
-    # Fallback to using older forecast data
-    c(
-      subset(vpd_forecast_2, time(vpd_forecast_2) < today - 1),
-      subset(vpd_forecast_1, time(vpd_forecast_1) < today)
-    )
+    warning(glue("Failed to retrieve fresh gridMET data: {e$message}"))
+
+    if (file.exists(gridmet_cache_file)) {
+      warning("Using cached gridMET data as a fallback. Data may be stale.")
+      # Fallback to using the cached data
+      rast(gridmet_cache_file)
+    } else {
+      stop("Failed to retrieve gridMET data and no cache file is available. Cannot proceed.")
+    }
   }
 )
 
+# --- Infilling Logic ---
+# Now, create the full time series by infilling with forecast data
+message("Creating full time series with historical and forecast data...")
 
-today_vpd <- subset(vpd_forecast_1, time(vpd_forecast_1) == today)
-yesterday_vpd <- subset(vpd_forecast_2, time(vpd_forecast_2) == today - 1)
-vpd_series <- c(vpd_gridmet, yesterday_vpd, today_vpd, vpd_forecast_0)
+# Start with the historical data (either fresh or from cache)
+vpd_series <- vpd_gridmet
+
+# Find the last date we have historical data for
+last_hist_date <- max(time(vpd_series))
+message(glue("Last historical date is {last_hist_date}"))
+
+# Add forecast layers one by one if they are more recent than our historical data
+# This robustly handles cases where historical data might be several days old.
+all_forecast_files <- list(vpd_forecast_2, vpd_forecast_1, vpd_forecast_0)
+for (forecast_rast in all_forecast_files) {
+  # Get dates from the forecast file that are after our last historical date
+  new_dates <- time(forecast_rast)[time(forecast_rast) > last_hist_date]
+  if (length(new_dates) > 0) {
+    message(glue("Infilling with {length(new_dates)} day(s) from a forecast file."))
+    # Subset the forecast raster to get only the new days
+    infill_layers <- subset(forecast_rast, time(forecast_rast) %in% new_dates)
+    # Add these layers to our series
+    vpd_series <- c(vpd_series, infill_layers)
+    # Update the last date we have data for
+    last_hist_date <- max(time(vpd_series))
+  }
+}
 
 
 # Create temporary files for intermediate rasters to reduce memory usage
