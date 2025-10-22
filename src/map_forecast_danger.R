@@ -176,8 +176,10 @@ forest_danger_file <- tempfile(fileext = ".tif")
 non_forest_danger_file <- tempfile(fileext = ".tif")
 
 message("Calculating rolling averages and writing to temporary files...")
-forest_data <- terra::roll(vpd_series, n = 15, fun = mean, type = "to", circular = FALSE, filename = forest_data_file, wopt = list(gdal = c("COMPRESS=NONE"))) %>% subset(time(.) >= today())
-non_forest_data <- terra::roll(vpd_series, n = 5, fun = mean, type = "to", circular = FALSE, filename = non_forest_data_file, wopt = list(gdal = c("COMPRESS=NONE"))) %>% subset(time(.) >= today())
+forest_data <- terra::roll(vpd_series, n = 15, fun = mean, type = "to", circular = FALSE, filename = forest_data_file, wopt = list(gdal = c("COMPRESS=NONE"))) %>%
+  subset(time(.) >= today & time(.) <= today + 7)
+non_forest_data <- terra::roll(vpd_series, n = 5, fun = mean, type = "to", circular = FALSE, filename = non_forest_data_file, wopt = list(gdal = c("COMPRESS=NONE"))) %>%
+  subset(time(.) >= today & time(.) <= today + 7)
 
 dates <- time(forest_data)
 
@@ -301,12 +303,12 @@ ggplot() +
   geom_spatraster_rgb(data = basemap) +
   geom_spatraster(data = subset(final_output_rast, time(final_output_rast) >= today)) +
   scale_fill_viridis_c(option = "B", na.value = "transparent", limits = c(0, 1)) +
-  facet_wrap(~lyr, ncol = 5) +
+  facet_wrap(~lyr, ncol = 4) +
   theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
   labs(title = glue("Wildfire danger forecast for YELL/GRTE/JODR from {today}"), fill = "Proportion of Fires") +
   scale_x_continuous(expand = c(0, 0)) +
   scale_y_continuous(expand = c(0, 0))
-ggsave(file.path(out_dir, glue("{ecoregion_name_clean}_fire_danger_forecast_{today}.png")), width = 20, height = 20)
+ggsave(file.path(out_dir, glue("{ecoregion_name_clean}_fire_danger_forecast_{today}.png")), width = 20, height = 10)
 
 # Now that the final file is saved, clean up all temporary files from the loop
 message("Cleaning up intermediate files...")
