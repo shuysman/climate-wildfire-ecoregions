@@ -7,8 +7,35 @@ if [ "${ENVIRONMENT}" = "cloud" ]; then
     echo "Error: S3_BUCKET_PATH environment variable must be set in cloud mode." >&2
     exit 1
   fi
-  echo "--- Running in cloud mode: Syncing data from S3 ---"
-  aws s3 sync "${S3_BUCKET_PATH}/out" /app/out
+  echo "--- Running in cloud mode: Downloading necessary files from S3 ---"
+
+  TODAY=$(date +%Y-%m-%d)
+  YESTERDAY=$(date -d "yesterday" +%Y-%m-%d)
+  ECOREGION_NAME_CLEAN="middle_rockies" # This is hardcoded in other scripts
+
+  S3_SOURCE_DIR="${S3_BUCKET_PATH}/out/forecasts"
+  LOCAL_FORECAST_DIR="/app/out/forecasts"
+  mkdir -p "$LOCAL_FORECAST_DIR"
+
+  # Define remote file paths
+  TODAY_TIF="${S3_SOURCE_DIR}/fire_danger_${TODAY}.tif"
+  YESTERDAY_TIF="${S3_SOURCE_DIR}/fire_danger_${YESTERDAY}.tif"
+  TODAY_PNG="${S3_SOURCE_DIR}/${ECOREGION_NAME_CLEAN}_fire_danger_forecast_${TODAY}.png"
+  YESTERDAY_PNG="${S3_SOURCE_DIR}/${ECOREGION_NAME_CLEAN}_fire_danger_forecast_${YESTERDAY}.png"
+
+  # Try to download today's TIF. If it fails (non-zero exit code), try yesterday's.
+  if aws s3 cp "$TODAY_TIF" "${LOCAL_FORECAST_DIR}/" 2>/dev/null; then
+    echo "Downloaded today's TIF."
+    # If today's TIF exists, download today's PNG.
+    aws s3 cp "$TODAY_PNG" "${LOCAL_FORECAST_DIR}/"
+  elif aws s3 cp "$YESTERDAY_TIF" "${LOCAL_FORECAST_DIR}/" 2>/dev/null; then
+    echo "Downloaded yesterday's TIF as fallback."
+    # If yesterday's TIF exists, download yesterday's PNG.
+    aws s3 cp "$YESTERDAY_PNG" "${LOCAL_FORECAST_DIR}/"
+  else
+    echo "Error: Could not download a recent forecast TIF file from S3. Exiting."
+    exit 1
+  fi
 else
   echo "--- Running in local mode: Skipping S3 sync ---"
 fi
