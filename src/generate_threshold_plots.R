@@ -67,28 +67,14 @@ for (park_code in park_codes) {
 
     percent_above$date <- time(park_fire_danger_rast)
 
-    ## Split date for rectangle annotations on thresholdplot
-    split_date <- today - 1.5
-
     p <- ggplot(percent_above, aes(x = date, y = mean)) +
-      annotate("rect",
-        xmin = min(percent_above$date) - .5, xmax = split_date,
-        ymin = -Inf, ymax = Inf, fill = "blue", alpha = 0.2
-      ) +
-      annotate("rect",
-        xmin = split_date, xmax = max(percent_above$date) + .5,
-        ymin = -Inf, ymax = Inf, fill = "green", alpha = 0.2
-      ) +
       geom_col() +
-      geom_vline(xintercept = today, color = "red", linetype = "dashed", size = 1.25) +
-      annotate("text", x = today, y = Inf, label = "Today", vjust = -0.5, color = "red", fontface = "bold") +
       scale_x_date(date_breaks = "1 day", expand = c(0, 0)) +
       theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
       scale_y_continuous(labels = scales::percent, limits = c(0, 1)) +
       labs(
         y = "% of Area at or Above Threshold", x = "Date",
-        title = glue("Percentage of {park_name} at or Above {threshold} Fire Danger"),
-        caption = "Blue background: Historical data (up to 2 days ago)\nGreen background: Forecast data (from yesterday onwards)"
+        title = glue("Percentage of {park_name} at or Above {threshold} Fire Danger")
       )
 
     # Save the plot to the park-specific directory
