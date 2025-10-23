@@ -84,6 +84,19 @@ if [ "${ENVIRONMENT}" = "cloud" ]; then
   else
     echo "Info: No 'cache' directory found to upload."
   fi
+
+  # 6. Copy the Cloud-Optimized GeoTIFF
+  YESTERDAY=$(date -d "yesterday" +%Y-%m-%d)
+  TODAY_TIF_PATH="${FORECAST_DIR}/fire_danger_${TODAY}.tif"
+  YESTERDAY_TIF_PATH="${FORECAST_DIR}/fire_danger_${YESTERDAY}.tif"
+
+  if [ -f "$TODAY_TIF_PATH" ]; then
+    aws s3 cp "$TODAY_TIF_PATH" "${S3_OUT_DIR}/forecasts/"
+  elif [ -f "$YESTERDAY_TIF_PATH" ]; then
+    aws s3 cp "$YESTERDAY_TIF_PATH" "${S3_OUT_DIR}/forecasts/"
+  else
+    echo "Warning: COG TIF file not found for today or yesterday."
+  fi
 fi
 
 echo "Daily forecast generation complete."
