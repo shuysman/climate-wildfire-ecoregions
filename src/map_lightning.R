@@ -32,11 +32,24 @@ fire_danger_today <- rast(cog_file)
 fire_danger_today <- aggregate(fire_danger_today, fact = 2)
 
 # Fetch lightning data
-api_key_file <- here(".weatherbit_api_key")
-if (!file.exists(api_key_file)) {
-  stop("API key file not found at: ", api_key_file)
+# Securely fetch the API key from AWS Secrets Manager
+api_key <- tryCatch(
+  {
+    message("Fetching API key from AWS Secrets Manager...")
+    secrets_manager <- paws::secretsmanager()
+    secret_payload <- secrets_manager$get_secret_value(SecretId = "wildfire-forecast/weatherbit-api-key")
+    secret_list <- jsonlite::fromJSON(secret_payload$SecretString)
+    secret_list$WEATHERBIT_API_KEY
+  },
+  error = function(e) {
+    stop("Failed to retrieve API key from AWS Secrets Manager. Error: ", e$message)
+  }
+)
+
+if (is.null(api_key) || api_key == "") {
+  stop("API key retrieved from Secrets Manager is null or empty.")
 }
-api_key <- trimws(readLines(api_key_file, n = 1, warn = FALSE))
+
 api_url <- glue("https://api.weatherbit.io/v2.0/history/lightning?lat=43.5459517032319&lon=-111.162554452619&end_lat=45.1292422224309&end_lon=-109.829085745439&date={forecast_date_str}&key={api_key}")
 
 lightning_data <- tryCatch(
