@@ -65,8 +65,8 @@ probs <- seq(.01, 1.0, by = .01)
 middle_rockies <- vect("data/us_eco_l3/us_eco_l3.shp") %>%
   filter(US_L3NAME == ecoregion_name)
 
-forest_quants_rast <- rast("./out/ecdf/17-middle_rockies-forest/17-middle_rockies-forest-15-VPD-quants.nc")
-non_forest_quants_rast <- rast("./out/ecdf/17-middle_rockies-non_forest/17-middle_rockies-non_forest-5-VPD-quants.nc")
+forest_quants_rast <- rast("./data/ecdf/17-middle_rockies-forest/17-middle_rockies-forest-15-VPD-quants.nc")
+non_forest_quants_rast <- rast("./data/ecdf/17-middle_rockies-non_forest/17-middle_rockies-non_forest-5-VPD-quants.nc")
 
 
 ### Today's Forecast File
@@ -184,13 +184,13 @@ non_forest_data <- terra::roll(vpd_series, n = 5, fun = mean, type = "to", circu
 dates <- time(forest_data)
 
 # Define functions to process each layer (binning + ecdf)
-forest_fire_danger_ecdf <- readRDS("./out/ecdf/17-middle_rockies-forest/17-middle_rockies-forest-15-VPD-ecdf.RDS")
+forest_fire_danger_ecdf <- readRDS("./data/ecdf/17-middle_rockies-forest/17-middle_rockies-forest-15-VPD-ecdf.RDS")
 process_forest_layer <- function(layer) {
   percentile_rast <- bin_rast(layer, forest_quants_rast, probs)
   terra::app(percentile_rast, fun = forest_fire_danger_ecdf)
 }
 
-non_forest_fire_danger_ecdf <- readRDS("./out/ecdf/17-middle_rockies-non_forest/17-middle_rockies-non_forest-5-VPD-ecdf.RDS")
+non_forest_fire_danger_ecdf <- readRDS("./data/ecdf/17-middle_rockies-non_forest/17-middle_rockies-non_forest-5-VPD-ecdf.RDS")
 process_non_forest_layer <- function(layer) {
   percentile_rast <- bin_rast(layer, non_forest_quants_rast, probs)
   terra::app(percentile_rast, fun = non_forest_fire_danger_ecdf)
@@ -203,7 +203,7 @@ process_non_forest_layer <- function(layer) {
 message("Loading pre-generated classified cover raster for ecoregion 17...")
 # NOTE: This is hardcoded to Middle Rockies (17) for now.
 # A more advanced version would determine the ecoregion dynamically.
-classified_rast_file <- "out/classified_cover/ecoregion_17_classified.tif"
+classified_rast_file <- "data/classified_cover/ecoregion_17_classified.tif"
 if (!file.exists(classified_rast_file)) {
   stop(paste("Classified cover file not found:", classified_rast_file, "\nPlease run src/01a_pregenerate_cover.R first."))
 }
@@ -211,7 +211,7 @@ classified_rast <- rast(classified_rast_file) %>% project(crs(forest_data))
 
 # 2. Copy the pre-generated template file for today's forecast
 message("Copying pre-generated template for today's forecast...")
-template_file <- "out/templates/middle_rockies_forecast_shell.nc"
+template_file <- "data/templates/middle_rockies_forecast_shell.nc"
 final_output_file <- file.path(out_dir, glue("fire_danger_forecast_{today}.nc"))
 
 if (!file.exists(template_file)) {

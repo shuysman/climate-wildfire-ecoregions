@@ -125,7 +125,7 @@ process_roc <- function(climate_data, cover, windows, state_vars, state_vars_no_
   ecdf_fn <- NULL
 
   roc_img_dir <- glue("out/img/roc/{ecoregion_id}-{ecoregion_name_clean}")
-  ecdf_dir <- glue("out/ecdf/{ecoregion_id}-{ecoregion_name_clean}-{cover}")
+  ecdf_dir <- glue("data/ecdf/{ecoregion_id}-{ecoregion_name_clean}-{cover}")
   dir.create(roc_img_dir, showWarnings = FALSE, recursive = TRUE)
   dir.create(ecdf_dir, showWarnings = FALSE, recursive = TRUE)
 

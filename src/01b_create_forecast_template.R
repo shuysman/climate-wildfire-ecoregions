@@ -13,13 +13,13 @@ library(glue)
 
 # Define the classified cover raster that will define the grid.
 # This is for the Middle Rockies (Ecoregion 17).
-classified_cover_file <- "out/classified_cover/ecoregion_17_classified.tif"
+classified_cover_file <- "data/classified_cover/ecoregion_17_classified.tif"
 
 # This should match the desired number of forecast days (29 = today + 7 forecast days).
 NUM_LAYERS <- 8
 
 # Define the output directory and final template file path.
-output_dir <- "out/templates"
+output_dir <- "data/templates"
 dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
 output_template_file <- file.path(output_dir, "middle_rockies_forecast_shell.nc")
 

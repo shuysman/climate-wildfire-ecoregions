@@ -51,7 +51,7 @@ for (park_code in park_codes) {
   message(paste("Processing thresholds for:", park_name))
 
   # Create park-specific output directory
-  park_out_dir <- here("out", "forecasts", park_code)
+  park_out_dir <- here("out", "forecasts", "parks", park_code)
   dir.create(park_out_dir, showWarnings = FALSE, recursive = TRUE)
 
   # Crop fire danger raster to the park boundary

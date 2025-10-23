@@ -16,7 +16,7 @@ landfire_conus_file <- "data/LF2023_EVT_240_CONUS/Tif/4326/LC23_EVT_240.tif"
 ecoregions_file <- "data/us_eco_l3/us_eco_l3.shp"
 
 # Output directory
-output_dir <- "out/classified_cover"
+output_dir <- "data/classified_cover"
 dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
 
 # --- 2. Load Main Data & Prepare Rules ---

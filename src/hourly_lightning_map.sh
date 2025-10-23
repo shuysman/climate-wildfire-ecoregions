@@ -48,8 +48,23 @@ Rscript ./src/map_lightning.R "$COG_TO_USE" "$FORECAST_STATUS" "$TODAY"
 ./src/generate_daily_html.sh
 
 if [ "${ENVIRONMENT}" = "cloud" ]; then
-  echo "--- Running in cloud mode: Syncing output to S3 ---"
-  aws s3 sync /app/out ${S3_BUCKET_PATH}/out
+  echo "--- Running in cloud mode: Syncing specific HTML outputs to S3 ---"
+  
+  TODAY=$(date +%Y-%m-%d)
+  LIGHTNING_MAP_FILE="/app/out/forecasts/lightning_map_${TODAY}.html"
+  DAILY_HTML_FILE="/app/out/forecasts/daily_forecast.html"
+
+  if [ -f "$LIGHTNING_MAP_FILE" ]; then
+    aws s3 cp "$LIGHTNING_MAP_FILE" "${S3_BUCKET_PATH}/out/forecasts/"
+  else
+    echo "Warning: Lightning map HTML file not found at $LIGHTNING_MAP_FILE"
+  fi
+
+  if [ -f "$DAILY_HTML_FILE" ]; then
+    aws s3 cp "$DAILY_HTML_FILE" "${S3_BUCKET_PATH}/out/forecasts/"
+  else
+    echo "Warning: Daily HTML file not found at $DAILY_HTML_FILE"
+  fi
 fi
 
 echo "Hourly lightning map generation complete."
