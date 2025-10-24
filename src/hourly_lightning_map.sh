@@ -23,7 +23,7 @@ if [ "${ENVIRONMENT}" = "cloud" ]; then
   TODAY_PNG="${S3_SOURCE_DIR}/${ECOREGION_NAME_CLEAN}_fire_danger_forecast_${TODAY}.png"
   YESTERDAY_PNG="${S3_SOURCE_DIR}/${ECOREGION_NAME_CLEAN}_fire_danger_forecast_${YESTERDAY}.png"
 
-  aws s3 sync "${S3_BUCKET_PATH}/data" /app/data
+  aws s3 cp "${S3_BUCKET_PATH}/data/nps_boundary" /app/data/nps_boundary
 
   # Try to download today's TIF. If it fails (non-zero exit code), try yesterday's.
   if aws s3 cp "$TODAY_TIF" "${LOCAL_FORECAST_DIR}/" 2>/dev/null; then
