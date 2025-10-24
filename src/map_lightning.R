@@ -84,7 +84,7 @@ pal <- colorNumeric(viridisLite::viridis(256, option = "B"),
 
 m <- leaflet() %>%
   addProviderTiles(providers$CartoDB.Positron) %>%
-  addRasterImage(fire_danger_today, colors = pal, opacity = 0.8, project = TRUE, maxBytes = 32 * 1024 * 1024) %>%
+  addRasterImage(fire_danger_today, colors = pal, opacity = 0.8, project = TRUE, maxBytes = 64 * 1024 * 1024) %>%
   addPolygons(
     data = intersecting_parks,
     color = park_line_color,
