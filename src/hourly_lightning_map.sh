@@ -82,13 +82,13 @@ if [ "${ENVIRONMENT}" = "cloud" ]; then
   DAILY_HTML_FILE="/app/out/forecasts/daily_forecast.html"
 
   if [ -f "$LIGHTNING_MAP_FILE" ]; then
-    aws s3 cp "$LIGHTNING_MAP_FILE" "${S3_BUCKET_PATH}/out/forecasts/"
+    aws s3 cp "$LIGHTNING_MAP_FILE" "${S3_BUCKET_PATH}/out/forecasts/" --acl "public-read"
   else
     echo "Warning: Lightning map HTML file not found at $LIGHTNING_MAP_FILE"
   fi
 
   if [ -f "$DAILY_HTML_FILE" ]; then
-    aws s3 cp "$DAILY_HTML_FILE" "${S3_BUCKET_PATH}/out/forecasts/"
+    aws s3 cp "$DAILY_HTML_FILE" "${S3_BUCKET_PATH}/out/forecasts/" --acl "public-read"
   else
     echo "Warning: Daily HTML file not found at $DAILY_HTML_FILE"
   fi

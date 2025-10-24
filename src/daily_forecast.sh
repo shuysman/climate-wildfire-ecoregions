@@ -52,35 +52,35 @@ if [ "${ENVIRONMENT}" = "cloud" ]; then
 
   # 1. Copy the main NetCDF file
   if [ -f "$NC_FILE_PATH" ]; then
-    aws s3 cp "$NC_FILE_PATH" "${S3_OUT_DIR}/forecasts/"
+    aws s3 cp "$NC_FILE_PATH" "${S3_OUT_DIR}/forecasts/" --acl "public-read"
   else
     echo "Warning: Output NetCDF file not found at $NC_FILE_PATH"
   fi
 
   # 2. Copy the main HTML file
   if [ -f "$DAILY_HTML_FILE" ]; then
-    aws s3 cp "$DAILY_HTML_FILE" "${S3_OUT_DIR}/forecasts/"
+    aws s3 cp "$DAILY_HTML_FILE" "${S3_OUT_DIR}/forecasts/" --acl "public-read"
   else
     echo "Warning: Daily HTML file not found at $DAILY_HTML_FILE"
   fi
   
   # 3. Copy the main forecast map PNG
   if [ -f "$MAIN_MAP_PNG_PATH" ]; then
-    aws s3 cp "$MAIN_MAP_PNG_PATH" "${S3_OUT_DIR}/forecasts/"
+    aws s3 cp "$MAIN_MAP_PNG_PATH" "${S3_OUT_DIR}/forecasts/" --acl "public-read"
   else
     echo "Warning: Main map PNG file not found at $MAIN_MAP_PNG_PATH"
   fi
 
   # 4. Copy all park-specific plots recursively
   if [ -d "$PARKS_DIR" ]; then
-    aws s3 cp "$PARKS_DIR" "${S3_OUT_DIR}/forecasts/parks/" --recursive
+    aws s3 cp "$PARKS_DIR" "${S3_OUT_DIR}/forecasts/parks/" --recursive --acl "public-read"
   else
     echo "Info: No 'parks' directory found to upload."
   fi
 
   # 5. Copy the gridMET cache
   if [ -d "$CACHE_DIR" ]; then
-    aws s3 cp "$CACHE_DIR" "${S3_OUT_DIR}/cache/" --recursive
+    aws s3 cp "$CACHE_DIR" "${S3_OUT_DIR}/cache/" --recursive --acl "public-read"
   else
     echo "Info: No 'cache' directory found to upload."
   fi
@@ -91,9 +91,9 @@ if [ "${ENVIRONMENT}" = "cloud" ]; then
   YESTERDAY_TIF_PATH="${FORECAST_DIR}/fire_danger_${YESTERDAY}.tif"
 
   if [ -f "$TODAY_TIF_PATH" ]; then
-    aws s3 cp "$TODAY_TIF_PATH" "${S3_OUT_DIR}/forecasts/"
+    aws s3 cp "$TODAY_TIF_PATH" "${S3_OUT_DIR}/forecasts/" --acl "public-read"
   elif [ -f "$YESTERDAY_TIF_PATH" ]; then
-    aws s3 cp "$YESTERDAY_TIF_PATH" "${S3_OUT_DIR}/forecasts/"
+    aws s3 cp "$YESTERDAY_TIF_PATH" "${S3_OUT_DIR}/forecasts/" --acl "public-read"
   else
     echo "Warning: COG TIF file not found for today or yesterday."
   fi
