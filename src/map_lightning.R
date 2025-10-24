@@ -31,6 +31,16 @@ if (!file.exists(cog_file)) {
 fire_danger_today <- rast(cog_file)
 fire_danger_today <- aggregate(fire_danger_today, fact = 2)
 
+# Load NPS boundaries
+nps_boundaries <- vect(here("data", "nps_boundary", "nps_boundary.shp")) %>%
+  project(crs(fire_danger_today)) # Ensure CRS matches the raster
+
+# Define styling for park boundaries
+park_line_color <- "#000000" # Black
+park_fill_color <- "transparent" # No fill
+park_line_weight <- 1
+park_fill_opacity <- 0.5
+
 # Fetch lightning data
 # Securely fetch the API key from AWS Secrets Manager
 api_key <- tryCatch(
@@ -71,6 +81,12 @@ pal <- colorNumeric(viridisLite::viridis(256, option = "B"),
 m <- leaflet() %>%
   addProviderTiles(providers$CartoDB.Positron) %>%
   addRasterImage(fire_danger_today, colors = pal, opacity = 0.8, project = TRUE, maxBytes = 32 * 1024 * 1024) %>%
+  addPolygons(data = nps_boundaries,
+              color = park_line_color,
+              weight = park_line_weight,
+              fillColor = park_fill_color,
+              fillOpacity = park_fill_opacity,
+              popup = ~UNIT_NAME) %>% # Add popup for park name
   addLegend(
     pal = pal, values = c(0, 1),
     title = "Fire Danger"
