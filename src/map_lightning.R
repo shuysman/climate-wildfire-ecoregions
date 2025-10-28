@@ -84,18 +84,23 @@ pal <- colorNumeric(viridisLite::viridis(256, option = "B"),
 
 m <- leaflet() %>%
   addProviderTiles(providers$CartoDB.Positron) %>%
-  addRasterImage(fire_danger_today, colors = pal, opacity = 0.8, project = TRUE, maxBytes = 64 * 1024 * 1024) %>%
+  addRasterImage(fire_danger_today, colors = pal, opacity = 0.8, project = TRUE, maxBytes = 64 * 1024 * 1024, group = "Fire Danger") %>%
   addPolygons(
     data = intersecting_parks,
     color = park_line_color,
     weight = park_line_weight,
     fillColor = park_fill_color,
     fillOpacity = park_fill_opacity,
-    popup = ~UNIT_NAME
+    popup = ~UNIT_NAME,
+    group = "NPS Boundaries"
   ) %>% # Add popup for park name
   addLegend(
     pal = pal, values = c(0, 1),
     title = "Fire Danger"
+  ) %>%
+  addLayersControl(
+    overlayGroups = c("Fire Danger", "NPS Boundaries"),
+    options = layersControlOptions(collapsed = FALSE)
   ) %>%
   fitBounds(ext(fire_danger_today)$xmin[[1]], ext(fire_danger_today)$ymin[[1]], ext(fire_danger_today)$xmax[[1]], ext(fire_danger_today)$ymax[[1]])
 
