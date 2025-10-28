@@ -55,9 +55,9 @@ for (i in 1:nrow(intersecting_parks)) {
 intersecting_parks <- parks_with_data
 
 # Define styling for park boundaries
-park_line_color <- "#000000" # Black
+park_line_color <- "#3B7A57" # NPS green
 park_fill_color <- "transparent" # No fill
-park_line_weight <- 1
+park_line_weight <- 2
 park_fill_opacity <- 0.5
 
 api_key <- NULL
