@@ -45,20 +45,31 @@ park_fill_color <- "transparent" # No fill
 park_line_weight <- 1
 park_fill_opacity <- 0.5
 
-# Fetch lightning data
-# Securely fetch the API key from AWS Secrets Manager
-api_key <- tryCatch(
-  {
-    message("Fetching API key from AWS Secrets Manager...")
-    secrets_manager <- paws::secretsmanager()
-    secret_payload <- secrets_manager$get_secret_value(SecretId = "wildfire-forecast/weatherbit-api-key")
-    secret_list <- jsonlite::fromJSON(secret_payload$SecretString)
-    secret_list$WEATHERBIT_API_KEY
-  },
-  error = function(e) {
-    stop("Failed to retrieve API key from AWS Secrets Manager. Error: ", e$message)
+api_key <- NULL
+if (Sys.getenv("ENVIRONMENT") != "cloud") {
+  message("Running in local mode: Attempting to fetch API key from .weatherbit_api_key file...")
+  api_key_file <- here(".weatherbit_api_key")
+  if (file.exists(api_key_file)) {
+    api_key <- readLines(api_key_file, n = 1)
+    message("Successfully loaded API key from local file.")
+  } else {
+    stop("Local .weatherbit_api_key file not found. Cannot proceed without API key in local mode.")
   }
-)
+} else {
+  # Securely fetch the API key from AWS Secrets Manager
+  api_key <- tryCatch(
+    {
+      message("Running in cloud mode: Fetching API key from AWS Secrets Manager...")
+      secrets_manager <- paws::secretsmanager()
+      secret_payload <- secrets_manager$get_secret_value(SecretId = "wildfire-forecast/weatherbit-api-key")
+      secret_list <- jsonlite::fromJSON(secret_payload$SecretString)
+      secret_list$WEATHERBIT_API_KEY
+    },
+    error = function(e) {
+      stop("Failed to retrieve API key from AWS Secrets Manager. Error: ", e$message)
+    }
+  )
+}
 
 if (is.null(api_key) || api_key == "") {
   stop("API key retrieved from Secrets Manager is null or empty.")
