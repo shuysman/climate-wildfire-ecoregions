@@ -201,6 +201,16 @@ if (!is.null(lightning_data) && !is.null(lightning_data$lightning) && is.data.fr
 }
 
 m <- m %>%
+  addControl(html = paste0(
+    "<div id='info-panel-container' style='background: white; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);'>",
+    "<button id='info-panel-toggle' style='width: 100%; padding: 10px; background: #f0f0f0; border: none; cursor: pointer; font-weight: bold; text-align: left; border-radius: 5px 5px 0 0;'>",
+    "▼ Lightning Strike Information",
+    "</button>",
+    "<div id='info-panel-content' style='padding: 15px; max-width: 600px; max-height: 500px; overflow-y: auto;'>",
+    header_content,
+    "</div>",
+    "</div>"
+  ), position = "topleft") %>%
   addControl(html = "<div style='padding: 10px; background: white; border-bottom: 1px solid #ccc;'>
     <label for='fire-danger-opacity-slider' style='display: block; margin-bottom: 5px;'>Fire Danger Opacity:</label>
     <input type='range' id='fire-danger-opacity-slider' min='0' max='1' step='0.01' value='0.8' style='width: 100%;'>
@@ -246,6 +256,23 @@ m <- m %>%
 
       // Attach event listener to the slider
       slider.oninput = evthandler;
+
+      // Toggle information panel
+      var toggleButton = document.getElementById('info-panel-toggle');
+      var panelContent = document.getElementById('info-panel-content');
+      var isCollapsed = false;
+
+      toggleButton.addEventListener('click', function() {
+        if (isCollapsed) {
+          panelContent.style.display = 'block';
+          toggleButton.innerHTML = '▼ Lightning Strike Information';
+          isCollapsed = false;
+        } else {
+          panelContent.style.display = 'none';
+          toggleButton.innerHTML = '▶ Lightning Strike Information';
+          isCollapsed = true;
+        }
+      });
     }
   ")
 
