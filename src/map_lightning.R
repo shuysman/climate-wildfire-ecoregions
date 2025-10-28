@@ -95,7 +95,7 @@ pal <- colorNumeric(viridisLite::viridis(256, option = "B"),
 
 m <- leaflet() %>%
   addProviderTiles(providers$CartoDB.Positron) %>%
-  addRasterImage(fire_danger_today, colors = pal, opacity = 0.8, project = TRUE, maxBytes = 64 * 1024 * 1024, group = "Fire Danger") %>%
+  addRasterImage(fire_danger_today, colors = pal, opacity = 0.8, project = TRUE, maxBytes = 64 * 1024 * 1024, group = "Fire Danger", layerId = "fire_danger_raster") %>%
   addPolygons(
     data = intersecting_parks,
     color = park_line_color,
@@ -178,15 +178,61 @@ if (!is.null(lightning_data) && !is.null(lightning_data$lightning) && is.data.fr
     header_content <- paste(header_title, update_time, update_notice, forecast_notice, lightning_table)
   } else {
     no_strikes_message <- paste0("<p>No lightning strikes recorded within the forecast area for ", forecast_date_str, ".</p>")
-header_content <- paste(header_title, update_time, update_notice, forecast_notice, no_strikes_message)
+    header_content <- paste(header_title, update_time, update_notice, forecast_notice, no_strikes_message)
   }
 } else {
   no_strikes_message <- paste0("<p>No lightning strikes recorded for ", forecast_date_str, ".</p>")
   header_content <- paste(header_title, update_time, forecast_notice, no_strikes_message)
 }
 
-# Prepend header to the map
-m <- m %>% prependContent(HTML(header_content))
+m <- m %>%
+  addControl(html = "<div style='padding: 10px; background: white; border-bottom: 1px solid #ccc;'>
+    <label for='fire-danger-opacity-slider' style='display: block; margin-bottom: 5px;'>Fire Danger Opacity:</label>
+    <input type='range' id='fire-danger-opacity-slider' min='0' max='1' step='0.01' value='0.8' style='width: 100%;'>
+  </div>", position = "topright") %>%
+  onRender("
+    function(el, x) {
+      var map = this;
+      var slider = document.getElementById('fire-danger-opacity-slider');
+
+      var evthandler = function(e){
+        var newOpacity = +e.target.value;
+
+        // Search for the Fire Danger layer group
+        map.eachLayer(function(layer) {
+          // Check if this is the Fire Danger layer group (contains the actual raster layer)
+          if (layer.groupname === 'Fire Danger') {
+            // This is a LayerGroup, iterate through its layers
+            if (layer._layers) {
+              Object.keys(layer._layers).forEach(function(key) {
+                var sublayer = layer._layers[key];
+
+                // Set opacity on the sublayer
+                if (sublayer._container) {
+                  sublayer._container.style.opacity = newOpacity;
+                }
+
+                if (typeof sublayer.setOpacity === 'function') {
+                  sublayer.setOpacity(newOpacity);
+                }
+              });
+            }
+          }
+        });
+      };
+
+      // Disable map dragging when interacting with the slider
+      document.getElementById('fire-danger-opacity-slider').addEventListener('mousedown', function() {
+        map.dragging.disable();
+      });
+      document.getElementById('fire-danger-opacity-slider').addEventListener('mouseup', function() {
+        map.dragging.enable();
+      });
+
+      // Attach event listener to the slider
+      slider.oninput = evthandler;
+    }
+  ")
 
 # Save the map
 out_dir <- here("out", "forecasts")
