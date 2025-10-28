@@ -296,8 +296,7 @@ writeCDF(final_output_rast, final_output_file, overwrite = TRUE, varname = "fire
 
 # The plotting logic now uses the final raster
 message("Creating forecast maps...")
-basemap <- get_tiles(final_output_rast, provider = "Esri.NatGeoWorldMap", zoom = 9) %>%
-  crop(final_output_rast)
+basemap <- get_tiles(final_output_rast, provider = "Esri.WorldTopoMap", zoom = 6, crop = TRUE, project = FALSE)
 
 ggplot() +
   geom_spatraster_rgb(data = basemap, maxcell = Inf) +
