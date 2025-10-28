@@ -107,6 +107,7 @@ m <- leaflet() %>%
 # Create HTML for the header
 header_title <- "<h1>Lightning Strike Information</h1>"
 update_time <- paste("<p>Last updated:", Sys.time(), "</p>")
+update_notice <- "<p><i>Wildfire danger forecasts update daily at approximately 10:40 AM Mountain Time.</i></p>"
 
 # Initialize an empty notice
 forecast_notice <- ""
@@ -163,10 +164,10 @@ if (!is.null(lightning_data) && !is.null(lightning_data$lightning) && is.data.fr
       "</div>"
     )
 
-    header_content <- paste(header_title, update_time, forecast_notice, lightning_table)
+    header_content <- paste(header_title, update_time, update_notice, forecast_notice, lightning_table)
   } else {
     no_strikes_message <- paste0("<p>No lightning strikes recorded within the forecast area for ", forecast_date_str, ".</p>")
-    header_content <- paste(header_title, update_time, forecast_notice, no_strikes_message)
+header_content <- paste(header_title, update_time, update_notice, forecast_notice, no_strikes_message)
   }
 } else {
   no_strikes_message <- paste0("<p>No lightning strikes recorded for ", forecast_date_str, ".</p>")
