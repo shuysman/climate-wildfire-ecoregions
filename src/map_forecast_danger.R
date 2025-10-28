@@ -300,11 +300,19 @@ basemap <- get_tiles(final_output_rast, provider = "Esri.NatGeoWorldMap", zoom =
   crop(final_output_rast)
 
 ggplot() +
-  geom_spatraster_rgb(data = basemap) +
+  geom_spatraster_rgb(data = basemap, maxcell = Inf) +
   geom_spatraster(data = subset(final_output_rast, time(final_output_rast) >= today)) +
   scale_fill_viridis_c(option = "B", na.value = "transparent", limits = c(0, 1)) +
   facet_wrap(~lyr, ncol = 4) +
-  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  theme(
+    axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, size = 12),
+    axis.text.y = element_text(size = 14),
+    axis.title = element_text(size = 16),
+    plot.title = element_text(size = 20),
+    strip.text = element_text(size = 14),
+    legend.title = element_text(size = 14, margin = margin(b = 10)),
+    legend.text = element_text(size = 14)
+  ) +
   labs(title = glue("Wildfire danger forecast for {ecoregion_name} from {today}"), fill = "Proportion of Fires") +
   scale_x_continuous(expand = c(0, 0)) +
   scale_y_continuous(expand = c(0, 0))
