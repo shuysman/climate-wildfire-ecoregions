@@ -122,18 +122,19 @@ m <- leaflet() %>%
   ) %>% # Add popup for park name
   addLegend(
     pal = pal, values = c(0, 1),
-    title = "Fire Danger"
+    title = "Fire Danger",
+    position = "bottomright"
   ) %>%
   addLayersControl(
     overlayGroups = c("Fire Danger", "NPS Boundaries"),
-    options = layersControlOptions(collapsed = FALSE)
+    options = layersControlOptions(collapsed = TRUE)
   ) %>%
   fitBounds(ext(fire_danger_today)$xmin[[1]], ext(fire_danger_today)$ymin[[1]], ext(fire_danger_today)$xmax[[1]], ext(fire_danger_today)$ymax[[1]])
 
-# Create HTML for the header
-header_title <- "<h1>Lightning Strike Information</h1>"
-update_time <- paste("<p>Last updated:", Sys.time(), "</p>")
-update_notice <- "<p><i>Wildfire danger forecasts update daily at approximately 10:40 AM Mountain Time.</i></p>"
+# Create HTML for the header (compact version)
+header_title <- "<h3 style='margin: 0 0 10px 0;'>Lightning Strikes</h3>"
+update_time <- paste("<p style='margin: 5px 0; font-size: 0.9em;'><strong>Updated:</strong>", format(Sys.time(), "%Y-%m-%d %H:%M %Z"), "</p>")
+update_notice <- "<p style='margin: 5px 0; font-size: 0.85em; color: #666;'><i>Forecasts update daily at ~10:40 AM MT</i></p>"
 
 # Initialize an empty notice
 forecast_notice <- ""
@@ -172,20 +173,28 @@ if (!is.null(lightning_data) && !is.null(lightning_data$lightning) && is.data.fr
       Fire_Danger = round(filtered_fire_danger_values[, 2], 2)
     )
 
-    # Create the HTML table
+    # Create the HTML table (compact version)
     lightning_table_html <- paste(
-      "<table class=\"table table-striped\">",
-      "<thead><tr><th>Latitude</th><th>Longitude</th><th>Timestamp</th><th>Fire Danger</th></tr></thead>",
+      "<table style='width: 100%; border-collapse: collapse; font-size: 0.85em; margin-top: 10px;'>",
+      "<thead><tr style='background: #f0f0f0;'>",
+      "<th style='padding: 5px; border: 1px solid #ddd;'>Lat</th>",
+      "<th style='padding: 5px; border: 1px solid #ddd;'>Lon</th>",
+      "<th style='padding: 5px; border: 1px solid #ddd;'>Time (UTC)</th>",
+      "<th style='padding: 5px; border: 1px solid #ddd;'>Danger</th>",
+      "</tr></thead>",
       "<tbody>",
       paste(apply(lightning_table_data, 1, function(row) {
-        paste("<tr><td>", row["Latitude"], "</td><td>", row["Longitude"], "</td><td>", row["Timestamp"], "</td><td>", row["Fire_Danger"], "</td></tr>")
+        paste("<tr><td style='padding: 4px; border: 1px solid #ddd;'>", round(as.numeric(row["Latitude"]), 3),
+              "</td><td style='padding: 4px; border: 1px solid #ddd;'>", round(as.numeric(row["Longitude"]), 3),
+              "</td><td style='padding: 4px; border: 1px solid #ddd;'>", row["Timestamp"],
+              "</td><td style='padding: 4px; border: 1px solid #ddd;'>", row["Fire_Danger"], "</td></tr>")
       }), collapse = ""),
       "</tbody></table>"
     )
 
-    # Wrap the table in a scrollable div
+    # Wrap the table in a scrollable div (more compact)
     lightning_table <- paste0(
-      "<div style=\"max-height: 400px; overflow-y: auto; border: 1px solid #ddd;\">",
+      "<div style='max-height: 300px; overflow-y: auto; border: 1px solid #ddd; margin-top: 5px;'>",
       lightning_table_html,
       "</div>"
     )
@@ -202,11 +211,11 @@ if (!is.null(lightning_data) && !is.null(lightning_data$lightning) && is.data.fr
 
 m <- m %>%
   addControl(html = paste0(
-    "<div id='info-panel-container' style='background: white; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);'>",
-    "<button id='info-panel-toggle' style='width: 100%; padding: 10px; background: #f0f0f0; border: none; cursor: pointer; font-weight: bold; text-align: left; border-radius: 5px 5px 0 0;'>",
-    "▼ Lightning Strike Information",
+    "<div id='info-panel-container' style='background: white; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); max-width: 400px;'>",
+    "<button id='info-panel-toggle' style='width: 100%; padding: 8px 12px; background: #2c3e50; color: white; border: none; cursor: pointer; font-weight: bold; font-size: 0.9em; text-align: left; border-radius: 4px 4px 0 0; transition: background 0.2s;' onmouseover='this.style.background=\"#34495e\"' onmouseout='this.style.background=\"#2c3e50\"'>",
+    "▶ Lightning Info",
     "</button>",
-    "<div id='info-panel-content' style='padding: 15px; max-width: 600px; max-height: 500px; overflow-y: auto;'>",
+    "<div id='info-panel-content' style='display: none; padding: 12px; max-height: 60vh; overflow-y: auto;'>",
     header_content,
     "</div>",
     "</div>"
@@ -257,26 +266,59 @@ m <- m %>%
       // Attach event listener to the slider
       slider.oninput = evthandler;
 
-      // Toggle information panel
+      // Toggle information panel (starts collapsed)
       var toggleButton = document.getElementById('info-panel-toggle');
       var panelContent = document.getElementById('info-panel-content');
-      var isCollapsed = false;
+      var isCollapsed = true;
 
       toggleButton.addEventListener('click', function() {
         if (isCollapsed) {
           panelContent.style.display = 'block';
-          toggleButton.innerHTML = '▼ Lightning Strike Information';
+          toggleButton.innerHTML = '▼ Lightning Info';
           isCollapsed = false;
         } else {
           panelContent.style.display = 'none';
-          toggleButton.innerHTML = '▶ Lightning Strike Information';
+          toggleButton.innerHTML = '▶ Lightning Info';
           isCollapsed = true;
         }
       });
     }
   ")
 
-# Save the map
+# Save the map with fullscreen styling
 out_dir <- here("out", "forecasts")
 dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
-saveWidget(m, file.path(out_dir, glue("lightning_map_{Sys.Date()}.html")), selfcontained = TRUE)
+
+# Create the widget
+map_widget <- saveWidget(m, file.path(out_dir, glue("lightning_map_{Sys.Date()}.html")), selfcontained = TRUE)
+
+# Add custom CSS for fullscreen layout
+html_file <- file.path(out_dir, glue("lightning_map_{Sys.Date()}.html"))
+html_content <- readLines(html_file)
+
+# Find the closing </head> tag and insert CSS before it
+head_close_idx <- which(grepl("</head>", html_content))[1]
+fullscreen_css <- c(
+  "<style>",
+  "  html, body {",
+  "    margin: 0;",
+  "    padding: 0;",
+  "    height: 100%;",
+  "    overflow: hidden;",
+  "  }",
+  "  #htmlwidget_container {",
+  "    height: 100vh !important;",
+  "  }",
+  "  .leaflet-container {",
+  "    height: 100vh !important;",
+  "  }",
+  "</style>"
+)
+
+html_content <- c(
+  html_content[1:(head_close_idx - 1)],
+  fullscreen_css,
+  html_content[head_close_idx:length(html_content)]
+)
+
+writeLines(html_content, html_file)
