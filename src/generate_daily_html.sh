@@ -30,12 +30,40 @@ fi
 # --- Paths ---
 TEMPLATE_FILE="$PROJECT_DIR/src/daily_forecast.template.html"
 OUTPUT_FILE="$PROJECT_DIR/out/forecasts/daily_forecast.html"
+PARKS_DIR="$PROJECT_DIR/out/forecasts/parks"
 
-# --- Generate HTML ---
-# Use a chain of sed commands to replace each unique placeholder
-sed -e "s/__DISPLAY_DATE__/$DISPLAY_DATE/g" \
-    -e "s/__FORECAST_MAP_DATE__/$FORECAST_MAP_DATE/g" \
-    -e "s/__LIGHTNING_MAP_DATE__/$LIGHTNING_MAP_DATE/g" \
-    "$TEMPLATE_FILE" > "$OUTPUT_FILE"
+# --- Start with the template ---
+cp "$TEMPLATE_FILE" "$OUTPUT_FILE"
+
+# --- Insert park-specific analyses ---
+for PARK_CODE in YELL GRTE JODR JECA GRKO DETO WICA MORU; do
+  ANALYSIS_FILE="$PARKS_DIR/$PARK_CODE/fire_danger_analysis.html"
+  PLACEHOLDER="__${PARK_CODE}_ANALYSIS__"
+
+  if [ -f "$ANALYSIS_FILE" ]; then
+    # Read the analysis file content
+    ANALYSIS_CONTENT=$(cat "$ANALYSIS_FILE")
+    # Use awk to replace the placeholder (handles special characters better than sed)
+    awk -v placeholder="$PLACEHOLDER" -v content="$ANALYSIS_CONTENT" '
+      {
+        if (index($0, placeholder) > 0) {
+          gsub(placeholder, content)
+        }
+        print
+      }
+    ' "$OUTPUT_FILE" > "$OUTPUT_FILE.tmp"
+    mv "$OUTPUT_FILE.tmp" "$OUTPUT_FILE"
+  else
+    echo "Warning: Analysis file not found for $PARK_CODE"
+    # Replace placeholder with a message
+    sed -i "s|$PLACEHOLDER|<p>Analysis not available for this park.</p>|g" "$OUTPUT_FILE"
+  fi
+done
+
+# --- Replace date placeholders ---
+sed -i -e "s/__DISPLAY_DATE__/$DISPLAY_DATE/g" \
+       -e "s/__FORECAST_MAP_DATE__/$FORECAST_MAP_DATE/g" \
+       -e "s/__LIGHTNING_MAP_DATE__/$LIGHTNING_MAP_DATE/g" \
+       "$OUTPUT_FILE"
 
 echo "Successfully generated daily_forecast.html"

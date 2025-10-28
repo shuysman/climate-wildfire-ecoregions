@@ -137,7 +137,7 @@
     <nav class="navbar">
       <ul>
         <li><a href="#forecast-map">Forecast Map</a></li>
-        <li><a href="#threshold-plots">Threshold Plots</a></li>
+        <li><a href="#park-analysis">Park Analysis</a></li>
         <li><a href="#lightning-map">Lightning Map</a></li>
         <li><a href="#info">Info</a></li>
       </ul>
@@ -149,9 +149,9 @@
 		<center><p>Click to enlarge image.</p></center>
                   <img src="middle_rockies_fire_danger_forecast___FORECAST_MAP_DATE__.png" alt="1-Week Fire Danger Forecast Map" class="pannable-image">
               </div>
-      <div id="threshold-plots" class="container content-section">
-        <h2>Fire Danger Threshold Plots</h2>
-        <p>These plots show the percentage of the park area that is at or above a specific fire danger threshold. The fire danger threshold represents the proportion of historical fires that occurred at or below a certain dryness level. Different management objects may require different thresholds to inform decisions. The thresholds provided here give an overview of the total area in the parks above a low (0.25), medium (0.5), or high (0.75) danger of wildfire, which can be used to identify windows of opportunity for varying management objectives.</p>
+      <div id="park-analysis" class="container content-section">
+        <h2>Park Fire Danger Analysis</h2>
+        <p>Select a park below to view current fire danger distribution and threshold plots over time. Fire danger values represent the historical proportion of wildfires that ignited at or below that dryness level (0 = lowest risk, 1 = highest risk).</p>
 
         <nav class="navbar sub-navbar">
           <ul>
@@ -167,74 +167,98 @@
         </nav>
 
         <div id="YELL" class="park-plots">
-          <h3>Threshold: 0.25</h3>
+          __YELL_ANALYSIS__
+          <h3 style="margin-top: 30px;">Threshold Plots - Forecast Trend</h3>
+          <p style="font-size: 0.9em; color: #666; line-height: 1.6;">These plots show how the percentage of park area at or above specific fire danger thresholds changes over the 7-day forecast period. Each threshold (0.25, 0.50, 0.75) represents the historical proportion of fires that occurred at or below that dryness level. Higher thresholds indicate more severe conditions. Use these trends to identify windows of opportunity for management activities or periods requiring heightened vigilance.</p>
+          <h4>Threshold: 0.25</h4>
           <img src="parks/YELL/threshold_plot_0.25.png" alt="Fire Danger Threshold Plot at 0.25 for YELL">
-          <h3>Threshold: 0.50</h3>
+          <h4>Threshold: 0.50</h4>
           <img src="parks/YELL/threshold_plot_0.5.png" alt="Fire Danger Threshold Plot at 0.50 for YELL">
-          <h3>Threshold: 0.75</h3>
+          <h4>Threshold: 0.75</h4>
           <img src="parks/YELL/threshold_plot_0.75.png" alt="Fire Danger Threshold Plot at 0.75 for YELL">
         </div>
 
         <div id="GRTE" class="park-plots" style="display:none;">
-          <h3>Threshold: 0.25</h3>
+          __GRTE_ANALYSIS__
+          <h3 style="margin-top: 30px;">Threshold Plots - Forecast Trend</h3>
+          <p style="font-size: 0.9em; color: #666; line-height: 1.6;">These plots show how the percentage of park area at or above specific fire danger thresholds changes over the 7-day forecast period. Each threshold (0.25, 0.50, 0.75) represents the historical proportion of fires that occurred at or below that dryness level. Higher thresholds indicate more severe conditions. Use these trends to identify windows of opportunity for management activities or periods requiring heightened vigilance.</p>
+          <h4>Threshold: 0.25</h4>
           <img src="parks/GRTE/threshold_plot_0.25.png" alt="Fire Danger Threshold Plot at 0.25 for GRTE">
-          <h3>Threshold: 0.50</h3>
+          <h4>Threshold: 0.50</h4>
           <img src="parks/GRTE/threshold_plot_0.5.png" alt="Fire Danger Threshold Plot at 0.50 for GRTE">
-          <h3>Threshold: 0.75</h3>
+          <h4>Threshold: 0.75</h4>
           <img src="parks/GRTE/threshold_plot_0.75.png" alt="Fire Danger Threshold Plot at 0.75 for GRTE">
         </div>
 
         <div id="JODR" class="park-plots" style="display:none;">
-          <h3>Threshold: 0.25</h3>
+          __JODR_ANALYSIS__
+          <h3 style="margin-top: 30px;">Threshold Plots - Forecast Trend</h3>
+          <p style="font-size: 0.9em; color: #666; line-height: 1.6;">These plots show how the percentage of park area at or above specific fire danger thresholds changes over the 7-day forecast period. Each threshold (0.25, 0.50, 0.75) represents the historical proportion of fires that occurred at or below that dryness level. Higher thresholds indicate more severe conditions. Use these trends to identify windows of opportunity for management activities or periods requiring heightened vigilance.</p>
+          <h4>Threshold: 0.25</h4>
           <img src="parks/JODR/threshold_plot_0.25.png" alt="Fire Danger Threshold Plot at 0.25 for JODR">
-          <h3>Threshold: 0.50</h3>
+          <h4>Threshold: 0.50</h4>
           <img src="parks/JODR/threshold_plot_0.5.png" alt="Fire Danger Threshold Plot at 0.50 for JODR">
-          <h3>Threshold: 0.75</h3>
+          <h4>Threshold: 0.75</h4>
           <img src="parks/JODR/threshold_plot_0.75.png" alt="Fire Danger Threshold Plot at 0.75 for JODR">
         </div>
 
         <div id="JECA" class="park-plots" style="display:none;">
-          <h3>Threshold: 0.25</h3>
+          __JECA_ANALYSIS__
+          <h3 style="margin-top: 30px;">Threshold Plots - Forecast Trend</h3>
+          <p style="font-size: 0.9em; color: #666; line-height: 1.6;">These plots show how the percentage of park area at or above specific fire danger thresholds changes over the 7-day forecast period. Each threshold (0.25, 0.50, 0.75) represents the historical proportion of fires that occurred at or below that dryness level. Higher thresholds indicate more severe conditions. Use these trends to identify windows of opportunity for management activities or periods requiring heightened vigilance.</p>
+          <h4>Threshold: 0.25</h4>
           <img src="parks/JECA/threshold_plot_0.25.png" alt="Fire Danger Threshold Plot at 0.25 for JECA">
-          <h3>Threshold: 0.50</h3>
+          <h4>Threshold: 0.50</h4>
           <img src="parks/JECA/threshold_plot_0.5.png" alt="Fire Danger Threshold Plot at 0.50 for JECA">
-          <h3>Threshold: 0.75</h3>
+          <h4>Threshold: 0.75</h4>
           <img src="parks/JECA/threshold_plot_0.75.png" alt="Fire Danger Threshold Plot at 0.75 for JECA">
         </div>
 
         <div id="GRKO" class="park-plots" style="display:none;">
-          <h3>Threshold: 0.25</h3>
+          __GRKO_ANALYSIS__
+          <h3 style="margin-top: 30px;">Threshold Plots - Forecast Trend</h3>
+          <p style="font-size: 0.9em; color: #666; line-height: 1.6;">These plots show how the percentage of park area at or above specific fire danger thresholds changes over the 7-day forecast period. Each threshold (0.25, 0.50, 0.75) represents the historical proportion of fires that occurred at or below that dryness level. Higher thresholds indicate more severe conditions. Use these trends to identify windows of opportunity for management activities or periods requiring heightened vigilance.</p>
+          <h4>Threshold: 0.25</h4>
           <img src="parks/GRKO/threshold_plot_0.25.png" alt="Fire Danger Threshold Plot at 0.25 for GRKO">
-          <h3>Threshold: 0.50</h3>
+          <h4>Threshold: 0.50</h4>
           <img src="parks/GRKO/threshold_plot_0.5.png" alt="Fire Danger Threshold Plot at 0.50 for GRKO">
-          <h3>Threshold: 0.75</h3>
+          <h4>Threshold: 0.75</h4>
           <img src="parks/GRKO/threshold_plot_0.75.png" alt="Fire Danger Threshold Plot at 0.75 for GRKO">
         </div>
 
         <div id="DETO" class="park-plots" style="display:none;">
-          <h3>Threshold: 0.25</h3>
+          __DETO_ANALYSIS__
+          <h3 style="margin-top: 30px;">Threshold Plots - Forecast Trend</h3>
+          <p style="font-size: 0.9em; color: #666; line-height: 1.6;">These plots show how the percentage of park area at or above specific fire danger thresholds changes over the 7-day forecast period. Each threshold (0.25, 0.50, 0.75) represents the historical proportion of fires that occurred at or below that dryness level. Higher thresholds indicate more severe conditions. Use these trends to identify windows of opportunity for management activities or periods requiring heightened vigilance.</p>
+          <h4>Threshold: 0.25</h4>
           <img src="parks/DETO/threshold_plot_0.25.png" alt="Fire Danger Threshold Plot at 0.25 for DETO">
-          <h3>Threshold: 0.50</h3>
+          <h4>Threshold: 0.50</h4>
           <img src="parks/DETO/threshold_plot_0.5.png" alt="Fire Danger Threshold Plot at 0.50 for DETO">
-          <h3>Threshold: 0.75</h3>
+          <h4>Threshold: 0.75</h4>
           <img src="parks/DETO/threshold_plot_0.75.png" alt="Fire Danger Threshold Plot at 0.75 for DETO">
         </div>
 
         <div id="WICA" class="park-plots" style="display:none;">
-          <h3>Threshold: 0.25</h3>
+          __WICA_ANALYSIS__
+          <h3 style="margin-top: 30px;">Threshold Plots - Forecast Trend</h3>
+          <p style="font-size: 0.9em; color: #666; line-height: 1.6;">These plots show how the percentage of park area at or above specific fire danger thresholds changes over the 7-day forecast period. Each threshold (0.25, 0.50, 0.75) represents the historical proportion of fires that occurred at or below that dryness level. Higher thresholds indicate more severe conditions. Use these trends to identify windows of opportunity for management activities or periods requiring heightened vigilance.</p>
+          <h4>Threshold: 0.25</h4>
           <img src="parks/WICA/threshold_plot_0.25.png" alt="Fire Danger Threshold Plot at 0.25 for WICA">
-          <h3>Threshold: 0.50</h3>
+          <h4>Threshold: 0.50</h4>
           <img src="parks/WICA/threshold_plot_0.5.png" alt="Fire Danger Threshold Plot at 0.50 for WICA">
-          <h3>Threshold: 0.75</h3>
+          <h4>Threshold: 0.75</h4>
           <img src="parks/WICA/threshold_plot_0.75.png" alt="Fire Danger Threshold Plot at 0.75 for WICA">
         </div>
 
         <div id="MORU" class="park-plots" style="display:none;">
-          <h3>Threshold: 0.25</h3>
+          __MORU_ANALYSIS__
+          <h3 style="margin-top: 30px;">Threshold Plots - Forecast Trend</h3>
+          <p style="font-size: 0.9em; color: #666; line-height: 1.6;">These plots show how the percentage of park area at or above specific fire danger thresholds changes over the 7-day forecast period. Each threshold (0.25, 0.50, 0.75) represents the historical proportion of fires that occurred at or below that dryness level. Higher thresholds indicate more severe conditions. Use these trends to identify windows of opportunity for management activities or periods requiring heightened vigilance.</p>
+          <h4>Threshold: 0.25</h4>
           <img src="parks/MORU/threshold_plot_0.25.png" alt="Fire Danger Threshold Plot at 0.25 for MORU">
-          <h3>Threshold: 0.50</h3>
+          <h4>Threshold: 0.50</h4>
           <img src="parks/MORU/threshold_plot_0.5.png" alt="Fire Danger Threshold Plot at 0.50 for MORU">
-          <h3>Threshold: 0.75</h3>
+          <h4>Threshold: 0.75</h4>
           <img src="parks/MORU/threshold_plot_0.75.png" alt="Fire Danger Threshold Plot at 0.75 for MORU">
         </div>
 
