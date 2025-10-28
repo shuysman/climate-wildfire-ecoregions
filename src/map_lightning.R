@@ -39,6 +39,21 @@ nps_boundaries <- vect(here("data", "nps_boundary", "nps_boundary.shp")) %>%
 trimmed_raster <- trim(fire_danger_today)
 intersecting_parks <- nps_boundaries[ext(trimmed_raster), ]
 
+# Filter parks to only include those with valid fire danger data (non-NA cells)
+parks_with_data <- vect()
+for (i in 1:nrow(intersecting_parks)) {
+  park <- intersecting_parks[i, ]
+  # Extract fire danger values within this park boundary
+  park_values <- terra::extract(fire_danger_today, park, fun = NULL)
+  # Check if there are any non-NA values
+  if (any(!is.na(park_values[[2]]))) {
+    parks_with_data <- rbind(parks_with_data, park)
+  }
+}
+
+# Use the filtered parks for the map
+intersecting_parks <- parks_with_data
+
 # Define styling for park boundaries
 park_line_color <- "#000000" # Black
 park_fill_color <- "transparent" # No fill
