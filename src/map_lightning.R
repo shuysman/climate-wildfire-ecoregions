@@ -134,7 +134,7 @@ m <- leaflet() %>%
 # Create HTML for the header (compact version)
 header_title <- "<h3 style='margin: 0 0 10px 0;'>Lightning Strikes</h3>"
 update_time <- paste("<p style='margin: 5px 0; font-size: 0.9em;'><strong>Updated:</strong>", format(Sys.time(), "%Y-%m-%d %H:%M %Z"), "</p>")
-update_notice <- "<p style='margin: 5px 0; font-size: 0.85em; color: #666;'><i>Forecasts update daily at ~10:40 AM MT</i></p>"
+update_notice <- "<p style='margin: 5px 0; font-size: 0.85em; color: #666; line-height: 1.4; word-wrap: normal;'><i>Fire danger updates daily at ~10:40 AM MT. Lightning data updates hourly.</i></p>"
 
 # Initialize an empty notice
 forecast_notice <- ""
@@ -211,11 +211,11 @@ if (!is.null(lightning_data) && !is.null(lightning_data$lightning) && is.data.fr
 
 m <- m %>%
   addControl(html = paste0(
-    "<div id='info-panel-container' style='background: white; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); max-width: 400px;'>",
+    "<div id='info-panel-container' style='background: white; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); max-width: 400px; min-width: 300px;'>",
     "<button id='info-panel-toggle' style='width: 100%; padding: 8px 12px; background: #2c3e50; color: white; border: none; cursor: pointer; font-weight: bold; font-size: 0.9em; text-align: left; border-radius: 4px 4px 0 0; transition: background 0.2s;' onmouseover='this.style.background=\"#34495e\"' onmouseout='this.style.background=\"#2c3e50\"'>",
     "▶ Lightning Info",
     "</button>",
-    "<div id='info-panel-content' style='display: none; padding: 12px; max-height: 60vh; overflow-y: auto;'>",
+    "<div id='info-panel-content' style='display: none; padding: 12px; max-height: 60vh; overflow-y: auto; overflow-wrap: normal; word-wrap: normal; white-space: normal;'>",
     header_content,
     "</div>",
     "</div>"
