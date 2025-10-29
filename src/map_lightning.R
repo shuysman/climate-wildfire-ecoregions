@@ -141,9 +141,9 @@ forecast_notice <- ""
 
 # Create a notice ONLY if the forecast is old
 if (forecast_status != "Current") {
-  notice_text <- "Notice: The latest forecast is not yet available. The fire danger shown is based on older data."
+  notice_text <- "The latest forecast is not yet available. The fire danger shown is based on older data."
   notice_color <- "#D9534F" # Reddish color for a warning
-  forecast_notice <- paste0("<p style=\"color: ", notice_color, ";\"><i>", notice_text, "</i></p>")
+  forecast_notice <- paste0("<p style='margin: 10px 0; padding: 8px; background: #fff3cd; border-left: 3px solid ", notice_color, "; color: #856404; font-size: 0.85em; word-wrap: break-word; white-space: normal;'><strong>Notice:</strong> ", notice_text, "</p>")
 }
 
 if (!is.null(lightning_data) && !is.null(lightning_data$lightning) && is.data.frame(lightning_data$lightning) && nrow(lightning_data$lightning) > 0) {
@@ -201,12 +201,12 @@ if (!is.null(lightning_data) && !is.null(lightning_data$lightning) && is.data.fr
 
     header_content <- paste(header_title, update_time, update_notice, forecast_notice, lightning_table)
   } else {
-    no_strikes_message <- paste0("<p>No lightning strikes recorded within the forecast area for ", forecast_date_str, ".</p>")
+    no_strikes_message <- paste0("<p style='margin: 10px 0; padding: 8px; background: #f8f9fa; border-left: 3px solid #6c757d; color: #495057; font-size: 0.9em;'>No lightning strikes recorded within the forecast area for ", forecast_date_str, ".</p>")
     header_content <- paste(header_title, update_time, update_notice, forecast_notice, no_strikes_message)
   }
 } else {
-  no_strikes_message <- paste0("<p>No lightning strikes recorded for ", forecast_date_str, ".</p>")
-  header_content <- paste(header_title, update_time, forecast_notice, no_strikes_message)
+  no_strikes_message <- paste0("<p style='margin: 10px 0; padding: 8px; background: #f8f9fa; border-left: 3px solid #6c757d; color: #495057; font-size: 0.9em;'>No lightning strikes recorded for ", forecast_date_str, ".</p>")
+  header_content <- paste(header_title, update_time, update_notice, forecast_notice, no_strikes_message)
 }
 
 m <- m %>%
