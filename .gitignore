@@ -1,1 +1,8 @@
 .weatherbit_api_key
+*.pem
+*.key
+**/secrets/
+.env
+.env.local
+**/*credentials*
+**/*secret*
