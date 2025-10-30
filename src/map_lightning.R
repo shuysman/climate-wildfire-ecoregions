@@ -134,7 +134,13 @@ m <- leaflet() %>%
 # Create HTML for the header (compact version)
 header_title <- "<h3 style='margin: 0 0 10px 0;'>Lightning Strikes</h3>"
 update_time <- paste("<p style='margin: 5px 0; font-size: 0.9em;'><strong>Updated:</strong>", format(Sys.time(), "%Y-%m-%d %H:%M %Z"), "</p>")
-update_notice <- "<p style='margin: 5px 0; font-size: 0.85em; color: #666; line-height: 1.4; word-wrap: normal;'><i>Fire danger updates daily at ~10:40 AM MT. Lightning data updates hourly.</i></p>"
+
+# Create a top banner notice (to be added separately outside the info panel)
+update_notice_banner <- paste0(
+  "<div style='background: white; padding: 10px 15px; border-bottom: 2px solid #3B7A57; box-shadow: 0 2px 4px rgba(0,0,0,0.1);'>",
+  "<p style='margin: 0; font-size: 0.9em; color: #666; text-align: center;'><em>Fire danger updates daily at ~10:40 AM MT. Lightning data updates hourly. Last updated: ", format(Sys.time(), "%Y-%m-%d %H:%M %Z"), "</em></p>",
+  "</div>"
+)
 
 # Initialize an empty notice
 forecast_notice <- ""
@@ -143,7 +149,7 @@ forecast_notice <- ""
 if (forecast_status != "Current") {
   notice_text <- "The latest forecast is not yet available. The fire danger shown is based on older data."
   notice_color <- "#D9534F" # Reddish color for a warning
-  forecast_notice <- paste0("<p style='margin: 10px 0; padding: 8px; background: #fff3cd; border-left: 3px solid ", notice_color, "; color: #856404; font-size: 0.85em; word-wrap: break-word; white-space: normal;'><strong>Notice:</strong> ", notice_text, "</p>")
+  forecast_notice <- paste0("<div style='margin: 10px 0; padding: 8px; background: #fff3cd; border-left: 3px solid ", notice_color, "; color: #856404; font-size: 0.85em;'><strong>Notice:</strong> ", notice_text, "</div>")
 }
 
 if (!is.null(lightning_data) && !is.null(lightning_data$lightning) && is.data.frame(lightning_data$lightning) && nrow(lightning_data$lightning) > 0) {
@@ -199,14 +205,14 @@ if (!is.null(lightning_data) && !is.null(lightning_data$lightning) && is.data.fr
       "</div>"
     )
 
-    header_content <- paste(header_title, update_time, update_notice, forecast_notice, lightning_table)
+    header_content <- paste0(header_title, update_time, forecast_notice, lightning_table)
   } else {
-    no_strikes_message <- paste0("<p style='margin: 10px 0; padding: 8px; background: #f8f9fa; border-left: 3px solid #6c757d; color: #495057; font-size: 0.9em;'>No lightning strikes recorded within the forecast area for ", forecast_date_str, ".</p>")
-    header_content <- paste(header_title, update_time, update_notice, forecast_notice, no_strikes_message)
+    no_strikes_message <- paste0("<div style='margin: 10px 0; padding: 8px; background: #f8f9fa; border-left: 3px solid #6c757d; color: #495057; font-size: 0.9em;'>No lightning strikes recorded within the forecast area for ", forecast_date_str, ".</div>")
+    header_content <- paste0(header_title, update_time, forecast_notice, no_strikes_message)
   }
 } else {
-  no_strikes_message <- paste0("<p style='margin: 10px 0; padding: 8px; background: #f8f9fa; border-left: 3px solid #6c757d; color: #495057; font-size: 0.9em;'>No lightning strikes recorded for ", forecast_date_str, ".</p>")
-  header_content <- paste(header_title, update_time, update_notice, forecast_notice, no_strikes_message)
+  no_strikes_message <- paste0("<div style='margin: 10px 0; padding: 8px; background: #f8f9fa; border-left: 3px solid #6c757d; color: #495057; font-size: 0.9em;'>No lightning strikes recorded for ", forecast_date_str, ".</div>")
+  header_content <- paste0(header_title, update_time, forecast_notice, no_strikes_message)
 }
 
 m <- m %>%
@@ -215,7 +221,7 @@ m <- m %>%
     "<button id='info-panel-toggle' style='width: 100%; padding: 8px 12px; background: #2c3e50; color: white; border: none; cursor: pointer; font-weight: bold; font-size: 0.9em; text-align: left; border-radius: 4px 4px 0 0; transition: background 0.2s;' onmouseover='this.style.background=\"#34495e\"' onmouseout='this.style.background=\"#2c3e50\"'>",
     "▶ Lightning Info",
     "</button>",
-    "<div id='info-panel-content' style='display: none; padding: 12px; max-height: 60vh; overflow-y: auto; overflow-wrap: normal; word-wrap: normal; white-space: normal;'>",
+    "<div id='info-panel-content' style='display: none; padding: 12px; max-height: 60vh; overflow-y: auto;'>",
     header_content,
     "</div>",
     "</div>"
@@ -312,6 +318,16 @@ fullscreen_css <- c(
   "  .leaflet-container {",
   "    height: 100vh !important;",
   "  }",
+  "  #update-banner {",
+  "    position: fixed;",
+  "    top: 0;",
+  "    left: 0;",
+  "    right: 0;",
+  "    z-index: 9999;",
+  "  }",
+  "  .leaflet-top {",
+  "    top: 50px !important;",
+  "  }",
   "</style>"
 )
 
@@ -319,6 +335,16 @@ html_content <- c(
   html_content[1:(head_close_idx - 1)],
   fullscreen_css,
   html_content[head_close_idx:length(html_content)]
+)
+
+# Find the opening <body> tag and insert banner right after it
+body_open_idx <- which(grepl("<body", html_content))[1]
+banner_html <- paste0("<div id='update-banner'>", update_notice_banner, "</div>")
+
+html_content <- c(
+  html_content[1:body_open_idx],
+  banner_html,
+  html_content[(body_open_idx + 1):length(html_content)]
 )
 
 writeLines(html_content, html_file)
