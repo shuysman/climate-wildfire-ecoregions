@@ -25,6 +25,9 @@ if [ "${ENVIRONMENT}" = "cloud" ]; then
 
   aws s3 sync "${S3_BUCKET_PATH}/data/nps_boundary" /app/data/nps_boundary
 
+  # Download park-specific analysis files
+  aws s3 sync "${S3_SOURCE_DIR}/parks/" "${LOCAL_FORECAST_DIR}/parks/" 2>/dev/null || echo "No parks directory found in S3, will proceed without park analyses."
+
   # Try to download today's TIF. If it fails (non-zero exit code), try yesterday's.
   if aws s3 cp "$TODAY_TIF" "${LOCAL_FORECAST_DIR}/" 2>/dev/null; then
     echo "Downloaded today's TIF."
