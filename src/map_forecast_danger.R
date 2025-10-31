@@ -303,7 +303,6 @@ base_plot <- ggplot() +
   geom_spatraster_rgb(data = basemap, maxcell = Inf) +
   geom_spatraster(data = subset(final_output_rast, time(final_output_rast) >= today)) +
   scale_fill_viridis_c(option = "B", na.value = "transparent", limits = c(0, 1)) +
-  labs(title = glue("Wildfire danger forecast for {ecoregion_name} from {today}"), fill = "Proportion of Fires") +
   scale_x_continuous(expand = c(0, 0)) +
   scale_y_continuous(expand = c(0, 0))
 
@@ -311,6 +310,7 @@ base_plot <- ggplot() +
 message("Saving desktop version...")
 p_desktop <- base_plot +
   facet_wrap(~lyr, ncol = 4) +
+  labs(title = glue("Wildfire danger forecast for {ecoregion_name} from {today}"), fill = "Proportion of Fires") +
   theme(
     legend.position = "bottom",
     legend.justification = "right",
@@ -334,6 +334,10 @@ ggsave(file.path(out_dir, glue("{ecoregion_name_clean}_fire_danger_forecast_{tod
 message("Saving mobile version...")
 p_mobile <- base_plot +
   facet_wrap(~lyr, ncol = 2) +
+  labs(
+    title = "Wildfire danger forecast",
+    subtitle = glue("{ecoregion_name} from {today}"), fill = "Proportion of Fires"
+  ) +
   theme(
     legend.position = "bottom",
     legend.justification = "right",
@@ -343,6 +347,7 @@ p_mobile <- base_plot +
     axis.text.y = element_text(size = 20),
     axis.title = element_text(size = 22),
     plot.title = element_text(size = 26, margin = margin(b = 15)),
+    plot.subtitle = element_text(size = 20),
     strip.text = element_text(size = 22),
     legend.title = element_text(size = 20, margin = margin(r = 20, b = 20)),
     legend.text = element_text(size = 20),
