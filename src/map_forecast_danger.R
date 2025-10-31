@@ -298,24 +298,60 @@ writeCDF(final_output_rast, final_output_file, overwrite = TRUE, varname = "fire
 message("Creating forecast maps...")
 basemap <- get_tiles(final_output_rast, provider = "Esri.WorldTopoMap", zoom = 6, crop = TRUE, project = FALSE)
 
-ggplot() +
+# Create base plot elements
+base_plot <- ggplot() +
   geom_spatraster_rgb(data = basemap, maxcell = Inf) +
   geom_spatraster(data = subset(final_output_rast, time(final_output_rast) >= today)) +
   scale_fill_viridis_c(option = "B", na.value = "transparent", limits = c(0, 1)) +
-  facet_wrap(~lyr, ncol = 4) +
-  theme(
-    axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, size = 12),
-    axis.text.y = element_text(size = 14),
-    axis.title = element_text(size = 16),
-    plot.title = element_text(size = 20),
-    strip.text = element_text(size = 14),
-    legend.title = element_text(size = 14, margin = margin(b = 10)),
-    legend.text = element_text(size = 14)
-  ) +
   labs(title = glue("Wildfire danger forecast for {ecoregion_name} from {today}"), fill = "Proportion of Fires") +
   scale_x_continuous(expand = c(0, 0)) +
   scale_y_continuous(expand = c(0, 0))
-ggsave(file.path(out_dir, glue("{ecoregion_name_clean}_fire_danger_forecast_{today}.png")), width = 20, height = 10)
+
+# Desktop version - horizontal layout, slightly larger text
+message("Saving desktop version...")
+p_desktop <- base_plot +
+  facet_wrap(~lyr, ncol = 4) +
+  theme(
+    legend.position = "bottom",
+    legend.justification = "right",
+    legend.box.spacing = unit(0.5, "cm"),
+    plot.margin = margin(t = 20, r = 10, b = 15, l = 10, unit = "pt"),
+    axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, size = 14),
+    axis.text.y = element_text(size = 16),
+    axis.title = element_text(size = 18),
+    plot.title = element_text(size = 22, margin = margin(b = 10)),
+    strip.text = element_text(size = 16),
+    legend.title = element_text(size = 20, margin = margin(r = 20, b = 20)),
+    legend.text = element_text(size = 16),
+    legend.key.width = unit(2, "cm"),
+    legend.key.height = unit(0.5, "cm")
+  )
+ggsave(file.path(out_dir, glue("{ecoregion_name_clean}_fire_danger_forecast_{today}.png")),
+  plot = p_desktop, width = 20, height = 12, dpi = 300
+)
+
+# Mobile version - vertical layout (2 columns), much larger text
+message("Saving mobile version...")
+p_mobile <- base_plot +
+  facet_wrap(~lyr, ncol = 2) +
+  theme(
+    legend.position = "bottom",
+    legend.justification = "right",
+    legend.box.spacing = unit(0.5, "cm"),
+    plot.margin = margin(t = 25, r = 10, b = 20, l = 10, unit = "pt"),
+    axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, size = 18),
+    axis.text.y = element_text(size = 20),
+    axis.title = element_text(size = 22),
+    plot.title = element_text(size = 26, margin = margin(b = 15)),
+    strip.text = element_text(size = 22),
+    legend.title = element_text(size = 20, margin = margin(r = 20, b = 20)),
+    legend.text = element_text(size = 20),
+    legend.key.width = unit(1.5, "cm"),
+    legend.key.height = unit(0.6, "cm")
+  )
+ggsave(file.path(out_dir, glue("{ecoregion_name_clean}_fire_danger_forecast_{today}_mobile.png")),
+  plot = p_mobile, width = 11.5, height = 22, dpi = 300
+)
 
 # Now that the final file is saved, clean up all temporary files from the loop
 message("Cleaning up intermediate files...")

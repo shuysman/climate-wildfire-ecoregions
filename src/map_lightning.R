@@ -261,12 +261,33 @@ m <- m %>%
         });
       };
 
-      // Disable map dragging when interacting with the slider
-      document.getElementById('fire-danger-opacity-slider').addEventListener('mousedown', function() {
+      // Disable map dragging when interacting with the slider (mouse events)
+      var sliderElement = document.getElementById('fire-danger-opacity-slider');
+
+      sliderElement.addEventListener('mousedown', function() {
         map.dragging.disable();
       });
-      document.getElementById('fire-danger-opacity-slider').addEventListener('mouseup', function() {
+      sliderElement.addEventListener('mouseup', function() {
         map.dragging.enable();
+      });
+
+      // Disable map dragging when interacting with the slider (touch events)
+      sliderElement.addEventListener('touchstart', function(e) {
+        map.dragging.disable();
+        map.touchZoom.disable();
+        map.doubleClickZoom.disable();
+        map.scrollWheelZoom.disable();
+        e.stopPropagation();
+      });
+      sliderElement.addEventListener('touchend', function(e) {
+        map.dragging.enable();
+        map.touchZoom.enable();
+        map.doubleClickZoom.enable();
+        map.scrollWheelZoom.enable();
+        e.stopPropagation();
+      });
+      sliderElement.addEventListener('touchmove', function(e) {
+        e.stopPropagation();
       });
 
       // Attach event listener to the slider
@@ -327,6 +348,37 @@ fullscreen_css <- c(
   "  }",
   "  .leaflet-top {",
   "    top: 50px !important;",
+  "  }",
+  "  /* Mobile optimizations */",
+  "  @media screen and (max-width: 768px) {",
+  "    .leaflet-top.leaflet-right {",
+  "      top: auto !important;",
+  "      bottom: 10px !important;",
+  "      right: 10px !important;",
+  "    }",
+  "    .leaflet-control {",
+  "      margin: 5px !important;",
+  "    }",
+  "    #info-panel-container {",
+  "      max-width: 90vw !important;",
+  "      min-width: 280px !important;",
+  "    }",
+  "    /* Improve touch target sizes */",
+  "    input[type='range'] {",
+  "      height: 30px !important;",
+  "      -webkit-appearance: none;",
+  "      appearance: none;",
+  "    }",
+  "    input[type='range']::-webkit-slider-thumb {",
+  "      width: 24px;",
+  "      height: 24px;",
+  "      -webkit-appearance: none;",
+  "      appearance: none;",
+  "    }",
+  "    input[type='range']::-moz-range-thumb {",
+  "      width: 24px;",
+  "      height: 24px;",
+  "    }",
   "  }",
   "</style>"
 )

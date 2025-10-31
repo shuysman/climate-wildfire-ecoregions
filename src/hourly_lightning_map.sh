@@ -22,6 +22,8 @@ if [ "${ENVIRONMENT}" = "cloud" ]; then
   YESTERDAY_TIF="${S3_SOURCE_DIR}/fire_danger_${YESTERDAY}.tif"
   TODAY_PNG="${S3_SOURCE_DIR}/${ECOREGION_NAME_CLEAN}_fire_danger_forecast_${TODAY}.png"
   YESTERDAY_PNG="${S3_SOURCE_DIR}/${ECOREGION_NAME_CLEAN}_fire_danger_forecast_${YESTERDAY}.png"
+  TODAY_PNG_MOBILE="${S3_SOURCE_DIR}/${ECOREGION_NAME_CLEAN}_fire_danger_forecast_${TODAY}_mobile.png"
+  YESTERDAY_PNG_MOBILE="${S3_SOURCE_DIR}/${ECOREGION_NAME_CLEAN}_fire_danger_forecast_${YESTERDAY}_mobile.png"
 
   aws s3 sync "${S3_BUCKET_PATH}/data/nps_boundary" /app/data/nps_boundary
 
@@ -31,12 +33,14 @@ if [ "${ENVIRONMENT}" = "cloud" ]; then
   # Try to download today's TIF. If it fails (non-zero exit code), try yesterday's.
   if aws s3 cp "$TODAY_TIF" "${LOCAL_FORECAST_DIR}/" 2>/dev/null; then
     echo "Downloaded today's TIF."
-    # If today's TIF exists, download today's PNG.
+    # If today's TIF exists, download today's PNG and mobile PNG.
     aws s3 cp "$TODAY_PNG" "${LOCAL_FORECAST_DIR}/"
+    aws s3 cp "$TODAY_PNG_MOBILE" "${LOCAL_FORECAST_DIR}/" 2>/dev/null || echo "Mobile PNG not found, continuing..."
   elif aws s3 cp "$YESTERDAY_TIF" "${LOCAL_FORECAST_DIR}/" 2>/dev/null; then
     echo "Downloaded yesterday's TIF as fallback."
-    # If yesterday's TIF exists, download yesterday's PNG.
+    # If yesterday's TIF exists, download yesterday's PNG and mobile PNG.
     aws s3 cp "$YESTERDAY_PNG" "${LOCAL_FORECAST_DIR}/"
+    aws s3 cp "$YESTERDAY_PNG_MOBILE" "${LOCAL_FORECAST_DIR}/" 2>/dev/null || echo "Mobile PNG not found, continuing..."
   else
     echo "Error: Could not download a recent forecast TIF file from S3. Exiting."
     exit 1

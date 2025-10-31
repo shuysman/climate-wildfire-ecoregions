@@ -120,6 +120,28 @@
             text-decoration: none;
             cursor: pointer;
         }
+        @media screen and (max-width: 768px) {
+            body {
+                font-size: 1rem;
+            }
+            h1 {
+                font-size: 1.5rem;
+            }
+            h2 {
+                font-size: 1.3rem;
+            }
+            .main-container {
+                padding: 0 0.5rem;
+                margin: 1rem auto;
+            }
+            .container {
+                padding: 1rem;
+            }
+            .navbar li a {
+                padding: 10px 12px;
+                font-size: 0.9rem;
+            }
+        }
         @media screen and (max-width: 600px) {
             .navbar ul {
                 flex-direction: column;
@@ -147,7 +169,10 @@
               <div id="forecast-map" class="container content-section">
                   <h2>1-Week Forecast Map</h2>
 		<center><p>Click to enlarge image.</p></center>
-                  <img src="middle_rockies_fire_danger_forecast___FORECAST_MAP_DATE__.png" alt="1-Week Fire Danger Forecast Map" class="pannable-image">
+                  <picture>
+                    <source media="(max-width: 768px)" srcset="middle_rockies_fire_danger_forecast___FORECAST_MAP_DATE___mobile.png">
+                    <img src="middle_rockies_fire_danger_forecast___FORECAST_MAP_DATE__.png" alt="1-Week Fire Danger Forecast Map" class="pannable-image">
+                  </picture>
 		<center style="margin-top: 20px;">
                     <p style="margin-bottom: 10px;">
                         <a href="fire_danger_forecast___FORECAST_MAP_DATE__.nc" download style="padding: 8px 16px; background-color: #3B7A57; color: white; text-decoration: none; border-radius: 4px; font-weight: 500; display: inline-block; margin-right: 10px;">Download 7-Day Forecast NetCDF</a>

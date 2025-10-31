@@ -48,6 +48,7 @@ if [ "${ENVIRONMENT}" = "cloud" ]; then
   NC_FILE_PATH="${FORECAST_DIR}/fire_danger_forecast_${TODAY}.nc"
   DAILY_HTML_FILE="${FORECAST_DIR}/daily_forecast.html"
   MAIN_MAP_PNG_PATH="${FORECAST_DIR}/${ECOREGION_NAME_CLEAN}_fire_danger_forecast_${TODAY}.png"
+  MOBILE_MAP_PNG_PATH="${FORECAST_DIR}/${ECOREGION_NAME_CLEAN}_fire_danger_forecast_${TODAY}_mobile.png"
   PARKS_DIR="${FORECAST_DIR}/parks"
 
   # 1. Copy the main NetCDF file
@@ -69,6 +70,13 @@ if [ "${ENVIRONMENT}" = "cloud" ]; then
     aws s3 cp "$MAIN_MAP_PNG_PATH" "${S3_OUT_DIR}/forecasts/" --acl "public-read"
   else
     echo "Warning: Main map PNG file not found at $MAIN_MAP_PNG_PATH"
+  fi
+
+  # 3b. Copy the mobile forecast map PNG
+  if [ -f "$MOBILE_MAP_PNG_PATH" ]; then
+    aws s3 cp "$MOBILE_MAP_PNG_PATH" "${S3_OUT_DIR}/forecasts/" --acl "public-read"
+  else
+    echo "Warning: Mobile map PNG file not found at $MOBILE_MAP_PNG_PATH"
   fi
 
   # 4. Copy all park-specific plots recursively
