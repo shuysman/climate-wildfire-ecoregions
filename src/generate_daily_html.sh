@@ -76,6 +76,10 @@ cp "$TEMPLATE_FILE" "$OUTPUT_FILE"
 if [ -n "$PARK_CODES" ]; then
   echo "Processing park analyses for: $PARK_CODES"
 
+  # Temporarily reset IFS to split on spaces
+  OLD_IFS="$IFS"
+  IFS=' '
+
   # Build park navigation HTML
   PARK_NAV_HTML=""
   FIRST_PARK=true
@@ -154,6 +158,9 @@ if [ -n "$PARK_CODES" ]; then
 
   # Remove any remaining placeholders (in case template has placeholders for parks not in this ecoregion)
   sed -i 's|__[A-Z]\{4\}_ANALYSIS__|<!-- Park not configured for this ecoregion -->|g' "$OUTPUT_FILE"
+
+  # Restore original IFS
+  IFS="$OLD_IFS"
 else
   echo "No parks configured for $ECOREGION. Removing park navigation and sections."
   # Replace markers with empty content if no parks are configured
