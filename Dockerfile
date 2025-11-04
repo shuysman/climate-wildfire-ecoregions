@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     cdo \
     cmake \
     gdal-bin \
+    nco \
     libcurl4-openssl-dev \
     libfontconfig1-dev \
     libfreetype6-dev \
@@ -49,6 +50,7 @@ RUN R -e "renv::restore()"
 
 # Copy Project Files
 COPY ./src /app/src
+COPY ./config /app/config
 
 
 # Make Scripts Executable
