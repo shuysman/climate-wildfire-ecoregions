@@ -1,0 +1,35 @@
+{
+  "family": "wildfire-forecast-update",
+  "taskRoleArn": "arn:aws:iam::791795474719:role/WildfireS3Role",
+  "executionRoleArn": "arn:aws:iam::791795474719:role/ecsTaskExecutionRole",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "containerDefinitions": [
+    {
+      "name": "wildfire-update-app",
+      "image": "791795474719.dkr.ecr.us-west-2.amazonaws.com/wildfire-forecast",
+      "essential": true,
+      "command": ["/app/src/update_all_forecasts.sh"],
+      "environment": [
+        {
+          "name": "ENVIRONMENT",
+          "value": "cloud"
+        },
+        {
+          "name": "S3_BUCKET_PATH",
+          "value": "s3://firecachedata"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/wildfire-forecast",
+          "awslogs-region": "us-west-2",
+          "awslogs-stream-prefix": "update-step"
+        }
+      }
+    }
+  ]
+}

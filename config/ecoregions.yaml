@@ -1,0 +1,71 @@
+# Ecoregion Configuration for Wildfire Forecast System
+#
+# This file defines which ecoregions to process and their optimal predictors
+# as determined by the retrospective analysis (src/03_dryness.R)
+
+ecoregions:
+  # Middle Rockies - Uses VPD as primary predictor
+  - id: 17
+    name: "Middle Rockies"
+    name_clean: "middle_rockies"
+    enabled: true
+    cover_types:
+      forest:
+        window: 15          # 15-day rolling mean
+        variable: "vpd"     # Vapor Pressure Deficit
+        gridmet_varname: "vpd"
+      non_forest:
+        window: 5           # 5-day rolling mean
+        variable: "vpd"
+        gridmet_varname: "vpd"
+    parks:
+      - YELL  # Yellowstone National Park
+      - GRTE  # Grand Teton National Park
+      - JODR  # John D. Rockefeller Jr. Memorial Parkway
+      - JECA  # Jewel Cave National Monument
+      - GRKO  # Grant-Kohrs Ranch National Historic Site
+      - DETO  # Devils Tower National Monument
+      - WICA  # Wind Cave National Park
+      - MORU  # Mount Rushmore National Memorial
+
+  # Southern Rockies - Uses FM1000 as primary predictor
+  - id: 21
+    name: "Southern Rockies"
+    name_clean: "southern_rockies"
+    enabled: true
+    cover_types:
+      forest:
+        window: 5           # 5-day rolling mean
+        variable: "fm1000"  # 1000-hour fuel moisture
+        gridmet_varname: "fm1000"
+      non_forest:
+        window: 1           # 1-day (no rolling average)
+        variable: "fm1000"
+        gridmet_varname: "fm1000"
+    parks:
+      - ROMO  # Rocky Mountain National Park
+      - GRSA  # Great Sand Dunes National Park & Preserve
+      - BLCA  # Black Canyon of the Gunnison National Park
+      - CURE  # Curecanti National Recreation Area
+      - DINO  # Dinosaur National Monument
+      - COLM  # Colorado National Monument
+      - MEVE  # Mesa Verde National Park
+      - SAND  # Sand Creek Massacre National Historic Site
+
+# Future ecoregions can be added here following the same pattern
+# Example:
+#  - id: 13
+#    name: "Central Basin and Range"
+#    name_clean: "central_basin_and_range"
+#    enabled: false  # Set to true when ready to deploy
+#    cover_types:
+#      forest:
+#        window: 11
+#        variable: "erc"
+#        gridmet_varname: "erc"
+#      non_forest:
+#        window: 7
+#        variable: "erc"
+#        gridmet_varname: "erc"
+#    parks:
+#      - GRBA  # Great Basin National Park
