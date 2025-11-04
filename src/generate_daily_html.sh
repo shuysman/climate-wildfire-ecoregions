@@ -20,21 +20,26 @@ echo "Generating HTML dashboard for: $ECOREGION"
 echo "Date: $TODAY"
 echo "========================================="
 
-# --- Get park list from YAML config ---
-PARK_CODES=$(Rscript -e "
+# --- Get ecoregion config from YAML ---
+ECOREGION_CONFIG=$(Rscript -e "
 suppressPackageStartupMessages(library(yaml))
 config <- read_yaml('$PROJECT_DIR/config/ecoregions.yaml')
 ecoregion <- config\$ecoregions[[which(sapply(config\$ecoregions, function(x) x\$name_clean == '$ECOREGION'))]]
 if (is.null(ecoregion)) {
   stop('Ecoregion $ECOREGION not found in config')
 }
+# Output: NAME|PARK1 PARK2 PARK3
 parks <- ecoregion\$parks
 if (is.null(parks) || length(parks) == 0) {
-  cat('')
+  cat(paste0(ecoregion\$name, '|'))
 } else {
-  cat(paste(parks, collapse=' '))
+  cat(paste0(ecoregion\$name, '|', paste(parks, collapse=' ')))
 }
 ")
+
+# Parse the output
+ECOREGION_NAME=$(echo "$ECOREGION_CONFIG" | cut -d'|' -f1)
+PARK_CODES=$(echo "$ECOREGION_CONFIG" | cut -d'|' -f2)
 
 # --- Define paths using new directory structure ---
 ECOREGION_OUT_DIR="$PROJECT_DIR/out/forecasts/$ECOREGION"
@@ -67,10 +72,62 @@ fi
 
 cp "$TEMPLATE_FILE" "$OUTPUT_FILE"
 
-# --- Insert park-specific analyses ---
+# --- Generate dynamic park navigation and sections ---
 if [ -n "$PARK_CODES" ]; then
   echo "Processing park analyses for: $PARK_CODES"
 
+  # Build park navigation HTML
+  PARK_NAV_HTML=""
+  FIRST_PARK=true
+  for PARK_CODE in $PARK_CODES; do
+    if [ "$FIRST_PARK" = true ]; then
+      PARK_NAV_HTML+="            <li><a href=\"javascript:void(0)\" class=\"park-link active\" onclick=\"showPark('$PARK_CODE')\">$PARK_CODE</a></li>\n"
+      FIRST_PARK=false
+    else
+      PARK_NAV_HTML+="            <li><a href=\"javascript:void(0)\" class=\"park-link\" onclick=\"showPark('$PARK_CODE')\">$PARK_CODE</a></li>\n"
+    fi
+  done
+
+  # Build park sections HTML
+  PARK_SECTIONS_HTML=""
+  FIRST_PARK=true
+  for PARK_CODE in $PARK_CODES; do
+    if [ "$FIRST_PARK" = true ]; then
+      PARK_SECTIONS_HTML+="        <div id=\"$PARK_CODE\" class=\"park-plots\">\n"
+      FIRST_PARK=false
+    else
+      PARK_SECTIONS_HTML+="        <div id=\"$PARK_CODE\" class=\"park-plots\" style=\"display:none;\">\n"
+    fi
+    PARK_SECTIONS_HTML+="          __${PARK_CODE}_ANALYSIS__\n"
+    PARK_SECTIONS_HTML+="          <h3 style=\"margin-top: 30px;\">Threshold Plots - Forecast Trend</h3>\n"
+    PARK_SECTIONS_HTML+="          <p style=\"font-size: 0.9em; color: #666; line-height: 1.6;\">These plots show how the percentage of park area at or above specific fire danger thresholds changes over the 7-day forecast period. Each threshold (0.25, 0.50, 0.75) represents the historical proportion of fires that occurred at or below that dryness level. Higher thresholds indicate more severe conditions. Use these trends to identify windows of opportunity for management activities or periods requiring heightened vigilance.</p>\n"
+    PARK_SECTIONS_HTML+="          <h4>Threshold: 0.25</h4>\n"
+    PARK_SECTIONS_HTML+="          <img src=\"$TODAY/parks/$PARK_CODE/threshold_plot_0.25.png\" alt=\"Fire Danger Threshold Plot at 0.25 for $PARK_CODE\">\n"
+    PARK_SECTIONS_HTML+="          <h4>Threshold: 0.50</h4>\n"
+    PARK_SECTIONS_HTML+="          <img src=\"$TODAY/parks/$PARK_CODE/threshold_plot_0.5.png\" alt=\"Fire Danger Threshold Plot at 0.50 for $PARK_CODE\">\n"
+    PARK_SECTIONS_HTML+="          <h4>Threshold: 0.75</h4>\n"
+    PARK_SECTIONS_HTML+="          <img src=\"$TODAY/parks/$PARK_CODE/threshold_plot_0.75.png\" alt=\"Fire Danger Threshold Plot at 0.75 for $PARK_CODE\">\n"
+    PARK_SECTIONS_HTML+="        </div>\n\n"
+  done
+
+  # Replace the markers in the template
+  awk -v nav="$PARK_NAV_HTML" '{
+    if (index($0, "__PARK_NAVIGATION__") > 0) {
+      gsub("__PARK_NAVIGATION__", nav)
+    }
+    print
+  }' "$OUTPUT_FILE" > "$OUTPUT_FILE.tmp"
+  mv "$OUTPUT_FILE.tmp" "$OUTPUT_FILE"
+
+  awk -v sections="$PARK_SECTIONS_HTML" '{
+    if (index($0, "__PARK_SECTIONS__") > 0) {
+      gsub("__PARK_SECTIONS__", sections)
+    }
+    print
+  }' "$OUTPUT_FILE" > "$OUTPUT_FILE.tmp"
+  mv "$OUTPUT_FILE.tmp" "$OUTPUT_FILE"
+
+  # Now insert the actual analysis content for each park
   for PARK_CODE in $PARK_CODES; do
     ANALYSIS_FILE="$TODAY_DIR/parks/$PARK_CODE/fire_danger_analysis.html"
     PLACEHOLDER="__${PARK_CODE}_ANALYSIS__"
@@ -98,9 +155,10 @@ if [ -n "$PARK_CODES" ]; then
   # Remove any remaining placeholders (in case template has placeholders for parks not in this ecoregion)
   sed -i 's|__[A-Z]\{4\}_ANALYSIS__|<!-- Park not configured for this ecoregion -->|g' "$OUTPUT_FILE"
 else
-  echo "No parks configured for $ECOREGION. Removing all park placeholders."
-  # Remove all park placeholders if no parks are configured
-  sed -i 's|__[A-Z]\{4\}_ANALYSIS__|<!-- No parks configured -->|g' "$OUTPUT_FILE"
+  echo "No parks configured for $ECOREGION. Removing park navigation and sections."
+  # Replace markers with empty content if no parks are configured
+  sed -i "s|__PARK_NAVIGATION__|<!-- No parks configured for this ecoregion -->|g" "$OUTPUT_FILE"
+  sed -i "s|__PARK_SECTIONS__|<!-- No parks configured for this ecoregion -->|g" "$OUTPUT_FILE"
 fi
 
 # --- Replace date and path placeholders ---
@@ -109,6 +167,7 @@ sed -i -e "s|__DISPLAY_DATE__|$TODAY|g" \
        -e "s|__FORECAST_MAP_PATH__|$FORECAST_MAP_PATH|g" \
        -e "s|__FORECAST_MAP_MOBILE_PATH__|$FORECAST_MAP_MOBILE_PATH|g" \
        -e "s|__ECOREGION__|$ECOREGION|g" \
+       -e "s|__ECOREGION_NAME__|$ECOREGION_NAME|g" \
        "$OUTPUT_FILE"
 
 echo "========================================="
