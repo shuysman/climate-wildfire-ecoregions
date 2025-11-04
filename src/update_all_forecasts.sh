@@ -61,6 +61,10 @@ echo ""
 SUCCESS_COUNT=0
 FAIL_COUNT=0
 
+# Temporarily reset IFS to split on spaces
+OLD_IFS="$IFS"
+IFS=' '
+
 for VAR in $REQUIRED_VARS; do
   echo "========================================="
   echo "Downloading $VAR forecasts..."
@@ -75,6 +79,9 @@ for VAR in $REQUIRED_VARS; do
   fi
   echo ""
 done
+
+# Restore original IFS
+IFS="$OLD_IFS"
 
 # Summary
 echo "========================================="
