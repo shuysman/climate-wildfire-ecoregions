@@ -150,16 +150,34 @@ trap cleanup EXIT
 if uses_ensemble_format "$VARIABLE"; then
   log "Variable $VARIABLE uses ensemble format - will compute ensemble means"
 
-  # If there's no existing forecast, download and create ensemble mean
+  # If there's no existing forecast, download and create ensemble means for all 3 days
   if [[ ! -f "$TODAY_FILENAME" ]]; then
-    log "No existing forecast file. Downloading ensemble members for day 0..."
+    log "No existing forecast files. Downloading ensemble members for days 0, 1, and 2..."
+
+    # Download and create ensemble mean for day 0 (today)
     if download_ensemble_average 0 "$TODAY_FILENAME"; then
-      log "Initial ensemble mean created successfully."
-      exit 0
+      log "Day 0 ensemble mean created successfully."
     else
-      log "ERROR: Initial ensemble download failed."
+      log "ERROR: Day 0 ensemble download failed."
       exit 1
     fi
+
+    # Download and create ensemble mean for day 1 (yesterday)
+    if download_ensemble_average 1 "$Tminus1_FILENAME"; then
+      log "Day 1 ensemble mean created successfully."
+    else
+      log "WARNING: Day 1 ensemble download failed. Continuing with day 0 only."
+    fi
+
+    # Download and create ensemble mean for day 2 (two days ago)
+    if download_ensemble_average 2 "$Tminus2_FILENAME"; then
+      log "Day 2 ensemble mean created successfully."
+    else
+      log "WARNING: Day 2 ensemble download failed. Continuing without day 2."
+    fi
+
+    log "Initial ensemble means created successfully."
+    exit 0
   fi
 
   log "Starting forecast update check for ensemble data..."
