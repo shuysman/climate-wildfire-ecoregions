@@ -72,10 +72,10 @@ for VAR in $REQUIRED_VARS; do
 
   if bash "$PROJECT_DIR/src/update_rotate_forecast_variable.sh" "$VAR"; then
     echo "✓ Successfully updated $VAR forecasts"
-    ((SUCCESS_COUNT++))
+    SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
   else
     echo "✗ Failed to update $VAR forecasts" >&2
-    ((FAIL_COUNT++))
+    FAIL_COUNT=$((FAIL_COUNT + 1))
   fi
   echo ""
 done
