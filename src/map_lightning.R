@@ -10,17 +10,43 @@ library(jsonlite)
 library(viridisLite)
 library(htmlwidgets)
 library(htmltools)
+library(yaml)
 
 # Get command line arguments, using a unique variable name to avoid conflicts
 cmd_args <- commandArgs(trailingOnly = TRUE)
-if (length(cmd_args) != 3) {
-  stop("Usage: Rscript map_lightning.R <cog_file> <forecast_status> <forecast_date>", call. = FALSE)
+if (length(cmd_args) != 4) {
+  stop("Usage: Rscript map_lightning.R <cog_file> <forecast_status> <forecast_date> <ecoregion_name_clean>", call. = FALSE)
 }
 
 cog_file <- cmd_args[1]
 forecast_status <- cmd_args[2]
 forecast_date_str <- cmd_args[3]
 forecast_date <- as.Date(forecast_date_str)
+ecoregion_name_clean <- cmd_args[4]
+
+message(glue("Generating lightning map for ecoregion: {ecoregion_name_clean}"))
+
+# Load ecoregion configuration
+config <- read_yaml(here("config", "ecoregions.yaml"))
+
+# Find the ecoregion config
+ecoregion_config <- NULL
+for (eco in config$ecoregions) {
+  if (eco$name_clean == ecoregion_name_clean && isTRUE(eco$enabled)) {
+    ecoregion_config <- eco
+    break
+  }
+}
+
+if (is.null(ecoregion_config)) {
+  stop(glue("Ecoregion '{ecoregion_name_clean}' not found or not enabled in config/ecoregions.yaml"))
+}
+
+ecoregion_name <- ecoregion_config$name
+ecoregion_id <- ecoregion_config$id
+park_codes <- ecoregion_config$parks
+
+message(glue("Found ecoregion: {ecoregion_name} (ID: {ecoregion_id})"))
 
 # Load the single-layer COG file
 if (!file.exists(cog_file)) {
@@ -31,23 +57,50 @@ if (!file.exists(cog_file)) {
 fire_danger_today <- rast(cog_file)
 fire_danger_today <- aggregate(fire_danger_today, fact = 2)
 
+# Load ecoregion boundary
+ecoregion_boundary <- vect(here("data", "us_eco_l3", "us_eco_l3.shp")) %>%
+  filter(US_L3NAME == ecoregion_name)
+
+if (nrow(ecoregion_boundary) == 0) {
+  stop(glue("Ecoregion boundary not found for '{ecoregion_name}' in us_eco_l3 shapefile"))
+}
+
+# Calculate bounding box for lightning API (in WGS84)
+ecoregion_boundary_wgs84 <- project(ecoregion_boundary, "EPSG:4326")
+bbox <- ext(ecoregion_boundary_wgs84)
+lat_min <- bbox$ymin[[1]]
+lat_max <- bbox$ymax[[1]]
+lon_min <- bbox$xmin[[1]]
+lon_max <- bbox$xmax[[1]]
+
+message(glue("Lightning API bounding box: lat {lat_min} to {lat_max}, lon {lon_min} to {lon_max}"))
+
 # Load NPS boundaries
 nps_boundaries <- vect(here("data", "nps_boundary", "nps_boundary.shp")) %>%
   project(crs(fire_danger_today)) # Ensure CRS matches the raster
 
-# Trim raster to the extent of non-NA values and filter parks
-trimmed_raster <- trim(fire_danger_today)
-intersecting_parks <- nps_boundaries[ext(trimmed_raster), ]
+# Filter parks to only those configured for this ecoregion
+if (!is.null(park_codes) && length(park_codes) > 0) {
+  parks_in_config <- nps_boundaries[nps_boundaries$UNIT_CODE %in% park_codes, ]
+} else {
+  # If no parks configured, use empty vector
+  parks_in_config <- vect()
+}
 
-# Filter parks to only include those with valid fire danger data (non-NA cells)
+# Trim raster to the extent of non-NA values
+trimmed_raster <- trim(fire_danger_today)
+
+# Filter configured parks to only include those with valid fire danger data (non-NA cells)
 parks_with_data <- vect()
-for (i in 1:nrow(intersecting_parks)) {
-  park <- intersecting_parks[i, ]
-  # Extract fire danger values within this park boundary
-  park_values <- terra::extract(fire_danger_today, park, fun = NULL)
-  # Check if there are any non-NA values
-  if (any(!is.na(park_values[[2]]))) {
-    parks_with_data <- rbind(parks_with_data, park)
+if (nrow(parks_in_config) > 0) {
+  for (i in 1:nrow(parks_in_config)) {
+    park <- parks_in_config[i, ]
+    # Extract fire danger values within this park boundary
+    park_values <- terra::extract(fire_danger_today, park, fun = NULL)
+    # Check if there are any non-NA values
+    if (any(!is.na(park_values[[2]]))) {
+      parks_with_data <- rbind(parks_with_data, park)
+    }
   }
 }
 
@@ -90,7 +143,10 @@ if (is.null(api_key) || api_key == "") {
   stop("API key retrieved from Secrets Manager is null or empty.")
 }
 
-api_url <- glue("https://api.weatherbit.io/v2.0/history/lightning?lat=43.5459517032319&lon=-111.162554452619&end_lat=45.1292422224309&end_lon=-109.829085745439&date={forecast_date_str}&key={api_key}")
+# Build lightning API URL using ecoregion bounding box
+api_url <- glue("https://api.weatherbit.io/v2.0/history/lightning?lat={lat_min}&lon={lon_min}&end_lat={lat_max}&end_lon={lon_max}&date={forecast_date_str}&key={api_key}")
+
+message(glue("Fetching lightning data from API..."))
 
 lightning_data <- tryCatch(
   {
@@ -313,14 +369,14 @@ m <- m %>%
   ")
 
 # Save the map with fullscreen styling
-out_dir <- here("out", "forecasts")
+out_dir <- here("out", "forecasts", ecoregion_name_clean, forecast_date_str)
 dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
 
 # Create the widget
-map_widget <- saveWidget(m, file.path(out_dir, glue("lightning_map_{Sys.Date()}.html")), selfcontained = TRUE)
+map_widget <- saveWidget(m, file.path(out_dir, "lightning_map.html"), selfcontained = TRUE)
 
 # Add custom CSS for fullscreen layout
-html_file <- file.path(out_dir, glue("lightning_map_{Sys.Date()}.html"))
+html_file <- file.path(out_dir, "lightning_map.html")
 html_content <- readLines(html_file)
 
 # Find the closing </head> tag and insert CSS before it
@@ -455,3 +511,6 @@ html_content <- c(
 )
 
 writeLines(html_content, html_file)
+
+message(glue("Lightning map saved to: {html_file}"))
+message(glue("Lightning map generation complete for {ecoregion_name}"))
