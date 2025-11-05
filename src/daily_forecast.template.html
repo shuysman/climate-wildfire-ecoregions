@@ -203,20 +203,30 @@ __PARK_SECTIONS__
       <div id="info" class="container content-section">
         <h2>How This Fire Danger System Works</h2>
 
-        <p>This tool provides a daily forecast of wildfire ignition danger, designed to be both scientifically robust and easy for land managers to use, based on a model originally developed for the Southern Rockies by <a href="#references">Thoma et al. (2020)</a>. Here’s a simplified overview of how it works:</p>
+        <p>This tool provides a daily forecast of wildfire ignition danger, designed to be both scientifically robust and easy for land managers to use, based on a model originally developed for the Southern Rockies by <a href="#references">Thoma et al. (2020)</a>. Here's a simplified overview of how it works:</p>
 
         <h3>1. Finding the Best Weather Indicators</h3>
 
         <p>Our goal was to find the simplest and most effective weather signals for predicting when and where a fire is likely to start. We analyzed decades of historical data on wildfires and weather, looking at variables like:</p>
 
         <ul>
-          <li><strong>Vapor Pressure Deficit (VPD):</strong> A measure of how dry the air is.</li>
+          <li><strong>Vapor Pressure Deficit (VPD):</strong> A measure of how dry the air is, representing atmospheric moisture demand.</li>
           <li><strong>Climatic Water Deficit (CWD):</strong> An indicator of drought stress in plants.</li>
           <li><strong>Temperature</strong></li>
-	  <li><strong>Fire danger indices</strong> from the <a href="https://research.fs.usda.gov/firelab/projects/firedangerrating" target="_blank">NFDRS</a> such as BI, ERC, FM100, and FM1000 which are commonly used model aspects of wildfire behavior.</li>
+	  <li><strong>Fire danger indices</strong> from the <a href="https://research.fs.usda.gov/firelab/projects/firedangerrating" target="_blank">NFDRS</a> such as BI, ERC, FM100, and FM1000 which are commonly used to model aspects of wildfire behavior.</li>
         </ul>
 
-        <p>We tested these indicators over different time windows (e.g., the last 3 days, 7 days, etc., up to 31 days) to find the combination that best predicted past fire ignitions for each specific ecoregion.</p>
+        <p>We tested these indicators over different time windows (e.g., the last 3 days, 7 days, etc., up to 31 days) to find the combination that best predicted past fire ignitions for each specific ecoregion and cover type.</p>
+
+        <div style="margin: 20px 0; padding: 15px; background: #e8f4f8; border-left: 4px solid #3B7A57; border-radius: 4px;">
+          <h4 style="margin-top: 0; color: #2c3e50;">Ecoregion-Specific Predictors</h4>
+          <p>Different ecoregions have different optimal fire danger predictors, determined through retrospective analysis of historical fire ignitions and climate data. The current system uses:</p>
+          <ul style="margin-bottom: 0;">
+            <li><strong>Middle Rockies:</strong> VPD (Vapor Pressure Deficit) with 15-day rolling average for forests and 5-day average for non-forest areas</li>
+            <li><strong>Southern Rockies:</strong> FM1000 (1000-hour fuel moisture) with 5-day rolling average for forests and 1-day (current conditions) for non-forest areas</li>
+          </ul>
+          <p style="margin-bottom: 0; margin-top: 10px;"><em>These differences reflect regional climate patterns, vegetation characteristics, and fire regimes. Each predictor was selected because it maximized predictive skill for that specific ecoregion.</em></p>
+        </div>
 
         <h3>2. Creating a Local "Normal"</h3>
 
@@ -244,13 +254,13 @@ __PARK_SECTIONS__
         <p>To generate the daily forecast maps, the system performs the following steps every day:</p>
 
         <ol>
-          <li><strong>Gets the Latest Data:</strong> It automatically downloads the latest historical weather data and the newest 7-day weather forecast.</li>
-          <li><strong>Calculates Dryness:</strong> It calculates the best-performing dryness indicator (like the 5-day average VPD) for the forecast period.</li>
+          <li><strong>Gets the Latest Data:</strong> It automatically downloads the latest historical weather data and the newest 7-day weather forecast from the Northwest Knowledge Network's CFSv2 operational forecast system.</li>
+          <li><strong>Calculates Dryness:</strong> For each ecoregion, it calculates the optimal dryness indicator determined in step 1 above (e.g., 15-day average VPD for Middle Rockies forests, or 5-day average FM1000 for Southern Rockies forests) for the forecast period.</li>
           <li><strong>Compares to Normal:</strong> It compares the forecast dryness to the pre-calculated local "normal" for every pixel on the map to get a percentile rank.</li>
-          <li><strong>Creates the Danger Map:</strong> It uses the eCDF model to convert the percentile rank into a fire danger index (from 0 to 1) for each pixel, creating the final map you see on the "Map" tab.</li>
+          <li><strong>Creates the Danger Map:</strong> It uses the eCDF model (specific to each ecoregion and cover type) to convert the percentile rank into a fire danger index (from 0 to 1) for each pixel, creating the final map you see on the "Forecast Map" tab.</li>
         </ol>
 
-        <p>These daily forecasts are updated around 10 AM MST each day, depending on exact timing of availability from the Northwest Knowledge Network THREDDS server.</p>
+        <p>These daily forecasts are updated around 10:40 AM MT each day, depending on exact timing of availability from the Northwest Knowledge Network THREDDS server.</p>
 
         <h3>5. Cover Type</h3>
 
@@ -258,13 +268,15 @@ __PARK_SECTIONS__
 
         <img src="cover-landfire.png" alt="LANDFIRE Cover Types" style="max-height: 600px;">
 
-        <p>To simplify the modeling process, these detailed classifications are grouped into two main categories: "forest" and "non-forest". The script at <code>src/01_extract_cover.R</code> automates this process by determining the majority cover type for each area. The resulting categorized data is shown below.</p>
+        <p>To simplify the modeling process, these detailed classifications are grouped into two main categories: "forest" and "non-forest". The system automatically determines the majority cover type for each area. The resulting categorized data is shown below.</p>
 
         <img src="cover-categorized.png" alt="Categorized Cover Types" style="max-height: 600px;">
 
-        <h3>6. Separate Models for Each Cover Type</h3>
+        <h3>6. Separate Models for Each Ecoregion and Cover Type</h3>
 
-        <p>A separate fire danger model is generated for each ecoregion and cover type combination. For example, the "Middle Rockies" ecoregion has both a "forest" and a "non-forest" model. This is crucial because fire behavior, and therefore fire danger, differs significantly between these two environments. The script at <code>src/map_forecast_danger.R</code> demonstrates how the appropriate model is selected based on the cover type of a given area, ensuring that the fire danger forecast is tailored to the specific vegetation on the ground.</p>
+        <p>A separate fire danger model is generated for each ecoregion and cover type combination. For example, the "Middle Rockies" ecoregion has both a "forest" and a "non-forest" model, each using VPD but with different rolling window lengths (15-day vs. 5-day). Similarly, "Southern Rockies" has separate forest and non-forest models, both using FM1000 but with different temporal windows.</p>
+
+        <p>This is crucial because fire behavior, and therefore fire danger, differs significantly between these environments. Forest fires may respond to longer-term moisture deficits (hence longer rolling windows), while non-forest fires may be more responsive to immediate conditions. The system automatically selects the appropriate model based on the cover type of a given area, ensuring that the fire danger forecast is tailored to both the ecoregion and the specific vegetation on the ground.</p>
 
 	<h3>Known Issues</h3>
 	<ul>
