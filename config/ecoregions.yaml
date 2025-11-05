@@ -45,12 +45,12 @@ ecoregions:
     parks:
       - ROMO  # Rocky Mountain National Park
       - GRSA  # Great Sand Dunes National Park & Preserve
-      - BLCA  # Black Canyon of the Gunnison National Park
+      #- BLCA  # Black Canyon of the Gunnison National Park
       - CURE  # Curecanti National Recreation Area
-      - DINO  # Dinosaur National Monument
-      - COLM  # Colorado National Monument
-      - MEVE  # Mesa Verde National Park
-      - SAND  # Sand Creek Massacre National Historic Site
+      #- DINO  # Dinosaur National Monument
+      #- COLM  # Colorado National Monument
+      #- MEVE  # Mesa Verde National Park
+      #- SAND  # Sand Creek Massacre National Historic Site
 
 # Future ecoregions can be added here following the same pattern
 # Example:
