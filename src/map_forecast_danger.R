@@ -192,8 +192,16 @@ start_date <- today - 40
 
 ### Check if most recent forecast is available or raise error
 most_recent_forecast <- time(subset(var_forecast_0, 1))
-if (most_recent_forecast != today + 1) {
-  stop(glue("Most recent forecast date is {most_recent_forecast} but should be {today + 1}. Exiting..."))
+
+# Accept forecasts starting either today or tomorrow
+# - Aggregated variables (VPD) typically start tomorrow
+# - Ensemble variables (FM1000) typically start today
+if (most_recent_forecast != today + 1 && most_recent_forecast != today) {
+  stop(glue("Most recent forecast date is {most_recent_forecast} but should be either {today} or {today + 1}. Exiting..."))
+}
+
+if (most_recent_forecast == today) {
+  message(glue("Note: Forecast starts today ({today}) instead of tomorrow. This is expected for ensemble variables like FM1000."))
 }
 
 # Define cache path
@@ -206,7 +214,7 @@ message(glue("Fetching historical gridMET {primary_variable} data..."))
 # Map variable name to gridMET output column name
 gridmet_column_map <- list(
   vpd = "daily_mean_vapor_pressure_deficit",
-  fm1000 = "daily_mean_dead_fuel_moisture_1000hr"
+  fm1000 = "dead_fuel_moisture_1000hr"
 )
 
 if (!primary_variable %in% names(gridmet_column_map)) {
@@ -272,10 +280,19 @@ forest_data_file <- tempfile(fileext = ".tif")
 non_forest_data_file <- tempfile(fileext = ".tif")
 
 message("Calculating rolling averages and writing to temporary files...")
-forest_data <- terra::roll(var_series, n = forest_window, fun = mean, type = "to", circular = FALSE, filename = forest_data_file, wopt = list(gdal = c("COMPRESS=NONE"))) %>%
-  subset(time(.) >= today & time(.) <= today + 7)
-non_forest_data <- terra::roll(var_series, n = non_forest_window, fun = mean, type = "to", circular = FALSE, filename = non_forest_data_file, wopt = list(gdal = c("COMPRESS=NONE"))) %>%
-  subset(time(.) >= today & time(.) <= today + 7)
+if (forest_window > 1) {
+  forest_data <- terra::roll(var_series, n = forest_window, fun = mean, type = "to", circular = FALSE, filename = forest_data_file, wopt = list(gdal = c("COMPRESS=NONE"))) %>%
+    subset(time(.) >= today & time(.) <= today + 7)
+} else {
+  forest_data <- var_series %>% subset(time(.) >= today & time(.) <= today + 7)
+}
+
+if (non_forest_window > 1) {
+  non_forest_data <- terra::roll(var_series, n = non_forest_window, fun = mean, type = "to", circular = FALSE, filename = non_forest_data_file, wopt = list(gdal = c("COMPRESS=NONE"))) %>%
+    subset(time(.) >= today & time(.) <= today + 7)
+} else {
+  non_forest_data <- var_series %>% subset(time(.) >= today & time(.) <= today + 7)
+}
 
 dates <- time(forest_data)
 
@@ -364,6 +381,43 @@ writeCDF(final_output_rast, final_output_file, overwrite = TRUE, varname = "fire
 # ============================================================================
 
 message("Creating forecast maps...")
+
+# Calculate optimal dimensions based on ecoregion extent
+message("Calculating optimal map dimensions based on ecoregion extent...")
+eco_extent <- ext(ecoregion_boundary)
+eco_width <- eco_extent$xmax - eco_extent$xmin
+eco_height <- eco_extent$ymax - eco_extent$ymin
+aspect_ratio <- eco_width / eco_height
+
+message(glue("Ecoregion aspect ratio: {round(aspect_ratio, 2)} (width/height)"))
+
+# For desktop: 4 columns layout, base height of 3 inches per row
+# Calculate width to maintain aspect ratio
+desktop_base_height <- 3  # inches per facet row
+desktop_ncol <- 4
+desktop_nrow <- 2  # 8 days / 4 columns = 2 rows
+desktop_plot_height <- desktop_base_height * desktop_nrow
+desktop_plot_width <- desktop_plot_height * aspect_ratio * (desktop_ncol / desktop_nrow)
+
+# Add padding for legend and margins
+desktop_height <- desktop_plot_height + 2.5  # extra space for legend at bottom
+desktop_width <- desktop_plot_width
+
+message(glue("Desktop dimensions: {round(desktop_width, 1)} x {round(desktop_height, 1)} inches"))
+
+# For mobile: 2 columns layout, taller format
+mobile_base_height <- 3.5  # inches per facet row
+mobile_ncol <- 2
+mobile_nrow <- 4  # 8 days / 2 columns = 4 rows
+mobile_plot_height <- mobile_base_height * mobile_nrow
+mobile_plot_width <- mobile_plot_height * aspect_ratio * (mobile_ncol / mobile_nrow)
+
+# Add padding
+mobile_height <- mobile_plot_height + 3  # extra space for legend
+mobile_width <- mobile_plot_width
+
+message(glue("Mobile dimensions: {round(mobile_width, 1)} x {round(mobile_height, 1)} inches"))
+
 basemap <- get_tiles(final_output_rast, provider = "Esri.WorldTopoMap", zoom = 6, crop = TRUE, project = FALSE)
 
 base_plot <- ggplot() +
@@ -394,7 +448,7 @@ p_desktop <- base_plot +
     legend.key.height = unit(0.5, "cm")
   )
 ggsave(file.path(out_dir, "fire_danger_forecast.png"),
-  plot = p_desktop, width = 20, height = 12, dpi = 300
+  plot = p_desktop, width = desktop_width, height = desktop_height, dpi = 300
 )
 
 # Mobile version
@@ -422,7 +476,7 @@ p_mobile <- base_plot +
     legend.key.height = unit(0.6, "cm")
   )
 ggsave(file.path(out_dir, "fire_danger_forecast_mobile.png"),
-  plot = p_mobile, width = 11.5, height = 22, dpi = 300
+  plot = p_mobile, width = mobile_width, height = mobile_height, dpi = 300
 )
 
 # ============================================================================
