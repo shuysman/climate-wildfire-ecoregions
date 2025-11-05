@@ -102,16 +102,55 @@ for (park_code in park_codes) {
     next
   }
 
-  park_name <- park_poly$UNIT_NAME
+  # Get park name before processing
+  park_name <- park_poly$UNIT_NAME[1]
+
+  # Dissolve multiple features into single polygon (some parks have multiple non-contiguous areas)
+  if (length(park_poly) > 1) {
+    park_poly <- aggregate(park_poly, by = "UNIT_CODE")
+  }
 
   message(glue("Processing thresholds for: {park_name} ({park_code})"))
+
+  # Calculate total park area before clipping
+  park_area_total_km2 <- expanse(park_poly, unit = "km")
+
+  # Clip park polygon to ecoregion boundary
+  # This ensures we only analyze the portion within this ecoregion
+  park_poly_clipped <- tryCatch({
+    intersect(park_poly, ecoregion_boundary)
+  }, error = function(e) {
+    warning(glue("Failed to intersect {park_name} with {ecoregion_name} boundary: {e$message}. Skipping."))
+    return(NULL)
+  })
+
+  if (is.null(park_poly_clipped) || length(park_poly_clipped) == 0) {
+    warning(glue("Park {park_name} does not overlap with {ecoregion_name} boundary. Skipping."))
+    next
+  }
+
+  # Calculate clipped park area and coverage percentage
+  park_area_clipped_km2 <- expanse(park_poly_clipped, unit = "km")
+  coverage_pct <- (park_area_clipped_km2 / park_area_total_km2) * 100
+
+  # Use clipped polygon for all subsequent operations
+  park_poly <- park_poly_clipped
 
   # Create park-specific output directory using new structure
   park_out_dir <- here("out", "forecasts", ecoregion_name_clean, today, "parks", park_code)
   dir.create(park_out_dir, showWarnings = FALSE, recursive = TRUE)
 
-  # Crop fire danger raster to the park boundary
-  park_fire_danger_rast <- crop(fire_danger_rast, park_poly, mask = TRUE)
+  # Crop fire danger raster to the clipped park boundary (with error handling)
+  park_fire_danger_rast <- tryCatch({
+    crop(fire_danger_rast, park_poly, mask = TRUE)
+  }, error = function(e) {
+    warning(glue("Failed to crop fire danger raster for {park_name}: {e$message}. Skipping."))
+    return(NULL)
+  })
+
+  if (is.null(park_fire_danger_rast)) {
+    next
+  }
 
   # Calculate fire danger statistics for this park
   park_values <- terra::extract(fire_danger_today, park_poly, fun = NULL)
@@ -152,8 +191,27 @@ for (park_code in park_codes) {
     list(label = "NORMAL", emoji = "🟢", color = "#27AE60")
   }
 
+  # Build coverage note if park is only partially within ecoregion
+  coverage_note <- ""
+  if (coverage_pct < 99) {
+    coverage_note <- paste0(
+      "<p style='margin: 8px 0; font-size: 0.9em; color: #856404; background: #fff3cd; padding: 8px; border-radius: 3px; border-left: 3px solid #ffc107;'>",
+      "<strong>Note:</strong> Showing ",
+      sprintf("%.0f", coverage_pct),
+      "% of park area within ",
+      ecoregion_name,
+      " (",
+      sprintf("%.1f", park_area_clipped_km2),
+      " of ",
+      sprintf("%.1f", park_area_total_km2),
+      " km²)",
+      "</p>"
+    )
+  }
+
   park_analysis_html <- paste0(
     "<h3 style='margin: 20px 0 20px 0; padding: 15px; font-size: 1.5em; font-weight: 600; color: #2c3e50; background: #f8f9fa; border-left: 5px solid #3B7A57; border-radius: 4px;'>", park_name, "</h3>",
+    coverage_note,
     "<div style='margin: 0 0 20px 0; padding: 15px; background: #f9f9f9; border-left: 4px solid ", status$color, "; border-radius: 3px;'>",
     "<h4 style='margin: 0 0 10px 0;'>Current Fire Danger Distribution</h4>",
     "<p style='margin: 8px 0; font-size: 0.85em; color: #666; line-height: 1.4;'><em>Categories represent fire danger index ranges: Extreme ≥0.95 | Very High 0.90-0.95 | High 0.75-0.90 | Elevated 0.50-0.75 | Normal <0.50</em></p>",
