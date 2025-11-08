@@ -21,8 +21,8 @@ fi
 # Discover required variables from YAML config
 echo "Parsing config/ecoregions.yaml to discover required forecast variables..."
 
-REQUIRED_VARS=$(Rscript -e "
-suppressPackageStartupMessages(library(yaml))
+REQUIRED_VARS=$(Rscript --slave -e "
+suppressPackageStartupMessages(suppressWarnings(library(yaml)))
 
 config <- tryCatch(
   read_yaml('config/ecoregions.yaml'),
@@ -44,10 +44,11 @@ vars <- unique(c(
   sapply(enabled, function(x) x\$cover_types\$non_forest\$variable)
 ))
 
-# Remove any NAs and print
+# Remove any NAs, unname, and print
 vars <- vars[!is.na(vars)]
+vars <- unname(vars)
 cat(paste(vars, collapse=' '))
-")
+" 2>&1 | tail -1)
 
 if [ -z "$REQUIRED_VARS" ]; then
   echo "Error: No forecast variables discovered from config" >&2
