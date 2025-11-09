@@ -272,6 +272,12 @@ for (forecast_rast in all_forecast_files) {
   }
 }
 
+# Invert FM1000 if needed (quantile rasters were generated from 100 - FM1000)
+if (primary_variable == "fm1000") {
+  message("Inverting FM1000 to (100 - FM1000) for correct fire risk relationship...")
+  var_series <- 100 - var_series
+}
+
 # ============================================================================
 # CALCULATE ROLLING AVERAGES
 # ============================================================================

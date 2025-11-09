@@ -1,6 +1,10 @@
-## Generate quantile rasters for Southern Rockies using FM1000
+## Generate quantile rasters for Southern Rockies using inverted FM1000 (100 - FM1000)
 ## Forest: 5-day rolling mean
 ## Non-forest: 1-day (no rolling average)
+##
+## IMPORTANT: FM1000 is inverted (100 - FM1000) so that the relationship matches other
+## variables: higher inverted FM1000 = higher fire risk (lower moisture). This ensures
+## percentile calculations map correctly through the eCDF to fire danger.
 
 library(tidyverse)
 library(terra)
@@ -38,6 +42,11 @@ time(fm1000_data) <- as_date(depth(fm1000_data), origin = "1900-01-01")
 
 message(glue("Loaded {nlyr(fm1000_data)} days of FM1000 data"))
 
+# Invert FM1000: higher moisture (lower fire risk) -> lower inverted value (lower percentile)
+# This inverts the relationship so that higher inverted FM1000 = higher fire risk (matching other variables)
+message("Inverting FM1000 to (100 - FM1000) for correct fire risk relationship...")
+fm1000_data <- 100 - fm1000_data
+
 # Create output directories
 dir.create("./data/ecdf/21-southern_rockies-forest", showWarnings = FALSE, recursive = TRUE)
 dir.create("./data/ecdf/21-southern_rockies-non_forest", showWarnings = FALSE, recursive = TRUE)
@@ -56,7 +65,7 @@ forest_quants_rast <- terra::roll(fm1000_data, n = 5, fun = mean, type = "to", c
 message("Writing forest quantile raster...")
 writeCDF(
   forest_quants_rast,
-  "./data/ecdf/21-southern_rockies-forest/21-southern_rockies-forest-5-FM1000-quants.nc",
+  "./data/ecdf/21-southern_rockies-forest/21-southern_rockies-forest-5-FM1000inv-quants.nc",
   overwrite = TRUE,
   split = TRUE
 )
@@ -77,7 +86,7 @@ non_forest_quants_rast <- fm1000_data %>%
 message("Writing non-forest quantile raster...")
 writeCDF(
   non_forest_quants_rast,
-  "./data/ecdf/21-southern_rockies-non_forest/21-southern_rockies-non_forest-1-FM1000-quants.nc",
+  "./data/ecdf/21-southern_rockies-non_forest/21-southern_rockies-non_forest-1-FM1000inv-quants.nc",
   overwrite = TRUE,
   split = TRUE
 )
@@ -87,5 +96,5 @@ message("========================================")
 message("Quantile raster generation complete!")
 message("========================================")
 message("Output files:")
-message("  - data/ecdf/21-southern_rockies-forest/21-southern_rockies-forest-5-FM1000-quants.nc")
-message("  - data/ecdf/21-southern_rockies-non_forest/21-southern_rockies-non_forest-1-FM1000-quants.nc")
+message("  - data/ecdf/21-southern_rockies-forest/21-southern_rockies-forest-5-FM1000inv-quants.nc")
+message("  - data/ecdf/21-southern_rockies-non_forest/21-southern_rockies-non_forest-1-FM1000inv-quants.nc")
