@@ -207,9 +207,9 @@ if (most_recent_forecast == today) {
 # Define cache path
 cache_dir <- "./out/cache"
 dir.create(cache_dir, showWarnings = FALSE, recursive = TRUE)
-gridmet_cache_file <- file.path(cache_dir, glue("{ecoregion_name_clean}_{primary_variable}_latest_gridmet.nc"))
+gridmet_cache_file <- file.path(cache_dir, glue("{ecoregion_name_clean}_{forest_gridmet_var}_latest_gridmet.nc"))
 
-message(glue("Fetching historical gridMET {primary_variable} data..."))
+message(glue("Fetching historical gridMET {forest_gridmet_var} data..."))
 
 # Map variable name to gridMET output column name
 gridmet_column_map <- list(
@@ -217,8 +217,8 @@ gridmet_column_map <- list(
   fm1000 = "dead_fuel_moisture_1000hr"
 )
 
-if (!primary_variable %in% names(gridmet_column_map)) {
-  stop(glue("Unknown gridMET variable: {primary_variable}. Add mapping to gridmet_column_map."))
+if (!forest_gridmet_var %in% names(gridmet_column_map)) {
+  stop(glue("Unknown gridMET variable: {forest_gridmet_var}. Add mapping to gridmet_column_map."))
 }
 
 var_gridmet <- tryCatch(
@@ -226,16 +226,16 @@ var_gridmet <- tryCatch(
     message("Attempting to download fresh gridMET data...")
     fresh_gridmet <- getGridMET(
       AOI = ecoregion_boundary,
-      varname = primary_variable,
+      varname = forest_gridmet_var,
       startDate = start_date,
       endDate = today - 2,
       verbose = TRUE
-    )[[gridmet_column_map[[primary_variable]]]] %>%
+    )[[gridmet_column_map[[forest_gridmet_var]]]] %>%
       project(crs(var_forecast_0)) %>%
       crop(var_forecast_0)
 
     message("Successfully downloaded fresh gridMET data. Caching to NetCDF file.")
-    writeCDF(fresh_gridmet, gridmet_cache_file, overwrite = TRUE, varname = primary_variable)
+    writeCDF(fresh_gridmet, gridmet_cache_file, overwrite = TRUE, varname = forest_gridmet_var)
 
     fresh_gridmet
   },
@@ -273,7 +273,7 @@ for (forecast_rast in all_forecast_files) {
 }
 
 # Invert FM1000 if needed (quantile rasters were generated from 100 - FM1000)
-if (primary_variable == "fm1000") {
+if (forest_gridmet_var == "fm1000") {
   message("Inverting FM1000 to (100 - FM1000) for correct fire risk relationship...")
   var_series <- 100 - var_series
 }
