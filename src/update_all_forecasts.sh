@@ -12,43 +12,17 @@ echo "========================================="
 echo "Multi-Variable Forecast Download Script"
 echo "========================================="
 
-# Check if R and yaml package are available
-if ! command -v Rscript &> /dev/null; then
-  echo "Error: Rscript not found. R is required to parse config." >&2
+# Check if yq is available
+if ! command -v yq &> /dev/null; then
+  echo "Error: yq not found. Install with: apt-get install yq" >&2
   exit 1
 fi
 
 # Discover required variables from YAML config
 echo "Parsing config/ecoregions.yaml to discover required forecast variables..."
 
-REQUIRED_VARS=$(Rscript --slave -e "
-suppressPackageStartupMessages(suppressWarnings(library(yaml)))
-
-config <- tryCatch(
-  read_yaml('config/ecoregions.yaml'),
-  error = function(e) {
-    stop('Failed to read config/ecoregions.yaml: ', e\$message)
-  }
-)
-
-# Filter to enabled ecoregions only
-enabled <- config\$ecoregions[sapply(config\$ecoregions, function(x) isTRUE(x\$enabled))]
-
-if (length(enabled) == 0) {
-  stop('No enabled ecoregions found in config')
-}
-
-# Extract unique variables from both forest and non-forest cover types
-vars <- unique(c(
-  sapply(enabled, function(x) x\$cover_types\$forest\$variable),
-  sapply(enabled, function(x) x\$cover_types\$non_forest\$variable)
-))
-
-# Remove any NAs, unname, and print
-vars <- vars[!is.na(vars)]
-vars <- unname(vars)
-cat(paste(vars, collapse=' '))
-" 2>&1 | tail -1)
+# Extract unique variables from all enabled ecoregions
+REQUIRED_VARS=$(yq '.ecoregions[] | select(.enabled == true) | .cover_types | to_entries[] | .value.variable' config/ecoregions.yaml 2>/dev/null | sort -u | tr '\n' ' ' | xargs)
 
 if [ -z "$REQUIRED_VARS" ]; then
   echo "Error: No forecast variables discovered from config" >&2

@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     cmake \
     gdal-bin \
     nco \
+    yq \
     libcurl4-openssl-dev \
     libfontconfig1-dev \
     libfreetype6-dev \
