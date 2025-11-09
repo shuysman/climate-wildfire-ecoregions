@@ -29,7 +29,7 @@ ecoregions:
       - MORU  # Mount Rushmore National Memorial
 
   # Southern Rockies - Uses inverted FM1000 as primary predictor
-  # NOTE: variable is "fm1000inv" to match inverted quantile rasters, but gridmet_varname is "fm1000"
+  # NOTE: variable is "fm1000inv" to match inverted quantile rasters (becomes FM1000INV in filenames via toupper)
   # The forecast script will invert (100 - FM1000) automatically
   - id: 21
     name: "Southern Rockies"

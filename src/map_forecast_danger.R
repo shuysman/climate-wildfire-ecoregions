@@ -152,12 +152,12 @@ if (!file.exists(classified_rast_file)) {
 # LOAD FORECAST DATA
 # ============================================================================
 
-message(glue("Loading {primary_variable} forecast data..."))
+message(glue("Loading {forest_gridmet_var} forecast data..."))
 
-# Load forecast files for the primary variable
-forecast_0_path <- glue("data/forecasts/{primary_variable}/cfsv2_metdata_forecast_{primary_variable}_daily_0.nc")
-forecast_1_path <- glue("data/forecasts/{primary_variable}/cfsv2_metdata_forecast_{primary_variable}_daily_1.nc")
-forecast_2_path <- glue("data/forecasts/{primary_variable}/cfsv2_metdata_forecast_{primary_variable}_daily_2.nc")
+# Load forecast files using gridmet_varname (not the quantile variable which may be inverted like fm1000inv)
+forecast_0_path <- glue("data/forecasts/{forest_gridmet_var}/cfsv2_metdata_forecast_{forest_gridmet_var}_daily_0.nc")
+forecast_1_path <- glue("data/forecasts/{forest_gridmet_var}/cfsv2_metdata_forecast_{forest_gridmet_var}_daily_1.nc")
+forecast_2_path <- glue("data/forecasts/{forest_gridmet_var}/cfsv2_metdata_forecast_{forest_gridmet_var}_daily_2.nc")
 
 if (!file.exists(forecast_0_path)) {
   stop(glue("Forecast file not found: {forecast_0_path}\nPlease run src/update_all_forecasts.sh first."))
