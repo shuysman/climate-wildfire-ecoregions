@@ -176,8 +176,8 @@
                   </picture>
 		<center style="margin-top: 20px;">
                     <p style="margin-bottom: 10px;">
-                        <a href="__FORECAST_MAP_DATE__/fire_danger_forecast.nc" download style="padding: 8px 16px; background-color: #3B7A57; color: white; text-decoration: none; border-radius: 4px; font-weight: 500; display: inline-block; margin-right: 10px;">Download 7-Day Forecast NetCDF</a>
-                        <a href="__FORECAST_MAP_DATE__/fire_danger.tif" download style="padding: 8px 16px; background-color: #3B7A57; color: white; text-decoration: none; border-radius: 4px; font-weight: 500; display: inline-block;">Download Today's Fire Danger GeoTIFF</a>
+                        <a href="__FORECAST_MAP_DATE__/fire_danger_forecast.nc" download="fire_danger_forecast___FORECAST_MAP_DATE__.nc" style="padding: 8px 16px; background-color: #3B7A57; color: white; text-decoration: none; border-radius: 4px; font-weight: 500; display: inline-block; margin-right: 10px;">Download 7-Day Forecast NetCDF</a>
+                        <a href="__FORECAST_MAP_DATE__/fire_danger.tif" download="fire_danger___FORECAST_MAP_DATE__.tif" style="padding: 8px 16px; background-color: #3B7A57; color: white; text-decoration: none; border-radius: 4px; font-weight: 500; display: inline-block;">Download Today's Fire Danger GeoTIFF</a>
                     </p>
                 </center>
               </div>
@@ -238,7 +238,7 @@ __PARK_SECTIONS__
 
         <p>The heart of our system is the <strong>Empirical Cumulative Distribution Function (eCDF)</strong>. This plot shows the relationship between the local dryness percentile (on the x-axis) and the historical probability of a fire starting (on the y-axis).</p>
 
-        <img src="ecdf_example.png" alt="eCDF Example" style="max-height: 400px;">
+        <img src="../ecdf_example.png" alt="eCDF Example" style="max-height: 400px;">
 
         <p><strong>How to Read the eCDF Plot:</strong></p>
 
@@ -266,11 +266,11 @@ __PARK_SECTIONS__
 
         <p>Cover type is a critical factor in fire behavior. This system uses the <a href="https://www.landfire.gov/evt.php">LANDFIRE 2023 Existing Vegetation Type</a> dataset to distinguish between different vegetation types. The raw data provides detailed classifications, as shown below.</p>
 
-        <img src="cover-landfire.png" alt="LANDFIRE Cover Types" style="max-height: 600px;">
+        <img src="../cover-landfire.png" alt="LANDFIRE Cover Types" style="max-height: 600px;">
 
         <p>To simplify the modeling process, these detailed classifications are grouped into two main categories: "forest" and "non-forest". The system automatically determines the majority cover type for each area. The resulting categorized data is shown below.</p>
 
-        <img src="cover-categorized.png" alt="Categorized Cover Types" style="max-height: 600px;">
+        <img src="../cover-categorized.png" alt="Categorized Cover Types" style="max-height: 600px;">
 
         <h3>6. Separate Models for Each Ecoregion and Cover Type</h3>
 

@@ -143,7 +143,7 @@ cat > "$OUTPUT_FILE" << 'EOF'
 <body>
     <div class="container">
         <h1>🔥 Wildfire Danger Forecasts</h1>
-        <p class="subtitle">8-Day Fire Danger Predictions by Ecoregion</p>
+        <p class="subtitle">7-Day Fire Danger Forecasts by Ecoregion</p>
 
         <div class="ecoregion-grid">
 EOF
