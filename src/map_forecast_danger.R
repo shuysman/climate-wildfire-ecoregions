@@ -85,6 +85,16 @@ if (forest_gridmet_var != non_forest_gridmet_var) {
 
 primary_variable <- forest_variable
 
+# Create compact variable name for display in title
+variable_display_name <- switch(primary_variable,
+  "vpd" = "VPD",
+  "fm1000" = "FM1000",
+  "fm1000inv" = "FM1000",
+  "fm100" = "FM100",
+  "erc" = "ERC",
+  toupper(primary_variable)  # fallback to uppercase
+)
+
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
@@ -443,7 +453,7 @@ message("Saving desktop version...")
 p_desktop <- base_plot +
   facet_wrap(~lyr, ncol = 4) +
   labs(
-    title = "Wildfire Danger Forecast",
+    title = glue("Wildfire Danger Forecast ({variable_display_name})"),
     subtitle = glue("{ecoregion_name} from {today}"),
     fill = "Proportion of Fires"
   ) +
@@ -472,7 +482,7 @@ message("Saving mobile version...")
 p_mobile <- base_plot +
   facet_wrap(~lyr, ncol = 2) +
   labs(
-    title = "Wildfire Danger Forecast",
+    title = glue("Wildfire Danger Forecast ({variable_display_name})"),
     subtitle = glue("{ecoregion_name} from {today}"),
     fill = "Proportion of Fires"
   ) +

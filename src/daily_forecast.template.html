@@ -180,6 +180,25 @@
                         <a href="__FORECAST_MAP_DATE__/fire_danger.tif" download="fire_danger___ECOREGION_____FORECAST_MAP_DATE__.tif" style="padding: 8px 16px; background-color: #3B7A57; color: white; text-decoration: none; border-radius: 4px; font-weight: 500; display: inline-block;">Download Today's Fire Danger GeoTIFF</a>
                     </p>
                 </center>
+
+                <div style="margin: 20px auto; max-width: 600px; padding: 15px; background: #e8f4f8; border-left: 4px solid #3B7A57; border-radius: 4px;">
+                  <h4 style="margin-top: 0; color: #2c3e50;">Forecast Methodology for __ECOREGION_NAME__</h4>
+                  <table style="width: 100%; font-size: 0.95rem;">
+                    <tr>
+                      <td style="padding: 5px 10px 5px 0; font-weight: 600;">Primary Variable:</td>
+                      <td style="padding: 5px 0;">__VARIABLE_DISPLAY__</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 5px 10px 5px 0; font-weight: 600;">Forest Window:</td>
+                      <td style="padding: 5px 0;">__FOREST_WINDOW__-day rolling average</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 5px 10px 5px 0; font-weight: 600;">Non-forest Window:</td>
+                      <td style="padding: 5px 0;">__NON_FOREST_WINDOW__-day rolling average</td>
+                    </tr>
+                  </table>
+                  <p style="margin: 10px 0 0 0; font-size: 0.85rem; color: #555;"><em>Selected through retrospective analysis to maximize predictive skill for this ecoregion.</em></p>
+                </div>
               </div>
       <div id="park-analysis" class="container content-section">
         <h2>Park Fire Danger Analysis</h2>
