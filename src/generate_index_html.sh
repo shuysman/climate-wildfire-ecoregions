@@ -50,7 +50,7 @@ cat > "$OUTPUT_FILE" << 'EOF'
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #c94b4b 0%, #d4a574 100%);
             min-height: 100vh;
             display: flex;
             justify-content: center;
@@ -89,7 +89,7 @@ cat > "$OUTPUT_FILE" << 'EOF'
         }
 
         .ecoregion-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #c94b4b 0%, #d4a574 100%);
             border-radius: 12px;
             padding: 30px;
             text-decoration: none;
