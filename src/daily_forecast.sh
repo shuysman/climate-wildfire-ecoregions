@@ -112,16 +112,29 @@ echo "$(date)"
 echo "Step 1: Generating fire danger forecast maps..."
 Rscript ./src/map_forecast_danger.R "$ECOREGION"
 
+# Validate the generated forecast
+echo "Step 2: Validating forecast..."
+if ! Rscript ./src/validate_forecast.R "$ECOREGION"; then
+  VALIDATION_EXIT_CODE=$?
+  if [ $VALIDATION_EXIT_CODE -eq 1 ]; then
+    echo "ERROR: Forecast validation FAILED. Do not publish this forecast." >&2
+    exit 1
+  elif [ $VALIDATION_EXIT_CODE -eq 2 ]; then
+    echo "WARNING: Forecast validation detected anomalies. Review before publishing." >&2
+    # Continue anyway, but log the warning
+  fi
+fi
+
 # Run the threshold plot generation script
-echo "Step 2: Generating park threshold plots..."
+echo "Step 3: Generating park threshold plots..."
 Rscript ./src/generate_threshold_plots.R "$ECOREGION"
 
 # Generate the daily HTML report
-echo "Step 3: Generating daily HTML report..."
+echo "Step 4: Generating daily HTML report..."
 ./src/generate_daily_html.sh "$ECOREGION"
 
 # Create the Cloud-Optimized GeoTIFF for today for web mapping use
-echo "Step 4: Creating Cloud-Optimized GeoTIFF..."
+echo "Step 5: Creating Cloud-Optimized GeoTIFF..."
 ./src/create_cog_for_today.sh "$ECOREGION"
 
 # ============================================================================
