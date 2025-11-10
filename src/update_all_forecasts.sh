@@ -22,7 +22,7 @@ fi
 echo "Parsing config/ecoregions.yaml to discover required forecast variables..."
 
 # Extract unique variables from all enabled ecoregions
-REQUIRED_VARS=$(yq '.ecoregions[] | select(.enabled == true) | .cover_types | to_entries[] | .value.variable' config/ecoregions.yaml 2>/dev/null | sort -u | tr '\n' ' ' | xargs)
+REQUIRED_VARS=$(yq '.ecoregions[] | select(.enabled == true) | .cover_types | to_entries[] | .value.gridmet_varname' config/ecoregions.yaml 2>/dev/null | sort -u | tr '\n' ' ' | xargs)
 
 if [ -z "$REQUIRED_VARS" ]; then
   echo "Error: No forecast variables discovered from config" >&2
