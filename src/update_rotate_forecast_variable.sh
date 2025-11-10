@@ -53,16 +53,25 @@ log() {
   echo "$(date '+%Y-%m-%d %H:%M:%S') - [$VARIABLE] $1" | tee -a "$LOG_FILE"
 }
 
+# Track success state for S3 sync
+SUCCESS=false
+
 cleanup() {
   # Ensure temporary files are removed on script exit
   rm -f "$TEMP_FILENAME"
   rm -rf ./ensemble_temp_${VARIABLE}/
 
-  # --- S3 Post-flight (only in cloud mode) ---
+  # --- S3 Post-flight (only in cloud mode and only if successful) ---
   if [ "${ENVIRONMENT:-local}" = "cloud" ]; then
-    echo "--- Running in cloud mode: Syncing results to S3 for ${VARIABLE} ---"
-    aws s3 sync "$FORECAST_DATA_DIR" "${S3_BUCKET_PATH}/data/forecasts/${VARIABLE}/"
-    aws s3 sync "$LOG_DIR" "${S3_BUCKET_PATH}/log/"
+    if [ "$SUCCESS" = true ]; then
+      echo "--- Running in cloud mode: Syncing results to S3 for ${VARIABLE} ---"
+      aws s3 sync "$FORECAST_DATA_DIR" "${S3_BUCKET_PATH}/data/forecasts/${VARIABLE}/"
+      aws s3 sync "$LOG_DIR" "${S3_BUCKET_PATH}/log/"
+    else
+      echo "--- Script failed: Skipping S3 sync to prevent uploading incomplete data ---" >&2
+      # Still sync logs for debugging
+      aws s3 sync "$LOG_DIR" "${S3_BUCKET_PATH}/log/" 2>/dev/null || true
+    fi
   fi
 }
 
@@ -91,6 +100,7 @@ download_ensemble_average() {
   # Forecast hours and ensemble members
   local hours=("00" "06" "12" "18")
   local members=("1" "2" "3" "4")
+  local EXPECTED_MEMBERS=16  # 4 hours × 4 members - all required
 
   local download_count=0
   local ensemble_files=()
@@ -110,13 +120,15 @@ download_ensemble_average() {
     done
   done
 
-  if [ $download_count -eq 0 ]; then
-    log "ERROR: No ensemble files could be downloaded for day $day"
+  # Require ALL ensemble members - no partial ensembles allowed
+  if [ $download_count -ne $EXPECTED_MEMBERS ]; then
+    log "ERROR: Incomplete ensemble for day $day: $download_count of $EXPECTED_MEMBERS members downloaded"
+    log "ERROR: All ensemble members required for valid forecast. Aborting."
     rm -rf "$ensemble_dir"
     return 1
   fi
 
-  log "Successfully downloaded $download_count ensemble members for day $day"
+  log "Successfully downloaded all $EXPECTED_MEMBERS ensemble members for day $day"
 
   # Check if NCO tools are available
   if ! command -v ncea &> /dev/null; then
@@ -177,6 +189,7 @@ if uses_ensemble_format "$VARIABLE"; then
     fi
 
     log "Initial ensemble means created successfully."
+    SUCCESS=true
     exit 0
   fi
 
@@ -199,6 +212,7 @@ if uses_ensemble_format "$VARIABLE"; then
   # Compare checksums
   if [[ "$OLD_CHECKSUM" == "$NEW_CHECKSUM" ]]; then
     log "No update detected. Forecast is unchanged."
+    SUCCESS=true
     exit 0
   fi
 
@@ -219,6 +233,7 @@ if uses_ensemble_format "$VARIABLE"; then
   log "New forecast is now active."
 
   log "Forecast update complete."
+  SUCCESS=true
   exit 0
 
 else
@@ -258,6 +273,7 @@ else
   # Compare checksums
   if [[ "$OLD_CHECKSUM" == "$NEW_CHECKSUM" ]]; then
     log "No update detected. Forecast is unchanged."
+    SUCCESS=true
     exit 0
   fi
 
@@ -278,5 +294,6 @@ else
   log "New forecast is now active."
 
   log "Forecast update complete."
+  SUCCESS=true
   exit 0
 fi

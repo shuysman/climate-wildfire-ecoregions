@@ -16,6 +16,28 @@ cd "$PROJECT_DIR"
 ECOREGION=${ECOREGION:-middle_rockies}
 TODAY=$(date +%Y-%m-%d)
 
+# Validate that yq is available
+if ! command -v yq &> /dev/null; then
+  echo "Error: yq not found. Install with: apt-get install yq" >&2
+  exit 1
+fi
+
+# Validate that ecoregion exists and is enabled in config
+ECOREGION_ENABLED=$(yq ".ecoregions[] | select(.name_clean == \"$ECOREGION\") | .enabled" config/ecoregions.yaml 2>/dev/null)
+
+if [ -z "$ECOREGION_ENABLED" ]; then
+  echo "Error: Ecoregion '$ECOREGION' not found in config/ecoregions.yaml" >&2
+  echo "Available ecoregions:" >&2
+  yq '.ecoregions[] | .name_clean' config/ecoregions.yaml 2>/dev/null | sed 's/^/  - /' >&2
+  exit 1
+fi
+
+if [ "$ECOREGION_ENABLED" != "true" ]; then
+  echo "Error: Ecoregion '$ECOREGION' is not enabled in config/ecoregions.yaml" >&2
+  echo "Set 'enabled: true' for this ecoregion to process it." >&2
+  exit 1
+fi
+
 echo "========================================="
 echo "Daily Forecast Generation"
 echo "========================================="
@@ -36,22 +58,44 @@ if [ "${ENVIRONMENT:-local}" = "cloud" ]; then
 
   echo "--- Running in cloud mode: Syncing data from S3 ---"
 
-  # Sync static data needed for processing (eCDF models, cover rasters, boundaries)
-  echo "Syncing static data (ecdf, classified_cover, boundaries)..."
-  aws s3 sync "${S3_BUCKET_PATH}/data/ecdf/" /app/data/ecdf/ || echo "Warning: ecdf sync failed"
-  aws s3 sync "${S3_BUCKET_PATH}/data/classified_cover/" /app/data/classified_cover/ || echo "Warning: classified_cover sync failed"
-  aws s3 sync "${S3_BUCKET_PATH}/data/us_eco_l3/" /app/data/us_eco_l3/ || echo "Warning: us_eco_l3 sync failed"
+  # Sync CRITICAL static data (required for processing - fail if missing)
+  echo "Syncing critical data (eCDF models, classified cover, boundaries)..."
 
-  # Sync forecast data (downloaded by update task)
+  if ! aws s3 sync "${S3_BUCKET_PATH}/data/ecdf/" /app/data/ecdf/; then
+    echo "Error: Failed to sync critical eCDF models from S3" >&2
+    exit 1
+  fi
+
+  if ! aws s3 sync "${S3_BUCKET_PATH}/data/classified_cover/" /app/data/classified_cover/; then
+    echo "Error: Failed to sync critical classified_cover data from S3" >&2
+    exit 1
+  fi
+
+  if ! aws s3 sync "${S3_BUCKET_PATH}/data/us_eco_l3/" /app/data/us_eco_l3/; then
+    echo "Error: Failed to sync critical ecoregion boundary data from S3" >&2
+    exit 1
+  fi
+
+  # Sync forecast data (downloaded by update task - critical)
   echo "Syncing forecast data..."
-  aws s3 sync "${S3_BUCKET_PATH}/data/forecasts/" /app/data/forecasts/ || echo "Warning: forecasts sync failed"
+  if ! aws s3 sync "${S3_BUCKET_PATH}/data/forecasts/" /app/data/forecasts/; then
+    echo "Error: Failed to sync forecast data from S3" >&2
+    exit 1
+  fi
 
-  # Sync existing output for this ecoregion (for incremental updates)
-  echo "Syncing existing outputs for ${ECOREGION}..."
-  aws s3 sync "${S3_BUCKET_PATH}/out/forecasts/${ECOREGION}/" "/app/out/forecasts/${ECOREGION}/" || echo "Info: No existing outputs for ${ECOREGION}"
+  # Sync recent outputs for this ecoregion (today + yesterday for fallback)
+  # Only sync last 2 days to minimize bandwidth
+  YESTERDAY=$(date -d "yesterday" +%Y-%m-%d)
+  echo "Syncing recent outputs for ${ECOREGION} (today and yesterday for fallback)..."
+  aws s3 sync "${S3_BUCKET_PATH}/out/forecasts/${ECOREGION}/${TODAY}/" "/app/out/forecasts/${ECOREGION}/${TODAY}/" 2>/dev/null || echo "Info: No output for ${TODAY}"
+  aws s3 sync "${S3_BUCKET_PATH}/out/forecasts/${ECOREGION}/${YESTERDAY}/" "/app/out/forecasts/${ECOREGION}/${YESTERDAY}/" 2>/dev/null || echo "Info: No output for ${YESTERDAY}"
 
-  # Sync cache
-  aws s3 sync "${S3_BUCKET_PATH}/out/cache/" /app/out/cache/ || echo "Info: No existing cache"
+  # Sync the daily_forecast.html file (landing page for this ecoregion)
+  aws s3 cp "${S3_BUCKET_PATH}/out/forecasts/${ECOREGION}/daily_forecast.html" "/app/out/forecasts/${ECOREGION}/daily_forecast.html" 2>/dev/null || echo "Info: No existing dashboard HTML"
+
+  # Sync cache (optional - helpful for climateR caching)
+  echo "Syncing cache..."
+  aws s3 sync "${S3_BUCKET_PATH}/out/cache/" /app/out/cache/ 2>/dev/null || echo "Info: No existing cache"
 else
   echo "--- Running in local mode: Skipping S3 sync ---"
 fi

@@ -75,8 +75,14 @@ message(glue("Non-forest predictor: {non_forest_window}-day {non_forest_variable
 
 # Validate that forest and non-forest use the same variable (for now)
 if (forest_variable != non_forest_variable) {
-  stop(glue("Forest and non-forest currently must use the same variable. Got {forest_variable} and {non_forest_variable}"))
+  stop(glue("Forest and non-forest currently must use the same variable. Got variable: {forest_variable}/{non_forest_variable}"))
 }
+
+# Validate that forest and non-forest use the same gridmet_varname
+if (forest_gridmet_var != non_forest_gridmet_var) {
+  stop(glue("Forest and non-forest must use the same gridmet_varname. Got gridmet_varname: {forest_gridmet_var}/{non_forest_gridmet_var}"))
+}
+
 primary_variable <- forest_variable
 
 # ============================================================================

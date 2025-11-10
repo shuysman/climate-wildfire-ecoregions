@@ -21,13 +21,21 @@ fi
 # Discover required variables from YAML config
 echo "Parsing config/ecoregions.yaml to discover required forecast variables..."
 
-# Extract unique variables from all enabled ecoregions
-REQUIRED_VARS=$(yq '.ecoregions[] | select(.enabled == true) | .cover_types | to_entries[] | .value.gridmet_varname' config/ecoregions.yaml 2>/dev/null | sort -u | tr '\n' ' ' | xargs)
+# Extract unique variables from all enabled ecoregions (no error suppression)
+REQUIRED_VARS=$(yq '.ecoregions[] | select(.enabled == true) | .cover_types | to_entries[] | .value.gridmet_varname' config/ecoregions.yaml | sort -u | tr '\n' ' ' | xargs)
 
 if [ -z "$REQUIRED_VARS" ]; then
-  echo "Error: No forecast variables discovered from config" >&2
+  echo "Error: No forecast variables discovered from config. Check config format and yq installation." >&2
   exit 1
 fi
+
+# Validate that all variables have non-empty values
+for VAR in $REQUIRED_VARS; do
+  if [ -z "$VAR" ]; then
+    echo "Error: Found empty gridmet_varname in config. Check config/ecoregions.yaml" >&2
+    exit 1
+  fi
+done
 
 echo "Required forecast variables: $REQUIRED_VARS"
 echo ""
