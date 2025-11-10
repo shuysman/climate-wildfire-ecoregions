@@ -65,7 +65,7 @@ forest_quants_rast <- terra::roll(fm1000_data, n = 5, fun = mean, type = "to", c
 message("Writing forest quantile raster...")
 writeCDF(
   forest_quants_rast,
-  "./data/ecdf/21-southern_rockies-forest/21-southern_rockies-forest-5-FM1000inv-quants.nc",
+  "./data/ecdf/21-southern_rockies-forest/21-southern_rockies-forest-5-FM1000INV-quants.nc",
   overwrite = TRUE,
   split = TRUE
 )
@@ -86,7 +86,7 @@ non_forest_quants_rast <- fm1000_data %>%
 message("Writing non-forest quantile raster...")
 writeCDF(
   non_forest_quants_rast,
-  "./data/ecdf/21-southern_rockies-non_forest/21-southern_rockies-non_forest-1-FM1000inv-quants.nc",
+  "./data/ecdf/21-southern_rockies-non_forest/21-southern_rockies-non_forest-1-FM1000INV-quants.nc",
   overwrite = TRUE,
   split = TRUE
 )
@@ -96,5 +96,5 @@ message("========================================")
 message("Quantile raster generation complete!")
 message("========================================")
 message("Output files:")
-message("  - data/ecdf/21-southern_rockies-forest/21-southern_rockies-forest-5-FM1000inv-quants.nc")
-message("  - data/ecdf/21-southern_rockies-non_forest/21-southern_rockies-non_forest-1-FM1000inv-quants.nc")
+message("  - data/ecdf/21-southern_rockies-forest/21-southern_rockies-forest-5-FM1000INV-quants.nc")
+message("  - data/ecdf/21-southern_rockies-non_forest/21-southern_rockies-non_forest-1-FM1000INV-quants.nc")

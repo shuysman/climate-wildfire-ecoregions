@@ -36,23 +36,28 @@ southern_rockies_forest_climate$FM1000_inverted <- 100 - southern_rockies_forest
 
 ## 4. Generate the ECDF function using inverted FM1000
 message("Generating ECDF for inverted FM1000 (forest, 5-day window)...")
+
+# IMPORTANT: Add FM1000_inverted to state_vars_no_floor so it gets percentile-ranked
+# FM1000 uses dplyr::percent_rank() (no zero-substitution, no rounding)
+state_vars_no_floor_with_fm1000inv <- c(state_vars_no_floor, "FM1000_inverted")
+
 fm1000_forest_ecdf <- generate_ecdf(
   climate_data = southern_rockies_forest_climate,
   var_name = "FM1000_inverted",
   window = 5,
   flux_vars = flux_vars,
   state_vars = state_vars,
-  state_vars_no_floor = state_vars_no_floor
+  state_vars_no_floor = state_vars_no_floor_with_fm1000inv
 )
 
 ## 5. Plot and save the ECDF
 message("Plotting and saving forest ECDF...")
-png("./data/ecdf/21-southern_rockies-forest/21-southern_rockies-forest-5-FM1000inv-ecdf.png",
+png("./data/ecdf/21-southern_rockies-forest/21-southern_rockies-forest-5-FM1000INV-ecdf.png",
     width = 800, height = 600)
 plot(fm1000_forest_ecdf, main = "5-day Inverted FM1000 ECDF for Southern Rockies Forest")
 dev.off()
 
-saveRDS(fm1000_forest_ecdf, "./data/ecdf/21-southern_rockies-forest/21-southern_rockies-forest-5-FM1000inv-ecdf.RDS")
+saveRDS(fm1000_forest_ecdf, "./data/ecdf/21-southern_rockies-forest/21-southern_rockies-forest-5-FM1000INV-ecdf.RDS")
 message("✓ Forest ECDF saved")
 
 ## ============================================================================
@@ -82,30 +87,35 @@ southern_rockies_nf_climate$FM1000_inverted <- 100 - southern_rockies_nf_climate
 
 ## 4. Generate the ECDF function using inverted FM1000
 message("Generating ECDF for inverted FM1000 (non-forest, 1-day window)...")
+
+# IMPORTANT: Add FM1000_inverted to state_vars_no_floor so it gets percentile-ranked
+# FM1000 uses dplyr::percent_rank() (no zero-substitution, no rounding)
+state_vars_no_floor_with_fm1000inv <- c(state_vars_no_floor, "FM1000_inverted")
+
 fm1000_nf_ecdf <- generate_ecdf(
   climate_data = southern_rockies_nf_climate,
   var_name = "FM1000_inverted",
   window = 1,
   flux_vars = flux_vars,
   state_vars = state_vars,
-  state_vars_no_floor = state_vars_no_floor
+  state_vars_no_floor = state_vars_no_floor_with_fm1000inv
 )
 
 ## 5. Plot and save the ECDF
 message("Plotting and saving non-forest ECDF...")
-png("./data/ecdf/21-southern_rockies-non_forest/21-southern_rockies-non_forest-1-FM1000inv-ecdf.png",
+png("./data/ecdf/21-southern_rockies-non_forest/21-southern_rockies-non_forest-1-FM1000INV-ecdf.png",
     width = 800, height = 600)
 plot(fm1000_nf_ecdf, main = "1-day Inverted FM1000 ECDF for Southern Rockies Non-forest")
 dev.off()
 
-saveRDS(fm1000_nf_ecdf, "./data/ecdf/21-southern_rockies-non_forest/21-southern_rockies-non_forest-1-FM1000inv-ecdf.RDS")
+saveRDS(fm1000_nf_ecdf, "./data/ecdf/21-southern_rockies-non_forest/21-southern_rockies-non_forest-1-FM1000INV-ecdf.RDS")
 message("✓ Non-forest ECDF saved")
 
 message("========================================")
 message("ECDF generation complete!")
 message("========================================")
 message("Output files:")
-message("  - data/ecdf/21-southern_rockies-forest/21-southern_rockies-forest-5-FM1000inv-ecdf.RDS")
-message("  - data/ecdf/21-southern_rockies-forest/21-southern_rockies-forest-5-FM1000inv-ecdf.png")
-message("  - data/ecdf/21-southern_rockies-non_forest/21-southern_rockies-non_forest-1-FM1000inv-ecdf.RDS")
-message("  - data/ecdf/21-southern_rockies-non_forest/21-southern_rockies-non_forest-1-FM1000inv-ecdf.png")
+message("  - data/ecdf/21-southern_rockies-forest/21-southern_rockies-forest-5-FM1000INV-ecdf.RDS")
+message("  - data/ecdf/21-southern_rockies-forest/21-southern_rockies-forest-5-FM1000INV-ecdf.png")
+message("  - data/ecdf/21-southern_rockies-non_forest/21-southern_rockies-non_forest-1-FM1000INV-ecdf.RDS")
+message("  - data/ecdf/21-southern_rockies-non_forest/21-southern_rockies-non_forest-1-FM1000INV-ecdf.png")
