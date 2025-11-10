@@ -329,7 +329,6 @@ process_non_forest_layer <- function(layer) {
 message(glue("Loading pre-generated classified cover raster for ecoregion {ecoregion_id}..."))
 classified_rast <- rast(classified_rast_file) %>% project(crs(forest_data))
 
-# Copy template file for today's forecast
 message("Preparing output file...")
 final_output_file <- file.path(out_dir, "fire_danger_forecast.nc")
 
