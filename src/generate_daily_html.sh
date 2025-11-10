@@ -35,7 +35,7 @@ if (is.null(parks) || length(parks) == 0) {
 } else {
   cat(paste0(ecoregion\$name, '|', paste(parks, collapse=' ')))
 }
-")
+" 2>/dev/null | tail -1)
 
 # Parse the output
 ECOREGION_NAME=$(echo "$ECOREGION_CONFIG" | cut -d'|' -f1)
