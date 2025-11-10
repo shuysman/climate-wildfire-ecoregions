@@ -164,7 +164,7 @@ cat >> "$OUTPUT_FILE" << EOF
 
         <div class="footer">
             <p>Updated: ${TODAY}</p>
-            <p>National Park Service | Northern Rockies Conservation Cooperative</p>
+            <p><a href="https://www.nps.gov/">National Park Service</a> | <a href="https://nrccooperative.org/">Northern Rockies Conservation Cooperative</a></p>
         </div>
     </div>
 </body>
