@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     cdo \
     cmake \
     gdal-bin \
+    imagemagick \
     nco \
     yq \
     libcurl4-openssl-dev \

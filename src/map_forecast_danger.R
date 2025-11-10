@@ -412,8 +412,8 @@ desktop_plot_height <- desktop_base_height * desktop_nrow
 desktop_plot_width <- desktop_plot_height * aspect_ratio * (desktop_ncol / desktop_nrow)
 
 # Add padding for legend and margins
-desktop_height <- desktop_plot_height + 2.5  # extra space for legend at bottom
-desktop_width <- desktop_plot_width
+desktop_height <- desktop_plot_height + 2  # extra space for legend at bottom
+desktop_width <- desktop_plot_width + 0.5  # minimal side padding
 
 message(glue("Desktop dimensions: {round(desktop_width, 1)} x {round(desktop_height, 1)} inches"))
 
@@ -425,8 +425,8 @@ mobile_plot_height <- mobile_base_height * mobile_nrow
 mobile_plot_width <- mobile_plot_height * aspect_ratio * (mobile_ncol / mobile_nrow)
 
 # Add padding
-mobile_height <- mobile_plot_height + 3  # extra space for legend
-mobile_width <- mobile_plot_width
+mobile_height <- mobile_plot_height + 2.5  # extra space for legend
+mobile_width <- mobile_plot_width + 0.5  # minimal side padding
 
 message(glue("Mobile dimensions: {round(mobile_width, 1)} x {round(mobile_height, 1)} inches"))
 
@@ -443,16 +443,21 @@ base_plot <- ggplot() +
 message("Saving desktop version...")
 p_desktop <- base_plot +
   facet_wrap(~lyr, ncol = 4) +
-  labs(title = glue("Wildfire danger forecast for {ecoregion_name} from {today}"), fill = "Proportion of Fires") +
+  labs(
+    title = "Wildfire Danger Forecast",
+    subtitle = glue("{ecoregion_name} from {today}"),
+    fill = "Proportion of Fires"
+  ) +
   theme(
     legend.position = "bottom",
     legend.justification = "right",
     legend.box.spacing = unit(0.5, "cm"),
-    plot.margin = margin(t = 20, r = 10, b = 15, l = 10, unit = "pt"),
+    plot.margin = margin(t = 10, r = 5, b = 10, l = 5, unit = "pt"),
     axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, size = 14),
     axis.text.y = element_text(size = 16),
     axis.title = element_text(size = 18),
-    plot.title = element_text(size = 22, margin = margin(b = 10)),
+    plot.title = element_text(size = 22, margin = margin(b = 5)),
+    plot.subtitle = element_text(size = 18, margin = margin(b = 10)),
     strip.text = element_text(size = 16),
     legend.title = element_text(size = 20, margin = margin(r = 20, b = 20)),
     legend.text = element_text(size = 16),
@@ -468,14 +473,15 @@ message("Saving mobile version...")
 p_mobile <- base_plot +
   facet_wrap(~lyr, ncol = 2) +
   labs(
-    title = "Wildfire danger forecast",
-    subtitle = glue("{ecoregion_name} from {today}"), fill = "Proportion of Fires"
+    title = "Wildfire Danger Forecast",
+    subtitle = glue("{ecoregion_name} from {today}"),
+    fill = "Proportion of Fires"
   ) +
   theme(
     legend.position = "bottom",
     legend.justification = "right",
     legend.box.spacing = unit(0.5, "cm"),
-    plot.margin = margin(t = 25, r = 10, b = 20, l = 10, unit = "pt"),
+    plot.margin = margin(t = 10, r = 5, b = 10, l = 5, unit = "pt"),
     axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, size = 18),
     axis.text.y = element_text(size = 20),
     axis.title = element_text(size = 22),
@@ -490,6 +496,14 @@ p_mobile <- base_plot +
 ggsave(file.path(out_dir, "fire_danger_forecast_mobile.png"),
   plot = p_mobile, width = mobile_width, height = mobile_height, dpi = 300
 )
+
+# Trim whitespace from maps using ImageMagick
+message("Trimming whitespace from maps...")
+desktop_png <- file.path(out_dir, "fire_danger_forecast.png")
+mobile_png <- file.path(out_dir, "fire_danger_forecast_mobile.png")
+
+system2("convert", args = c(desktop_png, "-trim", "+repage", "-bordercolor", "white", "-border", "20", desktop_png))
+system2("convert", args = c(mobile_png, "-trim", "+repage", "-bordercolor", "white", "-border", "20", mobile_png))
 
 # ============================================================================
 # CLEANUP
