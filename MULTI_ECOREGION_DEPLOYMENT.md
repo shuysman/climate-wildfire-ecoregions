@@ -94,11 +94,11 @@ ecoregions:
     cover_types:
       forest:
         window: 5
-        variable: "fm1000"
-        gridmet_varname: "fm1000"
+        variable: "fm1000inv"       # Internal name (inverted: 100 - FM1000)
+        gridmet_varname: "fm1000"   # Download filename from CFSv2
       non_forest:
         window: 1
-        variable: "fm1000"
+        variable: "fm1000inv"
         gridmet_varname: "fm1000"
     parks:
       - ROMO
@@ -106,13 +106,20 @@ ecoregions:
       # ... (8 parks total)
 ```
 
+**Important configuration fields:**
+
+- `variable`: Internal name used in eCDF filenames and R code (e.g., "vpd", "fm1000inv")
+- `gridmet_varname`: Actual variable name for downloading from CFSv2/gridMET (e.g., "vpd", "fm1000")
+- For inverted variables, use `*inv` suffix in `variable` field but base name in `gridmet_varname`
+
 **To add a new ecoregion:**
 
 1. Run retrospective analysis (`src/03_dryness.R`) to determine optimal predictor
-2. Add ecoregion block to `config/ecoregions.yaml`
-3. Set `enabled: true`
-4. Deploy updated config to S3
-5. No code changes required!
+2. Generate eCDF models and quantile rasters for the ecoregion/cover type combinations
+3. Add ecoregion block to `config/ecoregions.yaml`
+4. Set `enabled: true`
+5. Deploy updated config and eCDF files to S3
+6. No code changes required!
 
 ---
 
@@ -133,6 +140,22 @@ bash src/daily_forecast.sh
 
 # Or pass as command line argument
 bash src/daily_forecast.sh middle_rockies
+```
+
+### Test with Podman (SELinux systems)
+
+```bash
+# Download forecasts first (not containerized)
+bash src/update_all_forecasts.sh
+
+# Run forecast with Podman (note :z flags for SELinux)
+podman run --rm \
+  -v $(pwd)/data:/app/data:z \
+  -v $(pwd)/out:/app/out:z \
+  -v $(pwd)/config:/app/config:z \
+  -e ENVIRONMENT=local \
+  -e ECOREGION=southern_rockies \
+  wildfire-forecast
 ```
 
 ### Test Multiple Ecoregions Sequentially
@@ -548,5 +571,5 @@ aws s3 ls --recursive s3://firecachedata/out/forecasts/ | tail -20
 
 ---
 
-**Last Updated:** 2025-11-04
+**Last Updated:** 2025-11-10
 **Contact:** Northern Rockies Conservation Cooperative / National Park Service
