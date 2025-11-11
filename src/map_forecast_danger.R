@@ -295,6 +295,78 @@ if (forest_gridmet_var == "fm1000") {
 }
 
 # ============================================================================
+# TIMESERIES VALIDATION
+# ============================================================================
+
+message("Validating timeseries completeness and integrity...")
+
+# Get all dates in the series
+series_dates <- time(var_series)
+n_dates <- length(series_dates)
+
+# Check 1: Duplicate dates detection
+message("Checking for duplicate dates...")
+if (any(duplicated(series_dates))) {
+  duplicate_dates <- series_dates[duplicated(series_dates)]
+  stop(glue("ERROR: Duplicate dates found in timeseries: {paste(duplicate_dates, collapse=', ')}\n",
+            "This would corrupt rolling window calculations. Check forecast file downloads."))
+}
+message(glue("✓ No duplicate dates found ({n_dates} unique dates)"))
+
+# Check 2: Date ordering verification
+message("Checking date ordering...")
+sorted_dates <- sort(series_dates)
+if (!identical(series_dates, sorted_dates)) {
+  stop(glue("ERROR: Dates are not in chronological order.\n",
+            "First date: {series_dates[1]}, Last date: {series_dates[n_dates]}\n",
+            "This would corrupt the timeseries analysis."))
+}
+message(glue("✓ Dates are in correct chronological order"))
+
+# Check 3: Gap detection (continuous daily sequence)
+message("Checking for gaps in daily sequence...")
+expected_sequence <- seq(from = series_dates[1], to = series_dates[n_dates], by = "1 day")
+n_expected <- length(expected_sequence)
+
+if (n_dates != n_expected) {
+  missing_dates <- setdiff(expected_sequence, series_dates)
+  stop(glue("ERROR: Gaps detected in timeseries. Expected {n_expected} days, found {n_dates} days.\n",
+            "Missing dates: {paste(head(missing_dates, 10), collapse=', ')}{ifelse(length(missing_dates) > 10, '...', '')}\n",
+            "Rolling window calculations require continuous daily data."))
+}
+message(glue("✓ Continuous daily sequence verified ({n_dates} days from {series_dates[1]} to {series_dates[n_dates]})"))
+
+# Check 4: Sufficient data for rolling windows
+message("Checking sufficient data for rolling window calculations...")
+max_window <- max(forest_window, non_forest_window)
+forecast_start_date <- today
+forecast_end_date <- today + 7
+min_required_start_date <- forecast_start_date - max_window + 1
+
+if (series_dates[1] > min_required_start_date) {
+  stop(glue("ERROR: Insufficient historical data for rolling window calculation.\n",
+            "Maximum window size: {max_window} days\n",
+            "Forecast period: {forecast_start_date} to {forecast_end_date}\n",
+            "Data starts: {series_dates[1]}\n",
+            "Required start date: {min_required_start_date} or earlier\n",
+            "Missing {as.numeric(series_dates[1] - min_required_start_date)} days of historical data."))
+}
+
+if (series_dates[n_dates] < forecast_end_date) {
+  stop(glue("ERROR: Insufficient forecast data.\n",
+            "Data ends: {series_dates[n_dates]}\n",
+            "Required end date: {forecast_end_date}\n",
+            "Missing {as.numeric(forecast_end_date - series_dates[n_dates])} days of forecast data."))
+}
+
+message(glue("✓ Sufficient data for {max_window}-day rolling windows"))
+message(glue("  Historical data from: {series_dates[1]}"))
+message(glue("  Forecast data through: {series_dates[n_dates]}"))
+message(glue("  Required forecast period: {forecast_start_date} to {forecast_end_date}"))
+
+message("All timeseries validation checks passed!")
+
+# ============================================================================
 # CALCULATE ROLLING AVERAGES
 # ============================================================================
 
