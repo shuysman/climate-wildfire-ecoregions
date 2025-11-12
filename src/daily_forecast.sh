@@ -76,6 +76,13 @@ if [ "${ENVIRONMENT:-local}" = "cloud" ]; then
     exit 1
   fi
 
+  # Sync NPS boundary data (required for park threshold plots)
+  echo "Syncing NPS boundary data..."
+  if ! aws s3 sync "${S3_BUCKET_PATH}/data/nps_boundary/" /app/data/nps_boundary/; then
+    echo "Warning: Failed to sync NPS boundary data from S3. Park analyses will be skipped." >&2
+    # Don't exit - park analyses are optional
+  fi
+
   # Sync forecast data (downloaded by update task - critical)
   echo "Syncing forecast data..."
   if ! aws s3 sync "${S3_BUCKET_PATH}/data/forecasts/" /app/data/forecasts/; then
