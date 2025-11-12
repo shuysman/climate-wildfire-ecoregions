@@ -10,6 +10,9 @@ cd "$PROJECT_DIR"
 TODAY=$(date +%Y-%m-%d)
 OUTPUT_FILE="out/forecasts/index.html"
 
+# Create output directory if it doesn't exist
+mkdir -p "$(dirname "$OUTPUT_FILE")"
+
 echo "========================================="
 echo "Generating index landing page"
 echo "Date: $TODAY"
