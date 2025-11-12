@@ -57,7 +57,7 @@
         }
         .navbar {
             background-color: #333;
-            overflow: hidden;
+            overflow: visible;
         }
         .navbar ul {
             list-style-type: none;
@@ -73,6 +73,51 @@
             text-decoration: none;
         }
         .navbar li a:hover {
+            background-color: #555;
+        }
+        .navbar li {
+            position: relative;
+            display: block;
+        }
+        .navbar details {
+            position: relative;
+            display: block;
+            width: 100%;
+        }
+        .navbar summary {
+            display: block;
+            color: white;
+            padding: 14px 20px;
+            cursor: pointer;
+            list-style: none;
+            user-select: none;
+        }
+        .navbar summary::-webkit-details-marker {
+            display: none;
+        }
+        .navbar summary:hover {
+            background-color: #555;
+        }
+        .navbar details[open] summary {
+            background-color: #555;
+        }
+        .navbar .dropdown-content {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background-color: #444;
+            min-width: 200px;
+            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+            z-index: 1000;
+            margin: 0;
+        }
+        .navbar .dropdown-content a {
+            color: white;
+            padding: 12px 16px;
+            text-decoration: none;
+            display: block;
+        }
+        .navbar .dropdown-content a:hover {
             background-color: #555;
         }
         .modal {
@@ -158,7 +203,14 @@
 
     <nav class="navbar">
       <ul>
-        <li><a href="../">All Ecoregions</a></li>
+        <li>
+          <details>
+            <summary>Ecoregions ▼</summary>
+            <div class="dropdown-content">
+__ECOREGION_DROPDOWN__
+            </div>
+          </details>
+        </li>
         <li><a href="#forecast-map">Forecast Map</a></li>
         <li><a href="#park-analysis">Park Analysis</a></li>
         <li><a href="#lightning-map">Lightning Map</a></li>

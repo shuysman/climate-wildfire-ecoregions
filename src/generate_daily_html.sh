@@ -94,6 +94,38 @@ fi
 
 cp "$TEMPLATE_FILE" "$OUTPUT_FILE"
 
+# --- Generate ecoregion dropdown ---
+echo "Generating ecoregion dropdown..."
+
+# Get all enabled ecoregions from config
+ALL_ECOREGIONS=$(Rscript -e "
+suppressPackageStartupMessages(library(yaml))
+config <- read_yaml('$PROJECT_DIR/config/ecoregions.yaml')
+enabled <- config\$ecoregions[sapply(config\$ecoregions, function(x) isTRUE(x\$enabled))]
+for (eco in enabled) {
+  cat(eco\$name_clean, '|', eco\$name, '\\n', sep='')
+}
+" 2>/dev/null | tail -n +1)
+
+ECOREGION_DROPDOWN_HTML=""
+while IFS='|' read -r name_clean name; do
+  if [ "$name_clean" = "$ECOREGION" ]; then
+    # Current ecoregion - mark as selected with checkmark
+    ECOREGION_DROPDOWN_HTML+="            <a href=\"../$name_clean/daily_forecast.html\"><strong>✓ $name</strong></a>\n"
+  else
+    ECOREGION_DROPDOWN_HTML+="            <a href=\"../$name_clean/daily_forecast.html\">$name</a>\n"
+  fi
+done <<< "$ALL_ECOREGIONS"
+
+# Replace the ecoregion dropdown placeholder
+awk -v dropdown="$ECOREGION_DROPDOWN_HTML" '{
+  if (index($0, "__ECOREGION_DROPDOWN__") > 0) {
+    gsub("__ECOREGION_DROPDOWN__", dropdown)
+  }
+  print
+}' "$OUTPUT_FILE" > "$OUTPUT_FILE.tmp"
+mv "$OUTPUT_FILE.tmp" "$OUTPUT_FILE"
+
 # --- Generate dynamic park navigation and sections ---
 if [ -n "$PARK_CODES" ]; then
   echo "Processing park analyses for: $PARK_CODES"
