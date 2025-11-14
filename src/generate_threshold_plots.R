@@ -112,8 +112,8 @@ for (park_code in park_codes) {
 
   message(glue("Processing thresholds for: {park_name} ({park_code})"))
 
-  # Calculate total park area before clipping
-  park_area_total_km2 <- expanse(park_poly, unit = "km")
+  # Calculate total park area before clipping (sum in case of multiple features)
+  park_area_total_km2 <- sum(expanse(park_poly, unit = "km"))
 
   # Clip park polygon to ecoregion boundary
   # This ensures we only analyze the portion within this ecoregion
@@ -129,8 +129,8 @@ for (park_code in park_codes) {
     next
   }
 
-  # Calculate clipped park area and coverage percentage
-  park_area_clipped_km2 <- expanse(park_poly_clipped, unit = "km")
+  # Calculate clipped park area and coverage percentage (sum in case of multiple features)
+  park_area_clipped_km2 <- sum(expanse(park_poly_clipped, unit = "km"))
   coverage_pct <- (park_area_clipped_km2 / park_area_total_km2) * 100
 
   # Use clipped polygon for all subsequent operations
