@@ -28,40 +28,51 @@ ecoregion <- config\$ecoregions[[which(sapply(config\$ecoregions, function(x) x\
 if (is.null(ecoregion)) {
   stop('Ecoregion $ECOREGION not found in config')
 }
-# Output: NAME|PARK1 PARK2 PARK3|VARIABLE|FOREST_WINDOW|NON_FOREST_WINDOW
+# Output: NAME|PARK1 PARK2 PARK3|FOREST_VAR|FOREST_WINDOW|NON_FOREST_VAR|NON_FOREST_WINDOW
 parks <- ecoregion\$parks
 parks_str <- if (is.null(parks) || length(parks) == 0) '' else paste(parks, collapse=' ')
-variable <- ecoregion\$cover_types\$forest\$variable
+forest_var <- ecoregion\$cover_types\$forest\$variable
 forest_window <- ecoregion\$cover_types\$forest\$window
+non_forest_var <- ecoregion\$cover_types\$non_forest\$variable
 non_forest_window <- ecoregion\$cover_types\$non_forest\$window
-cat(paste0(ecoregion\$name, '|', parks_str, '|', variable, '|', forest_window, '|', non_forest_window))
+cat(paste0(ecoregion\$name, '|', parks_str, '|', forest_var, '|', forest_window, '|', non_forest_var, '|', non_forest_window))
 " 2>/dev/null | tail -1)
 
 # Parse the output
 ECOREGION_NAME=$(echo "$ECOREGION_CONFIG" | cut -d'|' -f1)
 PARK_CODES=$(echo "$ECOREGION_CONFIG" | cut -d'|' -f2)
-PRIMARY_VARIABLE=$(echo "$ECOREGION_CONFIG" | cut -d'|' -f3)
+FOREST_VARIABLE=$(echo "$ECOREGION_CONFIG" | cut -d'|' -f3)
 FOREST_WINDOW=$(echo "$ECOREGION_CONFIG" | cut -d'|' -f4)
-NON_FOREST_WINDOW=$(echo "$ECOREGION_CONFIG" | cut -d'|' -f5)
+NON_FOREST_VARIABLE=$(echo "$ECOREGION_CONFIG" | cut -d'|' -f5)
+NON_FOREST_WINDOW=$(echo "$ECOREGION_CONFIG" | cut -d'|' -f6)
 
-# Create human-readable variable name
-case "$PRIMARY_VARIABLE" in
-  "vpd")
-    VARIABLE_DISPLAY="Vapor Pressure Deficit (VPD)"
-    ;;
-  "fm1000"|"fm1000inv")
-    VARIABLE_DISPLAY="1000-hour Fuel Moisture (FM1000)"
-    ;;
-  "fm100")
-    VARIABLE_DISPLAY="100-hour Fuel Moisture (FM100)"
-    ;;
-  "erc")
-    VARIABLE_DISPLAY="Energy Release Component (ERC)"
-    ;;
-  *)
-    VARIABLE_DISPLAY=$(echo "$PRIMARY_VARIABLE" | tr '[:lower:]' '[:upper:]')
-    ;;
-esac
+# Create human-readable variable names
+get_variable_display() {
+  local var=$1
+  case "$var" in
+    "vpd")
+      echo "Vapor Pressure Deficit (VPD)"
+      ;;
+    "fm1000"|"fm1000inv")
+      echo "1000-hour Fuel Moisture (FM1000)"
+      ;;
+    "fm100")
+      echo "100-hour Fuel Moisture (FM100)"
+      ;;
+    "erc")
+      echo "Energy Release Component (ERC)"
+      ;;
+    "cwd")
+      echo "Climatic Water Deficit (CWD)"
+      ;;
+    *)
+      echo "$(echo "$var" | tr '[:lower:]' '[:upper:]')"
+      ;;
+  esac
+}
+
+FOREST_VARIABLE_DISPLAY=$(get_variable_display "$FOREST_VARIABLE")
+NON_FOREST_VARIABLE_DISPLAY=$(get_variable_display "$NON_FOREST_VARIABLE")
 
 # --- Define paths using new directory structure ---
 ECOREGION_OUT_DIR="$PROJECT_DIR/out/forecasts/$ECOREGION"
@@ -229,7 +240,8 @@ sed -i -e "s|__DISPLAY_DATE__|$TODAY|g" \
        -e "s|__FORECAST_MAP_MOBILE_PATH__|$FORECAST_MAP_MOBILE_PATH|g" \
        -e "s|__ECOREGION__|$ECOREGION|g" \
        -e "s|__ECOREGION_NAME__|$ECOREGION_NAME|g" \
-       -e "s|__VARIABLE_DISPLAY__|$VARIABLE_DISPLAY|g" \
+       -e "s|__FOREST_VARIABLE_DISPLAY__|$FOREST_VARIABLE_DISPLAY|g" \
+       -e "s|__NON_FOREST_VARIABLE_DISPLAY__|$NON_FOREST_VARIABLE_DISPLAY|g" \
        -e "s|__FOREST_WINDOW__|$FOREST_WINDOW|g" \
        -e "s|__NON_FOREST_WINDOW__|$NON_FOREST_WINDOW|g" \
        "$OUTPUT_FILE"
