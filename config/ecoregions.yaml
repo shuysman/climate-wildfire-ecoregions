@@ -27,6 +27,10 @@ ecoregions:
       - DETO  # Devils Tower National Monument
       - WICA  # Wind Cave National Park
       - MORU  # Mount Rushmore National Memorial
+      - BICA # Bighorn Canyon
+      - BIHO # Big Hole
+      - CRMO # Craters of the Moon
+      - NEPE # Nez Perce
 
   # Southern Rockies - Uses inverted FM1000 as primary predictor
   # NOTE: variable is "fm1000inv" to match inverted quantile rasters (becomes FM1000INV in filenames via toupper)
@@ -47,12 +51,10 @@ ecoregions:
     parks:
       - ROMO  # Rocky Mountain National Park
       - GRSA  # Great Sand Dunes National Park & Preserve
-      #- BLCA  # Black Canyon of the Gunnison National Park
       - CURE  # Curecanti National Recreation Area
-      #- DINO  # Dinosaur National Monument
-      #- COLM  # Colorado National Monument
-      #- MEVE  # Mesa Verde National Park
-      #- SAND  # Sand Creek Massacre National Historic Site
+      - BAND # Bandelier
+      - PECO # Pecos
+      - FLFO # Florissant Fossil Beds
 
   # Southern Rockies - Uses inverted FM1000 as primary predictor
   # NOTE: variable is "fm1000inv" to match inverted quantile rasters (becomes FM1000INV in filenames via toupper)
