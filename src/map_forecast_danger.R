@@ -70,30 +70,34 @@ non_forest_gridmet_var <- ecoregion_config$cover_types$non_forest$gridmet_varnam
 
 message(glue("Ecoregion ID: {ecoregion_id}"))
 message(glue("Ecoregion Name: {ecoregion_name}"))
-message(glue("Forest predictor: {forest_window}-day {forest_variable}"))
-message(glue("Non-forest predictor: {non_forest_window}-day {non_forest_variable}"))
 
-# Validate that forest and non-forest use the same variable (for now)
-if (forest_variable != non_forest_variable) {
-  stop(glue("Forest and non-forest currently must use the same variable. Got variable: {forest_variable}/{non_forest_variable}"))
+# Note: Forest and non-forest can now use different variables
+# This supports ecoregions like Canadian Rockies (FM1000 forest, CWD non-forest)
+message(glue("Forest predictor: {forest_variable} ({forest_window}-day window)"))
+message(glue("Non-forest predictor: {non_forest_variable} ({non_forest_window}-day window)"))
+
+# Create display names for title
+get_variable_display_name <- function(var) {
+  switch(var,
+    "vpd" = "VPD",
+    "fm1000" = "FM1000",
+    "fm1000inv" = "FM1000",
+    "fm100" = "FM100",
+    "erc" = "ERC",
+    "cwd" = "CWD",
+    toupper(var)  # fallback to uppercase
+  )
 }
 
-# Validate that forest and non-forest use the same gridmet_varname
-if (forest_gridmet_var != non_forest_gridmet_var) {
-  stop(glue("Forest and non-forest must use the same gridmet_varname. Got gridmet_varname: {forest_gridmet_var}/{non_forest_gridmet_var}"))
+forest_display_name <- get_variable_display_name(forest_variable)
+non_forest_display_name <- get_variable_display_name(non_forest_variable)
+
+# For map title - use forest variable or indicate both if different
+if (forest_variable == non_forest_variable) {
+  variable_display_name <- forest_display_name
+} else {
+  variable_display_name <- glue("{forest_display_name}/{non_forest_display_name}")
 }
-
-primary_variable <- forest_variable
-
-# Create compact variable name for display in title
-variable_display_name <- switch(primary_variable,
-  "vpd" = "VPD",
-  "fm1000" = "FM1000",
-  "fm1000inv" = "FM1000",
-  "fm100" = "FM100",
-  "erc" = "ERC",
-  toupper(primary_variable)  # fallback to uppercase
-)
 
 # ============================================================================
 # HELPER FUNCTIONS
@@ -168,37 +172,56 @@ if (!file.exists(classified_rast_file)) {
 # LOAD FORECAST DATA
 # ============================================================================
 
-message(glue("Loading {forest_gridmet_var} forecast data..."))
+# Function to load forecast for a variable
+load_forecast_data <- function(var_name, label, boundary = NULL) {
+  message(glue("Loading {var_name} forecast data for {label} areas..."))
 
-# Load forecast files using gridmet_varname (not the quantile variable which may be inverted like fm1000inv)
-forecast_0_path <- glue("data/forecasts/{forest_gridmet_var}/cfsv2_metdata_forecast_{forest_gridmet_var}_daily_0.nc")
-forecast_1_path <- glue("data/forecasts/{forest_gridmet_var}/cfsv2_metdata_forecast_{forest_gridmet_var}_daily_1.nc")
-forecast_2_path <- glue("data/forecasts/{forest_gridmet_var}/cfsv2_metdata_forecast_{forest_gridmet_var}_daily_2.nc")
+  forecast_0_path <- glue("data/forecasts/{var_name}/cfsv2_metdata_forecast_{var_name}_daily_0.nc")
+  forecast_1_path <- glue("data/forecasts/{var_name}/cfsv2_metdata_forecast_{var_name}_daily_1.nc")
+  forecast_2_path <- glue("data/forecasts/{var_name}/cfsv2_metdata_forecast_{var_name}_daily_2.nc")
 
-if (!file.exists(forecast_0_path)) {
-  stop(glue("Forecast file not found: {forecast_0_path}\nPlease run src/update_all_forecasts.sh first."))
+  if (!file.exists(forecast_0_path)) {
+    stop(glue("{label} forecast file not found: {forecast_0_path}\nPlease run src/update_all_forecasts.sh first."))
+  }
+
+  forecast_0 <- rast(forecast_0_path)
+  time(forecast_0) <- as_date(depth(forecast_0), origin = "1900-01-01")
+
+  forecast_1 <- rast(forecast_1_path)
+  time(forecast_1) <- as_date(depth(forecast_1), origin = "1900-01-01")
+
+  forecast_2 <- rast(forecast_2_path)
+  time(forecast_2) <- as_date(depth(forecast_2), origin = "1900-01-01")
+
+  # Crop to ecoregion extent if boundary provided
+  if (!is.null(boundary)) {
+    forecast_0 <- crop(forecast_0, boundary)
+    forecast_1 <- crop(forecast_1, boundary)
+    forecast_2 <- crop(forecast_2, boundary)
+  }
+
+  return(list(f0 = forecast_0, f1 = forecast_1, f2 = forecast_2))
 }
 
-var_forecast_0 <- rast(forecast_0_path)
-time(var_forecast_0) <- as_date(depth(var_forecast_0), origin = "1900-01-01")
+# Load forest forecasts (without cropping yet)
+forest_forecasts <- load_forecast_data(forest_gridmet_var, "forest")
 
-var_forecast_1 <- rast(forecast_1_path)
-time(var_forecast_1) <- as_date(depth(var_forecast_1), origin = "1900-01-01")
+# Project ecoregion boundary to forecast CRS (use forest forecast as reference)
+ecoregion_boundary <- project(ecoregion_boundary, crs(forest_forecasts$f0))
 
-var_forecast_2 <- rast(forecast_2_path)
-time(var_forecast_2) <- as_date(depth(var_forecast_2), origin = "1900-01-01")
+# Now crop the forest forecasts to the projected boundary
+forest_forecasts$f0 <- crop(forest_forecasts$f0, ecoregion_boundary)
+forest_forecasts$f1 <- crop(forest_forecasts$f1, ecoregion_boundary)
+forest_forecasts$f2 <- crop(forest_forecasts$f2, ecoregion_boundary)
 
-# Project ecoregion boundary to forecast CRS
-ecoregion_boundary <- project(ecoregion_boundary, crs(var_forecast_0))
-
-# Rasterize the ecoregion polygon to create a processing mask
-message("Rasterizing ecoregion polygon for masking...")
-processing_mask <- rasterize(ecoregion_boundary, var_forecast_0)
-
-# Crop forecasts to ecoregion extent
-var_forecast_0 <- crop(var_forecast_0, ecoregion_boundary)
-var_forecast_1 <- crop(var_forecast_1, ecoregion_boundary)
-var_forecast_2 <- crop(var_forecast_2, ecoregion_boundary)
+# Load non-forest forecasts (reuse forest if same variable)
+if (forest_gridmet_var == non_forest_gridmet_var) {
+  message("Forest and non-forest use same variable - reusing forecast data")
+  non_forest_forecasts <- forest_forecasts
+} else {
+  # Load with cropping since boundary is now projected
+  non_forest_forecasts <- load_forecast_data(non_forest_gridmet_var, "non-forest", ecoregion_boundary)
+}
 
 # ============================================================================
 # RETRIEVE HISTORICAL DATA
@@ -207,162 +230,214 @@ var_forecast_2 <- crop(var_forecast_2, ecoregion_boundary)
 start_date <- today - 40
 
 ### Check if most recent forecast is available or raise error
-most_recent_forecast <- time(subset(var_forecast_0, 1))
+forest_most_recent <- time(subset(forest_forecasts$f0, 1))
 
 # Accept forecasts starting either today or tomorrow
 # - Aggregated variables (VPD) typically start tomorrow
 # - Ensemble variables (FM1000) typically start today
-if (most_recent_forecast != today + 1 && most_recent_forecast != today) {
-  stop(glue("Most recent forecast date is {most_recent_forecast} but should be either {today} or {today + 1}. Exiting..."))
+if (forest_most_recent != today + 1 && forest_most_recent != today) {
+  stop(glue("Forest forecast date is {forest_most_recent} but should be either {today} or {today + 1}. Exiting..."))
 }
 
-if (most_recent_forecast == today) {
-  message(glue("Note: Forecast starts today ({today}) instead of tomorrow. This is expected for ensemble variables like FM1000."))
+if (forest_most_recent == today) {
+  message(glue("Note: Forest forecast starts today ({today}) instead of tomorrow. This is expected for ensemble variables like FM1000."))
 }
 
-# Define cache path
+# Check non-forest forecast date if different variable
+if (forest_gridmet_var != non_forest_gridmet_var) {
+  non_forest_most_recent <- time(subset(non_forest_forecasts$f0, 1))
+
+  if (non_forest_most_recent != today + 1 && non_forest_most_recent != today) {
+    stop(glue("Non-forest forecast date is {non_forest_most_recent} but should be either {today} or {today + 1}. Exiting..."))
+  }
+
+  if (non_forest_most_recent == today) {
+    message(glue("Note: Non-forest forecast starts today ({today}) instead of tomorrow. This is expected for ensemble variables."))
+  }
+}
+
+# Define cache directory
 cache_dir <- "./out/cache"
 dir.create(cache_dir, showWarnings = FALSE, recursive = TRUE)
-gridmet_cache_file <- file.path(cache_dir, glue("{ecoregion_name_clean}_{forest_gridmet_var}_latest_gridmet.nc"))
-
-message(glue("Fetching historical gridMET {forest_gridmet_var} data..."))
 
 # Map variable name to gridMET output column name
 gridmet_column_map <- list(
   vpd = "daily_mean_vapor_pressure_deficit",
-  fm1000 = "dead_fuel_moisture_1000hr"
+  fm1000 = "dead_fuel_moisture_1000hr",
+  cwd = "climatic_water_deficit"
 )
 
-if (!forest_gridmet_var %in% names(gridmet_column_map)) {
-  stop(glue("Unknown gridMET variable: {forest_gridmet_var}. Add mapping to gridmet_column_map."))
+# Function to fetch gridMET data for a variable
+fetch_gridmet_data <- function(var_name, label, reference_raster) {
+  message(glue("Fetching historical gridMET {var_name} data for {label} areas..."))
+
+  cache_file <- file.path(cache_dir, glue("{ecoregion_name_clean}_{var_name}_latest_gridmet.nc"))
+
+  if (!var_name %in% names(gridmet_column_map)) {
+    stop(glue("Unknown gridMET variable: {var_name}. Add mapping to gridmet_column_map."))
+  }
+
+  gridmet_data <- tryCatch(
+    {
+      message("Attempting to download fresh gridMET data...")
+      fresh_gridmet <- getGridMET(
+        AOI = ecoregion_boundary,
+        varname = var_name,
+        startDate = start_date,
+        endDate = today - 2,
+        verbose = TRUE
+      )[[gridmet_column_map[[var_name]]]] %>%
+        project(crs(reference_raster)) %>%
+        crop(reference_raster)
+
+      message("Successfully downloaded fresh gridMET data. Caching to NetCDF file.")
+      writeCDF(fresh_gridmet, cache_file, overwrite = TRUE, varname = var_name)
+
+      fresh_gridmet
+    },
+    error = function(e) {
+      warning(glue("Failed to retrieve fresh gridMET data: {e$message}"))
+
+      if (file.exists(cache_file)) {
+        warning("Using cached gridMET data as a fallback. Data may be stale.")
+        rast(cache_file)
+      } else {
+        stop("Failed to retrieve gridMET data and no cache file is available. Cannot proceed.")
+      }
+    }
+  )
+
+  return(gridmet_data)
 }
 
-var_gridmet <- tryCatch(
-  {
-    message("Attempting to download fresh gridMET data...")
-    fresh_gridmet <- getGridMET(
-      AOI = ecoregion_boundary,
-      varname = forest_gridmet_var,
-      startDate = start_date,
-      endDate = today - 2,
-      verbose = TRUE
-    )[[gridmet_column_map[[forest_gridmet_var]]]] %>%
-      project(crs(var_forecast_0)) %>%
-      crop(var_forecast_0)
+# Fetch forest gridMET data
+forest_gridmet <- fetch_gridmet_data(forest_gridmet_var, "forest", forest_forecasts$f0)
 
-    message("Successfully downloaded fresh gridMET data. Caching to NetCDF file.")
-    writeCDF(fresh_gridmet, gridmet_cache_file, overwrite = TRUE, varname = forest_gridmet_var)
-
-    fresh_gridmet
-  },
-  error = function(e) {
-    warning(glue("Failed to retrieve fresh gridMET data: {e$message}"))
-
-    if (file.exists(gridmet_cache_file)) {
-      warning("Using cached gridMET data as a fallback. Data may be stale.")
-      rast(gridmet_cache_file)
-    } else {
-      stop("Failed to retrieve gridMET data and no cache file is available. Cannot proceed.")
-    }
-  }
-)
+# Fetch non-forest gridMET data (reuse forest if same variable)
+if (forest_gridmet_var == non_forest_gridmet_var) {
+  message("Reusing gridMET data for non-forest")
+  non_forest_gridmet <- forest_gridmet
+} else {
+  non_forest_gridmet <- fetch_gridmet_data(non_forest_gridmet_var, "non-forest", non_forest_forecasts$f0)
+}
 
 # ============================================================================
 # INFILLING LOGIC - Create full time series
 # ============================================================================
 
-message("Creating full time series with historical and forecast data...")
+# Function to create timeseries by infilling historical data with forecasts
+create_timeseries <- function(gridmet_data, forecasts, var_name, label) {
+  message(glue("Creating {label} timeseries ({var_name})..."))
 
-var_series <- var_gridmet
-last_hist_date <- max(time(var_series))
-message(glue("Last historical date is {last_hist_date}"))
+  series <- gridmet_data
+  last_date <- max(time(series))
+  message(glue("  Last historical date: {last_date}"))
 
-all_forecast_files <- list(var_forecast_2, var_forecast_1, var_forecast_0)
-for (forecast_rast in all_forecast_files) {
-  new_dates <- time(forecast_rast)[time(forecast_rast) > last_hist_date]
-  if (length(new_dates) > 0) {
-    message(glue("Infilling with {length(new_dates)} day(s) from a forecast file."))
-    infill_layers <- subset(forecast_rast, time(forecast_rast) %in% new_dates)
-    var_series <- c(var_series, infill_layers)
-    last_hist_date <- max(time(var_series))
+  # Infill with forecast data (f2, f1, f0 in that order for proper rotation)
+  forecast_list <- list(forecasts$f2, forecasts$f1, forecasts$f0)
+  for (forecast_rast in forecast_list) {
+    new_dates <- time(forecast_rast)[time(forecast_rast) > last_date]
+    if (length(new_dates) > 0) {
+      message(glue("  Infilling with {length(new_dates)} day(s) from forecast file"))
+      infill_layers <- subset(forecast_rast, time(forecast_rast) %in% new_dates)
+      series <- c(series, infill_layers)
+      last_date <- max(time(series))
+    }
   }
+
+  # Apply variable-specific transformations
+  if (var_name == "fm1000") {
+    message(glue("  Inverting FM1000 to (100 - FM1000) for correct fire risk relationship"))
+    series <- 100 - series
+  }
+  # Add other transformations here as needed (e.g., CWD inversion if required)
+
+  message(glue("  {label} timeseries complete: {min(time(series))} to {max(time(series))}"))
+  return(series)
 }
 
-# Invert FM1000 if needed (quantile rasters were generated from 100 - FM1000)
-if (forest_gridmet_var == "fm1000") {
-  message("Inverting FM1000 to (100 - FM1000) for correct fire risk relationship...")
-  var_series <- 100 - var_series
+# Create forest timeseries
+forest_series <- create_timeseries(forest_gridmet, forest_forecasts, forest_gridmet_var, "forest")
+
+# Create non-forest timeseries (reuse forest if same variable)
+if (forest_gridmet_var == non_forest_gridmet_var) {
+  message("Reusing forest timeseries for non-forest")
+  non_forest_series <- forest_series
+} else {
+  non_forest_series <- create_timeseries(non_forest_gridmet, non_forest_forecasts, non_forest_gridmet_var, "non-forest")
 }
 
 # ============================================================================
 # TIMESERIES VALIDATION
 # ============================================================================
 
-message("Validating timeseries completeness and integrity...")
+# Validation helper function
+validate_timeseries <- function(series, label, window) {
+  message(glue("Validating {label} timeseries..."))
 
-# Get all dates in the series
-series_dates <- time(var_series)
-n_dates <- length(series_dates)
+  series_dates <- time(series)
+  n_dates <- length(series_dates)
 
-# Check 1: Duplicate dates detection
-message("Checking for duplicate dates...")
-if (any(duplicated(series_dates))) {
-  duplicate_dates <- series_dates[duplicated(series_dates)]
-  stop(glue("ERROR: Duplicate dates found in timeseries: {paste(duplicate_dates, collapse=', ')}\n",
-            "This would corrupt rolling window calculations. Check forecast file downloads."))
-}
-message(glue("✓ No duplicate dates found ({n_dates} unique dates)"))
+  # Check 1: Duplicate dates detection
+  if (any(duplicated(series_dates))) {
+    duplicate_dates <- series_dates[duplicated(series_dates)]
+    stop(glue("ERROR: Duplicate dates found in {label} timeseries: {paste(duplicate_dates, collapse=', ')}\n",
+              "This would corrupt rolling window calculations. Check forecast file downloads."))
+  }
+  message(glue("  ✓ No duplicate dates ({n_dates} unique dates)"))
 
-# Check 2: Date ordering verification
-message("Checking date ordering...")
-sorted_dates <- sort(series_dates)
-if (!identical(series_dates, sorted_dates)) {
-  stop(glue("ERROR: Dates are not in chronological order.\n",
-            "First date: {series_dates[1]}, Last date: {series_dates[n_dates]}\n",
-            "This would corrupt the timeseries analysis."))
-}
-message(glue("✓ Dates are in correct chronological order"))
+  # Check 2: Date ordering verification
+  sorted_dates <- sort(series_dates)
+  if (!identical(series_dates, sorted_dates)) {
+    stop(glue("ERROR: {label} dates not in chronological order.\n",
+              "First date: {series_dates[1]}, Last date: {series_dates[n_dates]}"))
+  }
+  message(glue("  ✓ Dates in chronological order"))
 
-# Check 3: Gap detection (continuous daily sequence)
-message("Checking for gaps in daily sequence...")
-expected_sequence <- seq(from = series_dates[1], to = series_dates[n_dates], by = "1 day")
-n_expected <- length(expected_sequence)
+  # Check 3: Gap detection (continuous daily sequence)
+  expected_sequence <- seq(from = series_dates[1], to = series_dates[n_dates], by = "1 day")
+  n_expected <- length(expected_sequence)
 
-if (n_dates != n_expected) {
-  missing_dates <- setdiff(expected_sequence, series_dates)
-  stop(glue("ERROR: Gaps detected in timeseries. Expected {n_expected} days, found {n_dates} days.\n",
-            "Missing dates: {paste(head(missing_dates, 10), collapse=', ')}{ifelse(length(missing_dates) > 10, '...', '')}\n",
-            "Rolling window calculations require continuous daily data."))
-}
-message(glue("✓ Continuous daily sequence verified ({n_dates} days from {series_dates[1]} to {series_dates[n_dates]})"))
+  if (n_dates != n_expected) {
+    missing_dates <- setdiff(expected_sequence, series_dates)
+    stop(glue("ERROR: Gaps detected in {label} timeseries. Expected {n_expected} days, found {n_dates} days.\n",
+              "Missing dates: {paste(head(missing_dates, 10), collapse=', ')}{ifelse(length(missing_dates) > 10, '...', '')}"))
+  }
+  message(glue("  ✓ Continuous daily sequence ({n_dates} days from {series_dates[1]} to {series_dates[n_dates]})"))
 
-# Check 4: Sufficient data for rolling windows
-message("Checking sufficient data for rolling window calculations...")
-max_window <- max(forest_window, non_forest_window)
-forecast_start_date <- today
-forecast_end_date <- today + 7
-min_required_start_date <- forecast_start_date - max_window + 1
+  # Check 4: Sufficient data for rolling windows
+  forecast_start_date <- today
+  forecast_end_date <- today + 7
+  min_required_start_date <- forecast_start_date - window + 1
 
-if (series_dates[1] > min_required_start_date) {
-  stop(glue("ERROR: Insufficient historical data for rolling window calculation.\n",
-            "Maximum window size: {max_window} days\n",
-            "Forecast period: {forecast_start_date} to {forecast_end_date}\n",
-            "Data starts: {series_dates[1]}\n",
-            "Required start date: {min_required_start_date} or earlier\n",
-            "Missing {as.numeric(series_dates[1] - min_required_start_date)} days of historical data."))
-}
+  if (series_dates[1] > min_required_start_date) {
+    stop(glue("ERROR: Insufficient {label} historical data for rolling window calculation.\n",
+              "Window size: {window} days\n",
+              "Data starts: {series_dates[1]}\n",
+              "Required start date: {min_required_start_date} or earlier\n",
+              "Missing {as.numeric(series_dates[1] - min_required_start_date)} days of historical data."))
+  }
 
-if (series_dates[n_dates] < forecast_end_date) {
-  stop(glue("ERROR: Insufficient forecast data.\n",
-            "Data ends: {series_dates[n_dates]}\n",
-            "Required end date: {forecast_end_date}\n",
-            "Missing {as.numeric(forecast_end_date - series_dates[n_dates])} days of forecast data."))
+  if (series_dates[n_dates] < forecast_end_date) {
+    stop(glue("ERROR: Insufficient {label} forecast data.\n",
+              "Data ends: {series_dates[n_dates]}\n",
+              "Required end date: {forecast_end_date}\n",
+              "Missing {as.numeric(forecast_end_date - series_dates[n_dates])} days of forecast data."))
+  }
+
+  message(glue("  ✓ Sufficient data for {window}-day rolling window"))
+  message(glue("  ✓ {label} validation complete!"))
 }
 
-message(glue("✓ Sufficient data for {max_window}-day rolling windows"))
-message(glue("  Historical data from: {series_dates[1]}"))
-message(glue("  Forecast data through: {series_dates[n_dates]}"))
-message(glue("  Required forecast period: {forecast_start_date} to {forecast_end_date}"))
+# Validate forest timeseries
+validate_timeseries(forest_series, "forest", forest_window)
+
+# Validate non-forest timeseries (if different from forest)
+if (forest_gridmet_var != non_forest_gridmet_var) {
+  validate_timeseries(non_forest_series, "non-forest", non_forest_window)
+} else {
+  message("Non-forest uses same timeseries as forest - validation already complete")
+}
 
 message("All timeseries validation checks passed!")
 
@@ -370,22 +445,28 @@ message("All timeseries validation checks passed!")
 # CALCULATE ROLLING AVERAGES
 # ============================================================================
 
-forest_data_file <- tempfile(fileext = ".tif")
-non_forest_data_file <- tempfile(fileext = ".tif")
+message("Calculating rolling averages...")
 
-message("Calculating rolling averages and writing to temporary files...")
+# Calculate forest rolling window
+forest_data_file <- tempfile(fileext = ".tif")
 if (forest_window > 1) {
-  forest_data <- terra::roll(var_series, n = forest_window, fun = mean, type = "to", circular = FALSE, filename = forest_data_file, wopt = list(gdal = c("COMPRESS=NONE"))) %>%
+  message(glue("  Calculating {forest_window}-day rolling average for forest ({forest_variable})"))
+  forest_data <- terra::roll(forest_series, n = forest_window, fun = mean, type = "to", circular = FALSE, filename = forest_data_file, wopt = list(gdal = c("COMPRESS=NONE"))) %>%
     subset(time(.) >= today & time(.) <= today + 7)
 } else {
-  forest_data <- var_series %>% subset(time(.) >= today & time(.) <= today + 7)
+  message(glue("  Using current day values for forest ({forest_variable})"))
+  forest_data <- forest_series %>% subset(time(.) >= today & time(.) <= today + 7)
 }
 
+# Calculate non-forest rolling window
+non_forest_data_file <- tempfile(fileext = ".tif")
 if (non_forest_window > 1) {
-  non_forest_data <- terra::roll(var_series, n = non_forest_window, fun = mean, type = "to", circular = FALSE, filename = non_forest_data_file, wopt = list(gdal = c("COMPRESS=NONE"))) %>%
+  message(glue("  Calculating {non_forest_window}-day rolling average for non-forest ({non_forest_variable})"))
+  non_forest_data <- terra::roll(non_forest_series, n = non_forest_window, fun = mean, type = "to", circular = FALSE, filename = non_forest_data_file, wopt = list(gdal = c("COMPRESS=NONE"))) %>%
     subset(time(.) >= today & time(.) <= today + 7)
 } else {
-  non_forest_data <- var_series %>% subset(time(.) >= today & time(.) <= today + 7)
+  message(glue("  Using current day values for non-forest ({non_forest_variable})"))
+  non_forest_data <- non_forest_series %>% subset(time(.) >= today & time(.) <= today + 7)
 }
 
 dates <- time(forest_data)
