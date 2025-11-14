@@ -28,7 +28,7 @@ ecoregions:
       - WICA  # Wind Cave National Park
       - MORU  # Mount Rushmore National Memorial
       - BICA # Bighorn Canyon
-      - BIHO # Big Hole
+      #- BIHO # Big Hole---Not really sure if this should be added, because seems to overlap with Nez Perce?
       - CRMO # Craters of the Moon
       - NEPE # Nez Perce
 
