@@ -54,6 +54,41 @@ ecoregions:
       #- MEVE  # Mesa Verde National Park
       #- SAND  # Sand Creek Massacre National Historic Site
 
+  # Southern Rockies - Uses inverted FM1000 as primary predictor
+  # NOTE: variable is "fm1000inv" to match inverted quantile rasters (becomes FM1000INV in filenames via toupper)
+  # The forecast script will invert (100 - FM1000) automatically
+  - id: 20
+    name: "Colorado Plateaus"
+    name_clean: "colorado_plateaus"
+    enabled: true
+    cover_types:
+      forest:
+        window: 5          
+        variable: "fm1000inv"  # 1000-hour fuel moisture (inverted: 100 - FM1000)
+        gridmet_varname: "fm1000"
+      non_forest:
+        window: 27          
+        variable: "vpd"
+        gridmet_varname: "vpd"
+    parks:
+      - DINO  # Dinosaur National Monument
+      - CANY # Canyonlands
+      - ARCH # Arches
+      - BLCA  # Black Canyon of the Gunnison National Park
+      - COLM  # Colorado National Monument
+      - CURE  # Curecanti National Recreation Area
+      - MEVE  # Mesa Verde National Park
+      - HOVE # Hovenweep
+      - GLCA # Glen Canyon
+      - CARE # Capitol Reef
+      - BRCA # Bryce Canyon
+      - ZION # Zion
+      - NABR # Natural Bridges
+      - RABR # Rainbow Bridges
+      - YUHO # Yucca House
+      - PISP # Pipe Spring
+      - GRCA # Grand Canyon
+
 # Future ecoregions can be added here following the same pattern
 # Example:
 #  - id: 13
