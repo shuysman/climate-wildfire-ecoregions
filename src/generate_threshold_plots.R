@@ -20,6 +20,13 @@ ecoregion_name_clean <- if (length(args) >= 1) {
   Sys.getenv("ECOREGION", unset = "middle_rockies")
 }
 
+# Optional: accept date parameter for testing (default to today)
+forecast_date <- if (length(args) >= 2) {
+  as.Date(args[2])
+} else {
+  today()
+}
+
 message(glue("========================================"))
 message(glue("Generating park threshold plots for: {ecoregion_name_clean}"))
 message(glue("========================================"))
@@ -59,8 +66,7 @@ message(glue("Found {length(park_codes)} parks in config: {paste(park_codes, col
 thresholds <- c(0.25, 0.5, 0.75)
 
 # Load fire danger raster from new directory structure
-today <- today()
-forecast_file <- here("out", "forecasts", ecoregion_name_clean, today, "fire_danger_forecast.nc")
+forecast_file <- here("out", "forecasts", ecoregion_name_clean, forecast_date, "fire_danger_forecast.nc")
 
 if (!file.exists(forecast_file)) {
   stop("Forecast file not found at: ", forecast_file)
@@ -137,7 +143,7 @@ for (park_code in park_codes) {
   park_poly <- park_poly_clipped
 
   # Create park-specific output directory using new structure
-  park_out_dir <- here("out", "forecasts", ecoregion_name_clean, today, "parks", park_code)
+  park_out_dir <- here("out", "forecasts", ecoregion_name_clean, forecast_date, "parks", park_code)
   dir.create(park_out_dir, showWarnings = FALSE, recursive = TRUE)
 
   # Crop fire danger raster to the clipped park boundary (with error handling)
@@ -299,6 +305,178 @@ for (park_code in park_codes) {
     # Save the plot to the park-specific directory
     ggsave(file.path(park_out_dir, glue("threshold_plot_{threshold}.png")), plot = p, height = 4, width = 8)
   }
+
+  # ============================================================================
+  # Generate forecast distribution plot (stacked bar chart)
+  # ============================================================================
+
+  message(glue("  Generating forecast distribution plot for {park_name}"))
+
+  # Calculate fire danger category distribution for each forecast day
+  forecast_dates <- time(park_fire_danger_rast)
+  n_days <- length(forecast_dates)
+
+  # Initialize data frame for category distributions
+  category_data <- data.frame()
+
+  for (i in 1:n_days) {
+    layer <- park_fire_danger_rast[[i]]
+    values <- values(layer, mat = FALSE)
+    values <- values[!is.na(values)]
+
+    if (length(values) == 0) {
+      warning(glue("  Skipping day {i} for {park_name}: no valid values"))
+      next
+    }
+
+    # Get the date for this layer
+    current_date <- forecast_dates[i]
+
+    # Skip if date is NA or invalid
+    if (is.na(current_date)) {
+      warning(glue("  Skipping day {i} for {park_name}: date is NA"))
+      next
+    }
+
+    total_cells <- length(values)
+
+    # Calculate percentage in each category
+    extreme_pct <- sum(values >= 0.95) / total_cells * 100
+    very_high_pct <- sum(values >= 0.90 & values < 0.95) / total_cells * 100
+    high_pct <- sum(values >= 0.75 & values < 0.90) / total_cells * 100
+    elevated_pct <- sum(values >= 0.50 & values < 0.75) / total_cells * 100
+    normal_pct <- sum(values < 0.50) / total_cells * 100
+
+    # Add to data frame
+    day_data <- data.frame(
+      date = current_date,
+      category = c("Normal", "Elevated", "High", "Very High", "Extreme"),
+      percentage = c(normal_pct, elevated_pct, high_pct, very_high_pct, extreme_pct),
+      stringsAsFactors = FALSE
+    )
+
+    category_data <- rbind(category_data, day_data)
+  }
+
+  # Remove any rows with NA dates that might have slipped through
+  category_data <- category_data[!is.na(category_data$date), ]
+
+  # Check if we have any data to plot
+  if (nrow(category_data) == 0) {
+    warning(glue("  No valid data for {park_name} forecast distribution plot. Skipping."))
+    next
+  }
+
+  message(glue("  Processing {length(unique(category_data$date))} days of data for {park_name}"))
+
+  # Check for any NA or invalid percentages
+  if (any(is.na(category_data$percentage))) {
+    warning(glue("  Found NA percentages in {park_name} data"))
+    category_data <- category_data[!is.na(category_data$percentage), ]
+  }
+
+  # Check for percentages outside valid range
+  if (any(category_data$percentage < 0 | category_data$percentage > 100)) {
+    warning(glue("  Found invalid percentages in {park_name}: min={min(category_data$percentage)}, max={max(category_data$percentage)}"))
+  }
+
+  # Check that percentages sum to ~100% for each date
+  daily_sums <- aggregate(percentage ~ date, data = category_data, FUN = sum)
+  if (any(abs(daily_sums$percentage - 100) > 0.1)) {
+    problem_dates <- daily_sums$date[abs(daily_sums$percentage - 100) > 0.1]
+    problem_sums <- daily_sums$percentage[abs(daily_sums$percentage - 100) > 0.1]
+    warning(glue("  Percentages don't sum to 100% for {park_name} on {length(problem_dates)} day(s): {paste(as.character(problem_dates), '=', round(problem_sums, 1), collapse=', ')}"))
+
+    # Print the actual data for problem dates
+    for (pd in problem_dates) {
+      problem_rows <- category_data[category_data$date == pd, ]
+      message(glue("    Date {pd}: {paste(problem_rows$category, '=', round(problem_rows$percentage, 2), collapse=', ')}"))
+    }
+  }
+
+  # Check that each date has exactly 5 categories
+  category_counts <- aggregate(percentage ~ date, data = category_data, FUN = length)
+  if (any(category_counts$percentage != 5)) {
+    problem_dates <- category_counts$date[category_counts$percentage != 5]
+    problem_counts <- category_counts$percentage[category_counts$percentage != 5]
+    warning(glue("  Missing categories for {park_name}: {paste(as.character(problem_dates), 'has', problem_counts, 'categories', collapse='; ')}"))
+  }
+
+  # Set factor levels for proper ordering in the plot
+  category_data$category <- factor(
+    category_data$category,
+    levels = c("Normal", "Elevated", "High", "Very High", "Extreme")
+  )
+
+  # Define colors for each category (matching the HTML colors)
+  category_colors <- c(
+    "Normal" = "#27AE60",
+    "Elevated" = "#F39C12",
+    "High" = "#E67E22",
+    "Very High" = "#E74C3C",
+    "Extreme" = "#000000"
+  )
+
+  # Debug: Check for any problematic values before plotting
+  if (any(is.nan(category_data$percentage))) {
+    warning(glue("  Found NaN values in {park_name} percentages"))
+    category_data <- category_data[!is.nan(category_data$percentage), ]
+  }
+
+  if (any(is.infinite(category_data$percentage))) {
+    warning(glue("  Found Inf values in {park_name} percentages"))
+    category_data <- category_data[!is.infinite(category_data$percentage), ]
+  }
+
+  # Filter out zero values to avoid ggplot stacking issues
+  # (ggplot can have problems stacking when many values are exactly 0)
+  category_data_plot <- category_data[category_data$percentage > 0, ]
+
+  # Sort by date and category to ensure proper stacking order
+  category_data_plot <- category_data_plot[order(category_data_plot$date, category_data_plot$category), ]
+
+  # Create stacked bar plot
+  p_dist <- ggplot(category_data_plot, aes(x = date, y = percentage, fill = category)) +
+    geom_col(position = "stack", width = 0.8) +
+    scale_fill_manual(values = category_colors, name = "Fire Danger Category") +
+    scale_x_date(date_breaks = "1 day", date_labels = "%b %d", expand = c(0, 0)) +
+    scale_y_continuous(
+      labels = scales::percent_format(scale = 1),
+      limits = c(0, 100),
+      expand = c(0, 0),
+      oob = scales::squish  # Don't remove values at boundaries
+    ) +
+    theme_minimal() +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+      axis.text.y = element_text(size = 10),
+      legend.position = "bottom",
+      legend.title = element_text(size = 11, face = "bold"),
+      plot.title = element_text(size = 14, face = "bold", hjust = 0),
+      plot.subtitle = element_text(size = 10, color = "#666666", hjust = 0),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor = element_blank(),
+      panel.grid.major.y = element_line(color = "#e0e0e0"),
+      plot.background = element_rect(fill = "white", color = NA),
+      panel.background = element_rect(fill = "white", color = NA),
+      legend.background = element_rect(fill = "white", color = NA)
+    ) +
+    labs(
+      y = "Percentage of Park Area",
+      x = "Date",
+      title = glue("Fire Danger Category Forecast - {park_name}"),
+      subtitle = "Distribution of fire danger categories across forecast period"
+    )
+
+  # Save the forecast distribution plot
+  ggsave(
+    file.path(park_out_dir, "forecast_distribution.png"),
+    plot = p_dist,
+    height = 5,
+    width = 10,
+    dpi = 150,
+    bg = "white"
+  )
 }
 
 message(glue("Fire danger analysis generation complete for {ecoregion_name_clean}."))

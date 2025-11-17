@@ -168,7 +168,10 @@ if [ -n "$PARK_CODES" ]; then
       PARK_SECTIONS_HTML+="        <div id=\"$PARK_CODE\" class=\"park-plots\" style=\"display:none;\">\n"
     fi
     PARK_SECTIONS_HTML+="          __${PARK_CODE}_ANALYSIS__\n"
-    PARK_SECTIONS_HTML+="          <h3 style=\"margin-top: 30px;\">Threshold Plots - Forecast Trend</h3>\n"
+    PARK_SECTIONS_HTML+="          <h3 style=\"margin-top: 30px;\">Category Distribution Forecast</h3>\n"
+    PARK_SECTIONS_HTML+="          <p style=\"font-size: 0.9em; color: #666; line-height: 1.6;\">This stacked bar chart shows how the distribution of fire danger categories changes across the 7-day forecast period. Each bar represents one day, with colors showing the percentage of park area in each fire danger category (Extreme ≥0.95, Very High 0.90-0.95, High 0.75-0.90, Elevated 0.50-0.75, Normal <0.50). Use this visualization to see when danger categories are shifting and plan accordingly.</p>\n"
+    PARK_SECTIONS_HTML+="          <img src=\"$TODAY/parks/$PARK_CODE/forecast_distribution.png\" alt=\"Fire Danger Category Distribution Forecast for $PARK_CODE\" style=\"width: 100%; max-width: 1000px;\">\n"
+    PARK_SECTIONS_HTML+="          <h3 style=\"margin-top: 40px;\">Threshold Plots - Forecast Trend</h3>\n"
     PARK_SECTIONS_HTML+="          <p style=\"font-size: 0.9em; color: #666; line-height: 1.6;\">These plots show how the percentage of park area at or above specific fire danger thresholds changes over the 7-day forecast period. Each threshold (0.25, 0.50, 0.75) represents the historical proportion of fires that occurred at or below that dryness level. Higher thresholds indicate more severe conditions. Use these trends to identify windows of opportunity for management activities or periods requiring heightened vigilance.</p>\n"
     PARK_SECTIONS_HTML+="          <h4>Threshold: 0.25</h4>\n"
     PARK_SECTIONS_HTML+="          <img src=\"$TODAY/parks/$PARK_CODE/threshold_plot_0.25.png\" alt=\"Fire Danger Threshold Plot at 0.25 for $PARK_CODE\">\n"
