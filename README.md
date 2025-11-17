@@ -53,26 +53,38 @@ The system is composed of several distinct processes that are run as commands wi
 ### Core Processes
 
 1.  **Main Forecast Generation**
-    *   **What it does:** This is the most computationally intensive step. It runs the `map_forecast_danger.R` script to process raw climate data, apply the eCDF models, and generate the core forecast outputs: a data file (`fire_danger_forecast_{date}.rds`) and the multi-day forecast map image (`YELL-GRTE-JODR_fire_danger_forecast_{date}.png`).
+    *   **What it does:** This is the most computationally intensive step. It runs the `map_forecast_danger.R` script to process raw climate data, apply the eCDF models, and generate the core forecast outputs: NetCDF data file (`fire_danger_forecast.nc`) and multi-day forecast map images for desktop and mobile views.
 
-2.  **Lightning Map Generation**
+2.  **Park-Specific Visualizations**
+    *   **What it does:** Runs the `generate_threshold_plots.R` script to create detailed fire danger analyses for each National Park Service unit within the ecoregion. For each park, it generates:
+        - **Forecast Distribution Plot**: A stacked bar chart showing how the percentage of park area in each fire danger category (Normal, Elevated, High, Very High, Extreme) changes across the 7-day forecast period
+        - **Threshold Plots**: Three time series charts showing the percentage of park area at or above specific danger thresholds (0.25, 0.50, 0.75)
+    *   These visualizations provide park managers with both intuitive category-based views and precise threshold-based trends for operational decision-making.
+
+3.  **Lightning Map Generation**
     *   **What it does:** This process runs the `hourly_lightning_map.sh` script to provide near-real-time situational awareness. It fetches the latest lightning strike data and overlays it on the fire danger data from the main forecast, producing a self-contained, interactive HTML map (`lightning_map_{date}.html`).
 
-3.  **Frontend Assembly**
-    *   **What it does:** This final step runs the `generate_daily_html.sh` script, which intelligently assembles the main `daily_forecast.html` page. It uses a template and populates it with the latest available assets, including the forecast map and the lightning map. This script contains fallback logic to use older assets if the current day's are not yet available, preventing broken links.
+4.  **Frontend Assembly**
+    *   **What it does:** This final step runs the `generate_daily_html.sh` script, which intelligently assembles the main `daily_forecast.html` page. It uses a template and populates it with the latest available assets, including the forecast maps, park-specific visualizations, and the lightning map. This script contains fallback logic to use older assets if the current day's are not yet available, preventing broken links.
 
 ```mermaid
 graph TD
     subgraph "Docker Container"
         A[map_forecast_danger.R] -- Reads --> B[Input Data];
-        A -- Writes --> C[Forecast RDS];
+        A -- Writes --> C[Forecast NetCDF];
         A -- Writes --> D[Forecast Map PNG];
+
+        P[generate_threshold_plots.R] -- Reads --> C;
+        P -- Writes --> Q[Park Distribution Plots];
+        P -- Writes --> R[Park Threshold Plots];
 
         E[hourly_lightning_map.sh] -- Reads --> C;
         E -- Fetches --> F[Weatherbit API];
         E -- Writes --> G[Lightning Map HTML];
 
         H[generate_daily_html.sh] -- Reads --> D;
+        H -- Reads --> Q;
+        H -- Reads --> R;
         H -- Reads --> G;
         H -- Writes --> I[Main daily_forecast.html];
     end
@@ -81,6 +93,8 @@ graph TD
         J[Local ./data folder] -- mounted as --- B;
         K[Local ./out folder] -- mounted for --- C;
         K -- mounted for --- D;
+        K -- mounted for --- Q;
+        K -- mounted for --- R;
         K -- mounted for --- G;
         K -- mounted for --- I;
     end
@@ -96,22 +110,36 @@ docker build -t wildfire-forecast .
 
 To run the different processes, use `docker run` with volume mounts for the `data` and `out` directories. This makes the local data available inside the container and ensures output artifacts are written back to the local filesystem.
 
+**Run the complete daily pipeline:**
+
+```sh
+docker run --rm \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/out:/app/out \
+  -e ECOREGION=middle_rockies \
+  wildfire-forecast bash src/daily_forecast.sh
+```
+
+This runs the full pipeline: forecast generation → validation → park visualizations → HTML assembly → COG creation.
+
+**Or run individual steps:**
+
 **1. Generate the main forecast:**
 
 ```sh
 docker run --rm \
   -v $(pwd)/data:/app/data \
   -v $(pwd)/out:/app/out \
-  wildfire-forecast Rscript src/map_forecast_danger.R
+  wildfire-forecast Rscript src/map_forecast_danger.R middle_rockies
 ```
 
-**2. Update the lightning map:**
+**2. Generate park-specific visualizations:**
 
 ```sh
 docker run --rm \
   -v $(pwd)/data:/app/data \
   -v $(pwd)/out:/app/out \
-  wildfire-forecast bash src/hourly_lightning_map.sh
+  wildfire-forecast Rscript src/generate_threshold_plots.R middle_rockies
 ```
 
 **3. Assemble the final HTML page:**
@@ -119,7 +147,16 @@ docker run --rm \
 ```sh
 docker run --rm \
   -v $(pwd)/out:/app/out \
-  wildfire-forecast bash src/generate_daily_html.sh
+  wildfire-forecast bash src/generate_daily_html.sh middle_rockies
+```
+
+**Update the lightning map (separate hourly process):**
+
+```sh
+docker run --rm \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/out:/app/out \
+  wildfire-forecast bash src/hourly_lightning_map.sh
 ```
 
 ## Data Sources
