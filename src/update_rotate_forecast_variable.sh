@@ -78,11 +78,12 @@ cleanup() {
 # Function to check if a variable uses ensemble files
 uses_ensemble_format() {
   local var=$1
-  # VPD has aggregated daily files; FM1000, FM100, etc. use ensemble format
+  # VPD has aggregated daily files
+  # FM1000, FM100, tmax_2m, tmin_2m, etc. use ensemble format
   if [[ "$var" == "vpd" ]]; then
     return 1  # false - uses aggregated format
   else
-    return 0  # true - uses ensemble format
+    return 0  # true - uses ensemble format (default for most variables)
   fi
 }
 

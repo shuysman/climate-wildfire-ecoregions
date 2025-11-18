@@ -61,20 +61,35 @@ if (is.null(ecoregion_config)) {
 # Extract configuration
 ecoregion_id <- ecoregion_config$id
 ecoregion_name <- ecoregion_config$name
-forest_window <- ecoregion_config$cover_types$forest$window
-forest_variable <- ecoregion_config$cover_types$forest$variable
-forest_gridmet_var <- ecoregion_config$cover_types$forest$gridmet_varname
-non_forest_window <- ecoregion_config$cover_types$non_forest$window
-non_forest_variable <- ecoregion_config$cover_types$non_forest$variable
-non_forest_gridmet_var <- ecoregion_config$cover_types$non_forest$gridmet_varname
+
+# Handle nullable cover types (some ecoregions may only have forest or non-forest)
+has_forest <- !is.null(ecoregion_config$cover_types$forest)
+has_non_forest <- !is.null(ecoregion_config$cover_types$non_forest)
+
+if (!has_forest && !has_non_forest) {
+  stop("Ecoregion must have at least one cover type (forest or non_forest)")
+}
+
+forest_window <- if (has_forest) ecoregion_config$cover_types$forest$window else NULL
+forest_variable <- if (has_forest) ecoregion_config$cover_types$forest$variable else NULL
+forest_gridmet_var <- if (has_forest) ecoregion_config$cover_types$forest$gridmet_varname else NULL
+
+non_forest_window <- if (has_non_forest) ecoregion_config$cover_types$non_forest$window else NULL
+non_forest_variable <- if (has_non_forest) ecoregion_config$cover_types$non_forest$variable else NULL
+non_forest_gridmet_var <- if (has_non_forest) ecoregion_config$cover_types$non_forest$gridmet_varname else NULL
 
 message(glue("Ecoregion ID: {ecoregion_id}"))
 message(glue("Ecoregion Name: {ecoregion_name}"))
+message(glue("Cover types present: {paste(c(if(has_forest) 'forest' else NULL, if(has_non_forest) 'non-forest' else NULL), collapse=', ')}"))
 
 # Note: Forest and non-forest can now use different variables
 # This supports ecoregions like Canadian Rockies (FM1000 forest, CWD non-forest)
-message(glue("Forest predictor: {forest_variable} ({forest_window}-day window)"))
-message(glue("Non-forest predictor: {non_forest_variable} ({non_forest_window}-day window)"))
+if (has_forest) {
+  message(glue("Forest predictor: {forest_variable} ({forest_window}-day window)"))
+}
+if (has_non_forest) {
+  message(glue("Non-forest predictor: {non_forest_variable} ({non_forest_window}-day window)"))
+}
 
 # Create display names for title
 get_variable_display_name <- function(var) {
@@ -85,18 +100,25 @@ get_variable_display_name <- function(var) {
     "fm100" = "FM100",
     "erc" = "ERC",
     "cwd" = "CWD",
+    "gdd_0" = "GDD₀",
     toupper(var)  # fallback to uppercase
   )
 }
 
-forest_display_name <- get_variable_display_name(forest_variable)
-non_forest_display_name <- get_variable_display_name(non_forest_variable)
+# Determine variable display name for map title
+if (has_forest && has_non_forest) {
+  forest_display_name <- get_variable_display_name(forest_variable)
+  non_forest_display_name <- get_variable_display_name(non_forest_variable)
 
-# For map title - use forest variable or indicate both if different
-if (forest_variable == non_forest_variable) {
-  variable_display_name <- forest_display_name
+  if (forest_variable == non_forest_variable) {
+    variable_display_name <- forest_display_name
+  } else {
+    variable_display_name <- glue("{forest_display_name}/{non_forest_display_name}")
+  }
+} else if (has_forest) {
+  variable_display_name <- get_variable_display_name(forest_variable)
 } else {
-  variable_display_name <- glue("{forest_display_name}/{non_forest_display_name}")
+  variable_display_name <- get_variable_display_name(non_forest_variable)
 }
 
 # ============================================================================
@@ -134,39 +156,56 @@ message("Loading ecoregion boundary...")
 ecoregion_boundary <- vect("data/us_eco_l3/us_eco_l3.shp") %>%
   filter(US_L3NAME == ecoregion_name)
 
-message("Loading quantile rasters...")
-forest_quants_path <- glue("./data/ecdf/{ecoregion_id}-{ecoregion_name_clean}-forest/{ecoregion_id}-{ecoregion_name_clean}-forest-{forest_window}-{toupper(forest_variable)}-quants.nc")
-non_forest_quants_path <- glue("./data/ecdf/{ecoregion_id}-{ecoregion_name_clean}-non_forest/{ecoregion_id}-{ecoregion_name_clean}-non_forest-{non_forest_window}-{toupper(non_forest_variable)}-quants.nc")
+message("Loading quantile rasters and eCDF models...")
 
-if (!file.exists(forest_quants_path)) {
-  stop(glue("Forest quantile raster not found: {forest_quants_path}"))
-}
-if (!file.exists(non_forest_quants_path)) {
-  stop(glue("Non-forest quantile raster not found: {non_forest_quants_path}"))
-}
+# Load forest data if present
+if (has_forest) {
+  forest_quants_path <- glue("./data/ecdf/{ecoregion_id}-{ecoregion_name_clean}-forest/{ecoregion_id}-{ecoregion_name_clean}-forest-{forest_window}-{toupper(forest_variable)}-quants.nc")
+  forest_ecdf_path <- glue("./data/ecdf/{ecoregion_id}-{ecoregion_name_clean}-forest/{ecoregion_id}-{ecoregion_name_clean}-forest-{forest_window}-{toupper(forest_variable)}-ecdf.RDS")
 
-forest_quants_rast <- rast(forest_quants_path)
-non_forest_quants_rast <- rast(non_forest_quants_path)
+  if (!file.exists(forest_quants_path)) {
+    stop(glue("Forest quantile raster not found: {forest_quants_path}"))
+  }
+  if (!file.exists(forest_ecdf_path)) {
+    stop(glue("Forest eCDF model not found: {forest_ecdf_path}"))
+  }
 
-message("Loading eCDF models...")
-forest_ecdf_path <- glue("./data/ecdf/{ecoregion_id}-{ecoregion_name_clean}-forest/{ecoregion_id}-{ecoregion_name_clean}-forest-{forest_window}-{toupper(forest_variable)}-ecdf.RDS")
-non_forest_ecdf_path <- glue("./data/ecdf/{ecoregion_id}-{ecoregion_name_clean}-non_forest/{ecoregion_id}-{ecoregion_name_clean}-non_forest-{non_forest_window}-{toupper(non_forest_variable)}-ecdf.RDS")
-
-if (!file.exists(forest_ecdf_path)) {
-  stop(glue("Forest eCDF model not found: {forest_ecdf_path}"))
-}
-if (!file.exists(non_forest_ecdf_path)) {
-  stop(glue("Non-forest eCDF model not found: {non_forest_ecdf_path}"))
+  forest_quants_rast <- rast(forest_quants_path)
+  forest_fire_danger_ecdf <- readRDS(forest_ecdf_path)
+  message("  ✓ Forest quantiles and eCDF loaded")
+} else {
+  forest_quants_rast <- NULL
+  forest_fire_danger_ecdf <- NULL
 }
 
-forest_fire_danger_ecdf <- readRDS(forest_ecdf_path)
-non_forest_fire_danger_ecdf <- readRDS(non_forest_ecdf_path)
+# Load non-forest data if present
+if (has_non_forest) {
+  non_forest_quants_path <- glue("./data/ecdf/{ecoregion_id}-{ecoregion_name_clean}-non_forest/{ecoregion_id}-{ecoregion_name_clean}-non_forest-{non_forest_window}-{toupper(non_forest_variable)}-quants.nc")
+  non_forest_ecdf_path <- glue("./data/ecdf/{ecoregion_id}-{ecoregion_name_clean}-non_forest/{ecoregion_id}-{ecoregion_name_clean}-non_forest-{non_forest_window}-{toupper(non_forest_variable)}-ecdf.RDS")
+
+  if (!file.exists(non_forest_quants_path)) {
+    stop(glue("Non-forest quantile raster not found: {non_forest_quants_path}"))
+  }
+  if (!file.exists(non_forest_ecdf_path)) {
+    stop(glue("Non-forest eCDF model not found: {non_forest_ecdf_path}"))
+  }
+
+  non_forest_quants_rast <- rast(non_forest_quants_path)
+  non_forest_fire_danger_ecdf <- readRDS(non_forest_ecdf_path)
+  message("  ✓ Non-forest quantiles and eCDF loaded")
+} else {
+  non_forest_quants_rast <- NULL
+  non_forest_fire_danger_ecdf <- NULL
+}
 
 message("Loading classified cover raster...")
 classified_rast_file <- glue("data/classified_cover/ecoregion_{ecoregion_id}_classified.tif")
 if (!file.exists(classified_rast_file)) {
   stop(glue("Classified cover file not found: {classified_rast_file}\nPlease run src/01a_pregenerate_cover.R first."))
 }
+# Note: Even if we only have one cover type model, both cover types may be physically
+# present in the ecoregion. We use the classified cover to mask predictions to only
+# the cover type we have a model for.
 
 # ============================================================================
 # LOAD FORECAST DATA
@@ -203,24 +242,78 @@ load_forecast_data <- function(var_name, label, boundary = NULL) {
   return(list(f0 = forecast_0, f1 = forecast_1, f2 = forecast_2))
 }
 
+# Determine which forecast variables to load
+# GDD_0 requires both tmmx and tmmn
+forest_needs_gdd <- has_forest && forest_gridmet_var == "gdd_0"
+non_forest_needs_gdd <- has_non_forest && non_forest_gridmet_var == "gdd_0"
+
 # Load forest forecasts (without cropping yet)
-forest_forecasts <- load_forecast_data(forest_gridmet_var, "forest")
+if (has_forest) {
+  if (forest_needs_gdd) {
+    message("Forest uses GDD_0 - loading tmmx and tmmn forecasts...")
+    forest_tmax_forecasts <- load_forecast_data("tmmx", "forest (tmax)")
+    forest_tmin_forecasts <- load_forecast_data("tmmn", "forest (tmin)")
+    # Use tmax as reference for boundary projection
+    ecoregion_boundary <- project(ecoregion_boundary, crs(forest_tmax_forecasts$f0))
+    # Crop both temperature forecasts
+    forest_tmax_forecasts$f0 <- crop(forest_tmax_forecasts$f0, ecoregion_boundary)
+    forest_tmax_forecasts$f1 <- crop(forest_tmax_forecasts$f1, ecoregion_boundary)
+    forest_tmax_forecasts$f2 <- crop(forest_tmax_forecasts$f2, ecoregion_boundary)
+    forest_tmin_forecasts$f0 <- crop(forest_tmin_forecasts$f0, ecoregion_boundary)
+    forest_tmin_forecasts$f1 <- crop(forest_tmin_forecasts$f1, ecoregion_boundary)
+    forest_tmin_forecasts$f2 <- crop(forest_tmin_forecasts$f2, ecoregion_boundary)
+  } else {
+    forest_forecasts <- load_forecast_data(forest_gridmet_var, "forest")
+    # Project ecoregion boundary to forecast CRS
+    ecoregion_boundary <- project(ecoregion_boundary, crs(forest_forecasts$f0))
+    # Crop the forest forecasts to the projected boundary
+    forest_forecasts$f0 <- crop(forest_forecasts$f0, ecoregion_boundary)
+    forest_forecasts$f1 <- crop(forest_forecasts$f1, ecoregion_boundary)
+    forest_forecasts$f2 <- crop(forest_forecasts$f2, ecoregion_boundary)
+  }
+}
 
-# Project ecoregion boundary to forecast CRS (use forest forecast as reference)
-ecoregion_boundary <- project(ecoregion_boundary, crs(forest_forecasts$f0))
-
-# Now crop the forest forecasts to the projected boundary
-forest_forecasts$f0 <- crop(forest_forecasts$f0, ecoregion_boundary)
-forest_forecasts$f1 <- crop(forest_forecasts$f1, ecoregion_boundary)
-forest_forecasts$f2 <- crop(forest_forecasts$f2, ecoregion_boundary)
-
-# Load non-forest forecasts (reuse forest if same variable)
-if (forest_gridmet_var == non_forest_gridmet_var) {
-  message("Forest and non-forest use same variable - reusing forecast data")
-  non_forest_forecasts <- forest_forecasts
-} else {
-  # Load with cropping since boundary is now projected
-  non_forest_forecasts <- load_forecast_data(non_forest_gridmet_var, "non-forest", ecoregion_boundary)
+# Load non-forest forecasts
+if (has_non_forest) {
+  if (non_forest_needs_gdd) {
+    # Check if we can reuse forest temperature data
+    if (forest_needs_gdd) {
+      message("Reusing forest temperature forecasts for non-forest GDD_0")
+      non_forest_tmax_forecasts <- forest_tmax_forecasts
+      non_forest_tmin_forecasts <- forest_tmin_forecasts
+    } else {
+      message("Non-forest uses GDD_0 - loading tmmx and tmmn forecasts...")
+      # Load without cropping first to get CRS for boundary projection
+      non_forest_tmax_forecasts <- load_forecast_data("tmmx", "non-forest (tmax)")
+      non_forest_tmin_forecasts <- load_forecast_data("tmmn", "non-forest (tmin)")
+      # Project boundary if not already done
+      if (!has_forest) {
+        ecoregion_boundary <- project(ecoregion_boundary, crs(non_forest_tmax_forecasts$f0))
+      }
+      # Now crop both temperature forecasts
+      non_forest_tmax_forecasts$f0 <- crop(non_forest_tmax_forecasts$f0, ecoregion_boundary)
+      non_forest_tmax_forecasts$f1 <- crop(non_forest_tmax_forecasts$f1, ecoregion_boundary)
+      non_forest_tmax_forecasts$f2 <- crop(non_forest_tmax_forecasts$f2, ecoregion_boundary)
+      non_forest_tmin_forecasts$f0 <- crop(non_forest_tmin_forecasts$f0, ecoregion_boundary)
+      non_forest_tmin_forecasts$f1 <- crop(non_forest_tmin_forecasts$f1, ecoregion_boundary)
+      non_forest_tmin_forecasts$f2 <- crop(non_forest_tmin_forecasts$f2, ecoregion_boundary)
+    }
+  } else if (has_forest && forest_gridmet_var == non_forest_gridmet_var) {
+    message("Forest and non-forest use same variable - reusing forecast data")
+    non_forest_forecasts <- forest_forecasts
+  } else {
+    if (!has_forest) {
+      # Load without cropping first, then project boundary
+      non_forest_forecasts <- load_forecast_data(non_forest_gridmet_var, "non-forest")
+      ecoregion_boundary <- project(ecoregion_boundary, crs(non_forest_forecasts$f0))
+      non_forest_forecasts$f0 <- crop(non_forest_forecasts$f0, ecoregion_boundary)
+      non_forest_forecasts$f1 <- crop(non_forest_forecasts$f1, ecoregion_boundary)
+      non_forest_forecasts$f2 <- crop(non_forest_forecasts$f2, ecoregion_boundary)
+    } else {
+      # Boundary already projected, can crop directly
+      non_forest_forecasts <- load_forecast_data(non_forest_gridmet_var, "non-forest", ecoregion_boundary)
+    }
+  }
 }
 
 # ============================================================================
@@ -230,29 +323,50 @@ if (forest_gridmet_var == non_forest_gridmet_var) {
 start_date <- today - 40
 
 ### Check if most recent forecast is available or raise error
-forest_most_recent <- time(subset(forest_forecasts$f0, 1))
+if (has_forest) {
+  if (forest_needs_gdd) {
+    forest_most_recent <- time(subset(forest_tmax_forecasts$f0, 1))
+  } else {
+    forest_most_recent <- time(subset(forest_forecasts$f0, 1))
+  }
 
-# Accept forecasts starting either today or tomorrow
-# - Aggregated variables (VPD) typically start tomorrow
-# - Ensemble variables (FM1000) typically start today
-if (forest_most_recent != today + 1 && forest_most_recent != today) {
-  stop(glue("Forest forecast date is {forest_most_recent} but should be either {today} or {today + 1}. Exiting..."))
-}
+  # Accept forecasts starting either today or tomorrow
+  # - Aggregated variables (VPD) typically start tomorrow
+  # - Ensemble variables (FM1000, tmax, tmin) typically start today
+  if (forest_most_recent != today + 1 && forest_most_recent != today) {
+    stop(glue("Forest forecast date is {forest_most_recent} but should be either {today} or {today + 1}. Exiting..."))
+  }
 
-if (forest_most_recent == today) {
-  message(glue("Note: Forest forecast starts today ({today}) instead of tomorrow. This is expected for ensemble variables like FM1000."))
+  if (forest_most_recent == today) {
+    message(glue("Note: Forest forecast starts today ({today}) instead of tomorrow. This is expected for ensemble variables."))
+  }
 }
 
 # Check non-forest forecast date if different variable
-if (forest_gridmet_var != non_forest_gridmet_var) {
-  non_forest_most_recent <- time(subset(non_forest_forecasts$f0, 1))
+if (has_non_forest && (!has_forest || forest_gridmet_var != non_forest_gridmet_var)) {
+  if (non_forest_needs_gdd) {
+    # Only check if we didn't already validate forest temps
+    if (!forest_needs_gdd) {
+      non_forest_most_recent <- time(subset(non_forest_tmax_forecasts$f0, 1))
 
-  if (non_forest_most_recent != today + 1 && non_forest_most_recent != today) {
-    stop(glue("Non-forest forecast date is {non_forest_most_recent} but should be either {today} or {today + 1}. Exiting..."))
-  }
+      if (non_forest_most_recent != today + 1 && non_forest_most_recent != today) {
+        stop(glue("Non-forest forecast date is {non_forest_most_recent} but should be either {today} or {today + 1}. Exiting..."))
+      }
 
-  if (non_forest_most_recent == today) {
-    message(glue("Note: Non-forest forecast starts today ({today}) instead of tomorrow. This is expected for ensemble variables."))
+      if (non_forest_most_recent == today) {
+        message(glue("Note: Non-forest forecast starts today ({today}). This is expected for ensemble variables."))
+      }
+    }
+  } else {
+    non_forest_most_recent <- time(subset(non_forest_forecasts$f0, 1))
+
+    if (non_forest_most_recent != today + 1 && non_forest_most_recent != today) {
+      stop(glue("Non-forest forecast date is {non_forest_most_recent} but should be either {today} or {today + 1}. Exiting..."))
+    }
+
+    if (non_forest_most_recent == today) {
+      message(glue("Note: Non-forest forecast starts today ({today}). This is expected for ensemble variables."))
+    }
   }
 }
 
@@ -264,7 +378,9 @@ dir.create(cache_dir, showWarnings = FALSE, recursive = TRUE)
 gridmet_column_map <- list(
   vpd = "daily_mean_vapor_pressure_deficit",
   fm1000 = "dead_fuel_moisture_1000hr",
-  cwd = "climatic_water_deficit"
+  cwd = "climatic_water_deficit",
+  tmmx = "daily_maximum_temperature",
+  tmmn = "daily_minimum_temperature"
 )
 
 # Function to fetch gridMET data for a variable
@@ -311,14 +427,35 @@ fetch_gridmet_data <- function(var_name, label, reference_raster) {
 }
 
 # Fetch forest gridMET data
-forest_gridmet <- fetch_gridmet_data(forest_gridmet_var, "forest", forest_forecasts$f0)
+if (has_forest) {
+  if (forest_needs_gdd) {
+    message("Fetching historical tmmx and tmmn for forest GDD_0 calculation...")
+    forest_tmax_gridmet <- fetch_gridmet_data("tmmx", "forest (tmax)", forest_tmax_forecasts$f0)
+    forest_tmin_gridmet <- fetch_gridmet_data("tmmn", "forest (tmin)", forest_tmin_forecasts$f0)
+  } else {
+    forest_gridmet <- fetch_gridmet_data(forest_gridmet_var, "forest", forest_forecasts$f0)
+  }
+}
 
-# Fetch non-forest gridMET data (reuse forest if same variable)
-if (forest_gridmet_var == non_forest_gridmet_var) {
-  message("Reusing gridMET data for non-forest")
-  non_forest_gridmet <- forest_gridmet
-} else {
-  non_forest_gridmet <- fetch_gridmet_data(non_forest_gridmet_var, "non-forest", non_forest_forecasts$f0)
+# Fetch non-forest gridMET data
+if (has_non_forest) {
+  if (non_forest_needs_gdd) {
+    # Reuse forest temps if available
+    if (forest_needs_gdd) {
+      message("Reusing gridMET temperature data for non-forest")
+      non_forest_tmax_gridmet <- forest_tmax_gridmet
+      non_forest_tmin_gridmet <- forest_tmin_gridmet
+    } else {
+      message("Fetching historical tmmx and tmmn for non-forest GDD_0 calculation...")
+      non_forest_tmax_gridmet <- fetch_gridmet_data("tmmx", "non-forest (tmax)", non_forest_tmax_forecasts$f0)
+      non_forest_tmin_gridmet <- fetch_gridmet_data("tmmn", "non-forest (tmin)", non_forest_tmin_forecasts$f0)
+    }
+  } else if (has_forest && forest_gridmet_var == non_forest_gridmet_var) {
+    message("Reusing gridMET data for non-forest")
+    non_forest_gridmet <- forest_gridmet
+  } else {
+    non_forest_gridmet <- fetch_gridmet_data(non_forest_gridmet_var, "non-forest", non_forest_forecasts$f0)
+  }
 }
 
 # ============================================================================
@@ -326,45 +463,127 @@ if (forest_gridmet_var == non_forest_gridmet_var) {
 # ============================================================================
 
 # Function to create timeseries by infilling historical data with forecasts
-create_timeseries <- function(gridmet_data, forecasts, var_name, label) {
+# For regular variables: pass gridmet_data and forecasts
+# For GDD_0: pass tmax/tmin gridmet and forecasts separately
+create_timeseries <- function(gridmet_data = NULL, forecasts = NULL,
+                              tmax_gridmet = NULL, tmax_forecasts = NULL,
+                              tmin_gridmet = NULL, tmin_forecasts = NULL,
+                              var_name, label) {
   message(glue("Creating {label} timeseries ({var_name})..."))
 
-  series <- gridmet_data
-  last_date <- max(time(series))
-  message(glue("  Last historical date: {last_date}"))
-
-  # Infill with forecast data (f2, f1, f0 in that order for proper rotation)
-  forecast_list <- list(forecasts$f2, forecasts$f1, forecasts$f0)
-  for (forecast_rast in forecast_list) {
-    new_dates <- time(forecast_rast)[time(forecast_rast) > last_date]
-    if (length(new_dates) > 0) {
-      message(glue("  Infilling with {length(new_dates)} day(s) from forecast file"))
-      infill_layers <- subset(forecast_rast, time(forecast_rast) %in% new_dates)
-      series <- c(series, infill_layers)
-      last_date <- max(time(series))
+  # Handle GDD_0 calculation
+  if (var_name == "gdd_0") {
+    if (is.null(tmax_gridmet) || is.null(tmin_gridmet)) {
+      stop("GDD_0 calculation requires tmax_gridmet and tmin_gridmet")
     }
-  }
 
-  # Apply variable-specific transformations
-  if (var_name == "fm1000") {
-    message(glue("  Inverting FM1000 to (100 - FM1000) for correct fire risk relationship"))
-    series <- 100 - series
+    # Calculate historical GDD_0
+    message("  Calculating historical GDD_0 from tmax and tmin...")
+    series <- (tmax_gridmet + tmin_gridmet) / 2
+    last_date <- max(time(series))
+    message(glue("  Last historical date: {last_date}"))
+
+    # Infill with forecast data
+    forecast_tmax_list <- list(tmax_forecasts$f2, tmax_forecasts$f1, tmax_forecasts$f0)
+    forecast_tmin_list <- list(tmin_forecasts$f2, tmin_forecasts$f1, tmin_forecasts$f0)
+
+    for (i in seq_along(forecast_tmax_list)) {
+      tmax_rast <- forecast_tmax_list[[i]]
+      tmin_rast <- forecast_tmin_list[[i]]
+
+      new_dates <- time(tmax_rast)[time(tmax_rast) > last_date]
+      if (length(new_dates) > 0) {
+        message(glue("  Infilling with {length(new_dates)} day(s) from forecast file"))
+        infill_tmax <- subset(tmax_rast, time(tmax_rast) %in% new_dates)
+        infill_tmin <- subset(tmin_rast, time(tmin_rast) %in% new_dates)
+        infill_gdd <- (infill_tmax + infill_tmin) / 2
+        series <- c(series, infill_gdd)
+        last_date <- max(time(series))
+      }
+    }
+  } else {
+    # Regular variable handling
+    if (is.null(gridmet_data) || is.null(forecasts)) {
+      stop(glue("Regular variable {var_name} requires gridmet_data and forecasts"))
+    }
+
+    series <- gridmet_data
+    last_date <- max(time(series))
+    message(glue("  Last historical date: {last_date}"))
+
+    # Infill with forecast data (f2, f1, f0 in that order for proper rotation)
+    forecast_list <- list(forecasts$f2, forecasts$f1, forecasts$f0)
+    for (forecast_rast in forecast_list) {
+      new_dates <- time(forecast_rast)[time(forecast_rast) > last_date]
+      if (length(new_dates) > 0) {
+        message(glue("  Infilling with {length(new_dates)} day(s) from forecast file"))
+        infill_layers <- subset(forecast_rast, time(forecast_rast) %in% new_dates)
+        series <- c(series, infill_layers)
+        last_date <- max(time(series))
+      }
+    }
+
+    # Apply variable-specific transformations
+    if (var_name == "fm1000") {
+      message(glue("  Inverting FM1000 to (100 - FM1000) for correct fire risk relationship"))
+      series <- 100 - series
+    }
+    # Add other transformations here as needed (e.g., CWD inversion if required)
   }
-  # Add other transformations here as needed (e.g., CWD inversion if required)
 
   message(glue("  {label} timeseries complete: {min(time(series))} to {max(time(series))}"))
   return(series)
 }
 
 # Create forest timeseries
-forest_series <- create_timeseries(forest_gridmet, forest_forecasts, forest_gridmet_var, "forest")
+if (has_forest) {
+  if (forest_needs_gdd) {
+    forest_series <- create_timeseries(
+      tmax_gridmet = forest_tmax_gridmet,
+      tmax_forecasts = forest_tmax_forecasts,
+      tmin_gridmet = forest_tmin_gridmet,
+      tmin_forecasts = forest_tmin_forecasts,
+      var_name = "gdd_0",
+      label = "forest"
+    )
+  } else {
+    forest_series <- create_timeseries(
+      gridmet_data = forest_gridmet,
+      forecasts = forest_forecasts,
+      var_name = forest_gridmet_var,
+      label = "forest"
+    )
+  }
+}
 
-# Create non-forest timeseries (reuse forest if same variable)
-if (forest_gridmet_var == non_forest_gridmet_var) {
-  message("Reusing forest timeseries for non-forest")
-  non_forest_series <- forest_series
-} else {
-  non_forest_series <- create_timeseries(non_forest_gridmet, non_forest_forecasts, non_forest_gridmet_var, "non-forest")
+# Create non-forest timeseries
+if (has_non_forest) {
+  if (non_forest_needs_gdd) {
+    # Reuse forest series if both use GDD_0
+    if (forest_needs_gdd) {
+      message("Reusing forest timeseries for non-forest")
+      non_forest_series <- forest_series
+    } else {
+      non_forest_series <- create_timeseries(
+        tmax_gridmet = non_forest_tmax_gridmet,
+        tmax_forecasts = non_forest_tmax_forecasts,
+        tmin_gridmet = non_forest_tmin_gridmet,
+        tmin_forecasts = non_forest_tmin_forecasts,
+        var_name = "gdd_0",
+        label = "non-forest"
+      )
+    }
+  } else if (has_forest && forest_gridmet_var == non_forest_gridmet_var) {
+    message("Reusing forest timeseries for non-forest")
+    non_forest_series <- forest_series
+  } else {
+    non_forest_series <- create_timeseries(
+      gridmet_data = non_forest_gridmet,
+      forecasts = non_forest_forecasts,
+      var_name = non_forest_gridmet_var,
+      label = "non-forest"
+    )
+  }
 }
 
 # ============================================================================
@@ -430,13 +649,17 @@ validate_timeseries <- function(series, label, window) {
 }
 
 # Validate forest timeseries
-validate_timeseries(forest_series, "forest", forest_window)
+if (has_forest) {
+  validate_timeseries(forest_series, "forest", forest_window)
+}
 
 # Validate non-forest timeseries (if different from forest)
-if (forest_gridmet_var != non_forest_gridmet_var) {
-  validate_timeseries(non_forest_series, "non-forest", non_forest_window)
-} else {
-  message("Non-forest uses same timeseries as forest - validation already complete")
+if (has_non_forest) {
+  if (!has_forest || forest_gridmet_var != non_forest_gridmet_var) {
+    validate_timeseries(non_forest_series, "non-forest", non_forest_window)
+  } else {
+    message("Non-forest uses same timeseries as forest - validation already complete")
+  }
 }
 
 message("All timeseries validation checks passed!")
@@ -445,31 +668,50 @@ message("All timeseries validation checks passed!")
 # CALCULATE ROLLING AVERAGES
 # ============================================================================
 
-message("Calculating rolling averages...")
+message("Calculating rolling windows...")
+
+# Define which variables use SUM (flux variables) vs MEAN (state variables)
+# Flux variables accumulate over time (CWD, GDD_0), state variables represent current state (VPD, FM1000)
+flux_variables <- c("cwd", "gdd_0")
 
 # Calculate forest rolling window
-forest_data_file <- tempfile(fileext = ".tif")
-if (forest_window > 1) {
-  message(glue("  Calculating {forest_window}-day rolling average for forest ({forest_variable})"))
-  forest_data <- terra::roll(forest_series, n = forest_window, fun = mean, type = "to", circular = FALSE, filename = forest_data_file, wopt = list(gdal = c("COMPRESS=NONE"))) %>%
-    subset(time(.) >= today & time(.) <= today + 7)
-} else {
-  message(glue("  Using current day values for forest ({forest_variable})"))
-  forest_data <- forest_series %>% subset(time(.) >= today & time(.) <= today + 7)
+if (has_forest) {
+  forest_data_file <- tempfile(fileext = ".tif")
+  if (forest_window > 1) {
+    # Determine if this is a flux or state variable
+    forest_is_flux <- forest_variable %in% flux_variables
+    forest_roll_fun <- if (forest_is_flux) sum else mean
+    forest_roll_type <- if (forest_is_flux) "sum" else "average"
+
+    message(glue("  Calculating {forest_window}-day rolling {forest_roll_type} for forest ({forest_variable})"))
+    forest_data <- terra::roll(forest_series, n = forest_window, fun = forest_roll_fun, type = "to", circular = FALSE, filename = forest_data_file, wopt = list(gdal = c("COMPRESS=NONE"))) %>%
+      subset(time(.) >= today & time(.) <= today + 7)
+  } else {
+    message(glue("  Using current day values for forest ({forest_variable})"))
+    forest_data <- forest_series %>% subset(time(.) >= today & time(.) <= today + 7)
+  }
 }
 
 # Calculate non-forest rolling window
-non_forest_data_file <- tempfile(fileext = ".tif")
-if (non_forest_window > 1) {
-  message(glue("  Calculating {non_forest_window}-day rolling average for non-forest ({non_forest_variable})"))
-  non_forest_data <- terra::roll(non_forest_series, n = non_forest_window, fun = mean, type = "to", circular = FALSE, filename = non_forest_data_file, wopt = list(gdal = c("COMPRESS=NONE"))) %>%
-    subset(time(.) >= today & time(.) <= today + 7)
-} else {
-  message(glue("  Using current day values for non-forest ({non_forest_variable})"))
-  non_forest_data <- non_forest_series %>% subset(time(.) >= today & time(.) <= today + 7)
+if (has_non_forest) {
+  non_forest_data_file <- tempfile(fileext = ".tif")
+  if (non_forest_window > 1) {
+    # Determine if this is a flux or state variable
+    non_forest_is_flux <- non_forest_variable %in% flux_variables
+    non_forest_roll_fun <- if (non_forest_is_flux) sum else mean
+    non_forest_roll_type <- if (non_forest_is_flux) "sum" else "average"
+
+    message(glue("  Calculating {non_forest_window}-day rolling {non_forest_roll_type} for non-forest ({non_forest_variable})"))
+    non_forest_data <- terra::roll(non_forest_series, n = non_forest_window, fun = non_forest_roll_fun, type = "to", circular = FALSE, filename = non_forest_data_file, wopt = list(gdal = c("COMPRESS=NONE"))) %>%
+      subset(time(.) >= today & time(.) <= today + 7)
+  } else {
+    message(glue("  Using current day values for non-forest ({non_forest_variable})"))
+    non_forest_data <- non_forest_series %>% subset(time(.) >= today & time(.) <= today + 7)
+  }
 }
 
-dates <- time(forest_data)
+# Determine dates from whichever cover type is available
+dates <- if (has_forest) time(forest_data) else time(non_forest_data)
 
 # ============================================================================
 # DEFINE PROCESSING FUNCTIONS
@@ -490,7 +732,9 @@ process_non_forest_layer <- function(layer) {
 # ============================================================================
 
 message(glue("Loading pre-generated classified cover raster for ecoregion {ecoregion_id}..."))
-classified_rast <- rast(classified_rast_file) %>% project(crs(forest_data))
+# Project to the CRS of whichever data is available
+reference_crs <- if (has_forest) crs(forest_data) else crs(non_forest_data)
+classified_rast <- rast(classified_rast_file) %>% project(reference_crs)
 
 message("Preparing output file...")
 final_output_file <- file.path(out_dir, "fire_danger_forecast.nc")
@@ -510,30 +754,60 @@ for (i in 1:N_DAYS) {
   day <- dates[i]
   message(paste("Processing day", i, glue("of {N_DAYS} days ({day})...")))
 
-  resampled_forest_file <- tempfile(fileext = ".tif")
-  resampled_nonforest_file <- tempfile(fileext = ".tif")
   combined_layer_file <- tempfile(fileext = ".tif")
 
-  # Get single layer for this day
-  forest_layer_lowres <- subset(forest_data, time(forest_data) == day)
-  nonforest_layer_lowres <- subset(non_forest_data, time(non_forest_data) == day)
+  # Handle based on which cover types are available
+  if (has_forest && has_non_forest) {
+    # Both cover types - combine based on classified cover
+    resampled_forest_file <- tempfile(fileext = ".tif")
+    resampled_nonforest_file <- tempfile(fileext = ".tif")
 
-  # Process (binning + ecdf)
-  processed_forest <- process_forest_layer(forest_layer_lowres)
-  processed_nonforest <- process_non_forest_layer(nonforest_layer_lowres)
+    # Get single layer for this day
+    forest_layer_lowres <- subset(forest_data, time(forest_data) == day)
+    nonforest_layer_lowres <- subset(non_forest_data, time(non_forest_data) == day)
 
-  # Resample to high resolution
-  resample(processed_forest, classified_rast, filename = resampled_forest_file, threads = nthreads, wopt = list(gdal = c("COMPRESS=NONE")))
-  resample(processed_nonforest, classified_rast, filename = resampled_nonforest_file, threads = nthreads, wopt = list(gdal = c("COMPRESS=NONE")))
+    # Process (binning + ecdf)
+    processed_forest <- process_forest_layer(forest_layer_lowres)
+    processed_nonforest <- process_non_forest_layer(nonforest_layer_lowres)
 
-  # Combine based on cover type
-  ifel(classified_rast == 2, rast(resampled_forest_file), rast(resampled_nonforest_file), filename = combined_layer_file, wopt = list(gdal = c("COMPRESS=DEFLATE")))
+    # Resample to high resolution
+    resample(processed_forest, classified_rast, filename = resampled_forest_file, threads = nthreads, wopt = list(gdal = c("COMPRESS=NONE")))
+    resample(processed_nonforest, classified_rast, filename = resampled_nonforest_file, threads = nthreads, wopt = list(gdal = c("COMPRESS=NONE")))
+
+    # Combine based on cover type (character values: "forest", "non_forest")
+    ifel(classified_rast == "forest", rast(resampled_forest_file), rast(resampled_nonforest_file), filename = combined_layer_file, wopt = list(gdal = c("COMPRESS=DEFLATE")))
+
+    # Cleanup
+    unlink(c(resampled_forest_file, resampled_nonforest_file))
+
+  } else if (has_forest) {
+    # Forest only - mask to forest pixels
+    forest_layer_lowres <- subset(forest_data, time(forest_data) == day)
+    processed_forest <- process_forest_layer(forest_layer_lowres)
+
+    # Resample to high resolution
+    resampled <- resample(processed_forest, classified_rast, threads = nthreads)
+
+    # Create explicit mask: keep only forest pixels (character value "forest")
+    mask_layer <- ifel(classified_rast == "forest", 1, NA)
+    mask(resampled, mask_layer, filename = combined_layer_file, wopt = list(gdal = c("COMPRESS=DEFLATE")))
+
+  } else {
+    # Non-forest only - mask to non-forest pixels
+    nonforest_layer_lowres <- subset(non_forest_data, time(non_forest_data) == day)
+    processed_nonforest <- process_non_forest_layer(nonforest_layer_lowres)
+
+    # Resample to high resolution
+    resampled <- resample(processed_nonforest, classified_rast, threads = nthreads)
+
+    # Create explicit mask: keep only non-forest pixels (character value "non_forest")
+    mask_layer <- ifel(classified_rast == "non_forest", 1, NA)
+    mask(resampled, mask_layer, filename = combined_layer_file, wopt = list(gdal = c("COMPRESS=DEFLATE")))
+  }
 
   final_layer_files <- c(final_layer_files, combined_layer_file)
 
-  # Cleanup
-  rm(forest_layer_lowres, nonforest_layer_lowres, processed_forest, processed_nonforest)
-  unlink(c(resampled_forest_file, resampled_nonforest_file))
+  # Cleanup (gc only, temp files already cleaned up in branches above)
   gc()
 }
 
@@ -672,7 +946,11 @@ system2("convert", args = c(mobile_png, "-trim", "+repage", "-bordercolor", "whi
 # ============================================================================
 
 message("Cleaning up intermediate files...")
-unlink(c(forest_data_file, non_forest_data_file, final_layer_files))
+# Clean up temp files (only if they exist)
+temp_files_to_clean <- c(final_layer_files)
+if (has_forest && exists("forest_data_file")) temp_files_to_clean <- c(temp_files_to_clean, forest_data_file)
+if (has_non_forest && exists("non_forest_data_file")) temp_files_to_clean <- c(temp_files_to_clean, non_forest_data_file)
+unlink(temp_files_to_clean)
 
 message("Forecast generation complete.")
 

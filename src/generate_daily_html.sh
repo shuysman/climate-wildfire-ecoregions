@@ -65,14 +65,62 @@ get_variable_display() {
     "cwd")
       echo "Climatic Water Deficit (CWD)"
       ;;
+    "gdd_0")
+      echo "Growing Degree Days (GDD₀)"
+      ;;
     *)
       echo "$(echo "$var" | tr '[:lower:]' '[:upper:]')"
       ;;
   esac
 }
 
-FOREST_VARIABLE_DISPLAY=$(get_variable_display "$FOREST_VARIABLE")
-NON_FOREST_VARIABLE_DISPLAY=$(get_variable_display "$NON_FOREST_VARIABLE")
+# Check if variable is a flux type (uses rolling sum instead of average)
+is_flux_variable() {
+  local var=$1
+  case "$var" in
+    "cwd"|"gdd_0")
+      return 0  # true - is flux
+      ;;
+    *)
+      return 1  # false - is state
+      ;;
+  esac
+}
+
+# Generate methodology table HTML dynamically
+generate_methodology_html() {
+  local html=""
+
+  # Forest row (only if forest cover type exists)
+  if [ -n "$FOREST_VARIABLE" ] && [ "$FOREST_VARIABLE" != "NA" ]; then
+    local forest_display=$(get_variable_display "$FOREST_VARIABLE")
+    local forest_roll_type="rolling average"
+    if is_flux_variable "$FOREST_VARIABLE"; then
+      forest_roll_type="rolling sum"
+    fi
+    html+="                    <tr>\n"
+    html+="                      <td style=\"padding: 5px 10px 5px 0; font-weight: 600;\">Forest Variable:</td>\n"
+    html+="                      <td style=\"padding: 5px 0;\">$forest_display ($FOREST_WINDOW-day $forest_roll_type)</td>\n"
+    html+="                    </tr>\n"
+  fi
+
+  # Non-forest row (only if non-forest cover type exists)
+  if [ -n "$NON_FOREST_VARIABLE" ] && [ "$NON_FOREST_VARIABLE" != "NA" ]; then
+    local non_forest_display=$(get_variable_display "$NON_FOREST_VARIABLE")
+    local non_forest_roll_type="rolling average"
+    if is_flux_variable "$NON_FOREST_VARIABLE"; then
+      non_forest_roll_type="rolling sum"
+    fi
+    html+="                    <tr>\n"
+    html+="                      <td style=\"padding: 5px 10px 5px 0; font-weight: 600;\">Non-forest Variable:</td>\n"
+    html+="                      <td style=\"padding: 5px 0;\">$non_forest_display ($NON_FOREST_WINDOW-day $non_forest_roll_type)</td>\n"
+    html+="                    </tr>"
+  fi
+
+  echo -e "$html"
+}
+
+METHODOLOGY_TABLE_HTML=$(generate_methodology_html)
 
 # --- Define paths using new directory structure ---
 ECOREGION_OUT_DIR="$PROJECT_DIR/out/forecasts/$ECOREGION"
@@ -243,11 +291,16 @@ sed -i -e "s|__DISPLAY_DATE__|$TODAY|g" \
        -e "s|__FORECAST_MAP_MOBILE_PATH__|$FORECAST_MAP_MOBILE_PATH|g" \
        -e "s|__ECOREGION__|$ECOREGION|g" \
        -e "s|__ECOREGION_NAME__|$ECOREGION_NAME|g" \
-       -e "s|__FOREST_VARIABLE_DISPLAY__|$FOREST_VARIABLE_DISPLAY|g" \
-       -e "s|__NON_FOREST_VARIABLE_DISPLAY__|$NON_FOREST_VARIABLE_DISPLAY|g" \
-       -e "s|__FOREST_WINDOW__|$FOREST_WINDOW|g" \
-       -e "s|__NON_FOREST_WINDOW__|$NON_FOREST_WINDOW|g" \
        "$OUTPUT_FILE"
+
+# Replace methodology table using awk (handles multiline content better)
+awk -v table="$METHODOLOGY_TABLE_HTML" '{
+  if (index($0, "__METHODOLOGY_TABLE__") > 0) {
+    gsub("__METHODOLOGY_TABLE__", table)
+  }
+  print
+}' "$OUTPUT_FILE" > "$OUTPUT_FILE.tmp"
+mv "$OUTPUT_FILE.tmp" "$OUTPUT_FILE"
 
 echo "========================================="
 echo "Successfully generated daily_forecast.html for $ECOREGION"
