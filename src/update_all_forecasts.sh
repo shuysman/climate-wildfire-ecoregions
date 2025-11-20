@@ -37,6 +37,12 @@ for VAR in $REQUIRED_VARS; do
   fi
 done
 
+# Special handling for GDD_0 - requires tmmx and tmmn instead
+if echo "$REQUIRED_VARS" | grep -q "gdd_0"; then
+  echo "GDD_0 detected - will download tmmx and tmmn instead"
+  REQUIRED_VARS=$(echo "$REQUIRED_VARS" | sed 's/gdd_0/tmmx tmmn/g' | tr ' ' '\n' | sort -u | tr '\n' ' ' | xargs)
+fi
+
 echo "Required forecast variables: $REQUIRED_VARS"
 echo ""
 
