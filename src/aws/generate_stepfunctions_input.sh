@@ -5,7 +5,7 @@
 
 set -euo pipefail
 
-PROJECT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")"/.. &> /dev/null && pwd)
+PROJECT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")"/../.. &> /dev/null && pwd)
 cd "$PROJECT_DIR"
 
 echo "Generating Step Functions input JSON from config/ecoregions.yaml..." >&2
