@@ -84,7 +84,7 @@ The script uses `ncea` (NetCDF Ensemble Averager) from the NCO toolkit.
 
 ```bash
 # Download FM1000 ensemble and compute mean
-bash src/update_rotate_forecast_variable.sh fm1000
+bash src/operational/data_update/update_rotate_forecast_variable.sh fm1000
 
 # Check output
 ls -lh data/forecasts/fm1000/
@@ -115,7 +115,7 @@ cat log/fm1000_forecast.log
 To add support for other ensemble variables (FM100, ERC, etc.), update the `uses_ensemble_format()` function:
 
 ```bash
-# In src/update_rotate_forecast_variable.sh
+# In src/operational/data_update/update_rotate_forecast_variable.sh
 
 uses_ensemble_format() {
   local var=$1

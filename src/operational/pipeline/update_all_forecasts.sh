@@ -5,7 +5,7 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-PROJECT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")"/.. &> /dev/null && pwd)
+PROJECT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")"/../../../ &> /dev/null && pwd)
 cd "$PROJECT_DIR"
 
 echo "========================================="
@@ -59,7 +59,7 @@ for VAR in $REQUIRED_VARS; do
   echo "Downloading $VAR forecasts..."
   echo "========================================="
 
-  if bash "$PROJECT_DIR/src/update_rotate_forecast_variable.sh" "$VAR"; then
+  if bash "$PROJECT_DIR/src/operational/data_update/update_rotate_forecast_variable.sh" "$VAR"; then
     echo "✓ Successfully updated $VAR forecasts"
     SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
   else

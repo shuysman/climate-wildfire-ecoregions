@@ -1,4 +1,4 @@
-source("./src/03_dryness.R")
+source("./src/retrospective/03_analysis/dryness_roc_analysis.R")
 
 process_ecoregion_cover <- function(i, bad_sites, flux_vars, state_vars, state_vars_no_floor, windows) {
   # Select the ecoregion and cover type for this iteration

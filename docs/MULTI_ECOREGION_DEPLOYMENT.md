@@ -114,7 +114,7 @@ ecoregions:
 
 **To add a new ecoregion:**
 
-1. Run retrospective analysis (`src/03_dryness.R`) to determine optimal predictor
+1. Run retrospective analysis (`src/retrospective/03_analysis/dryness_roc_analysis.R`) to determine optimal predictor
 2. Generate eCDF models and quantile rasters for the ecoregion/cover type combinations
 3. Add ecoregion block to `config/ecoregions.yaml`
 4. Set `enabled: true`
@@ -132,21 +132,21 @@ ecoregions:
 export ENVIRONMENT=local
 
 # Download forecasts for all required variables
-bash src/update_all_forecasts.sh
+bash src/operational/pipeline/update_all_forecasts.sh
 
 # Process specific ecoregion
 export ECOREGION=middle_rockies
-bash src/daily_forecast.sh
+bash src/operational/pipeline/daily_forecast.sh
 
 # Or pass as command line argument
-bash src/daily_forecast.sh middle_rockies
+bash src/operational/pipeline/daily_forecast.sh middle_rockies
 ```
 
 ### Test with Podman (SELinux systems)
 
 ```bash
 # Download forecasts first (not containerized)
-bash src/update_all_forecasts.sh
+bash src/operational/pipeline/update_all_forecasts.sh
 
 # Run forecast with Podman (note :z flags for SELinux)
 podman run --rm \
@@ -163,11 +163,11 @@ podman run --rm \
 ```bash
 for ecoregion in middle_rockies southern_rockies; do
   export ECOREGION=$ecoregion
-  bash src/daily_forecast.sh
+  bash src/operational/pipeline/daily_forecast.sh
 done
 
 # Generate index page
-bash src/generate_index_html.sh
+bash src/operational/html_generation/generate_index_html.sh
 ```
 
 ### View Outputs
@@ -326,7 +326,7 @@ Update the Step Functions state machine definition in CloudFormation:
 
 ```bash
 # Generate input JSON from YAML config
-bash src/generate_stepfunctions_input.sh > stepfunctions_input.json
+bash src/aws/generate_stepfunctions_input.sh > stepfunctions_input.json
 
 # Example output:
 # {
@@ -364,7 +364,7 @@ Create `index-task-definition.json`:
       "name": "wildfire-index-app",
       "image": "791795474719.dkr.ecr.us-west-2.amazonaws.com/wildfire-forecast",
       "essential": true,
-      "command": ["/bin/bash", "-c", "cd /app && bash src/generate_index_html.sh && aws s3 cp out/forecasts/index.html s3://firecachedata/out/forecasts/ --acl public-read"],
+      "command": ["/bin/bash", "-c", "cd /app && bash src/operational/html_generation/generate_index_html.sh && aws s3 cp out/forecasts/index.html s3://firecachedata/out/forecasts/ --acl public-read"],
       "environment": [
         {
           "name": "ENVIRONMENT",
@@ -547,9 +547,9 @@ If issues arise, revert to single-ecoregion mode:
 
 - `config/ecoregions.yaml` - Central configuration
 - `src/map_forecast_danger.R` - Refactored for single-ecoregion mode
-- `src/daily_forecast.sh` - Accepts ECOREGION parameter
-- `src/update_all_forecasts.sh` - Multi-variable downloader
-- `src/generate_index_html.sh` - Landing page generator
+- `src/operational/pipeline/daily_forecast.sh` - Accepts ECOREGION parameter
+- `src/operational/pipeline/update_all_forecasts.sh` - Multi-variable downloader
+- `src/operational/html_generation/generate_index_html.sh` - Landing page generator
 - `update-task-definition.json` - Updated to 0.5 vCPU, 1 GB
 - CloudFormation - Map State configuration (to be deployed)
 
@@ -557,10 +557,10 @@ If issues arise, revert to single-ecoregion mode:
 
 ```bash
 # Generate Step Functions input
-bash src/generate_stepfunctions_input.sh
+bash src/aws/generate_stepfunctions_input.sh
 
 # Test locally
-ENVIRONMENT=local ECOREGION=middle_rockies bash src/daily_forecast.sh
+ENVIRONMENT=local ECOREGION=middle_rockies bash src/operational/pipeline/daily_forecast.sh
 
 # Deploy to AWS
 ./deploy.sh && ./register-task-definitions.sh

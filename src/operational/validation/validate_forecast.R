@@ -5,8 +5,8 @@
 # based on historical fire danger distributions. Runs as part of daily pipeline
 # to catch errors before publishing forecasts.
 #
-# Usage: Rscript src/validate_forecast.R <ecoregion_name_clean>
-#   Example: Rscript src/validate_forecast.R middle_rockies
+# Usage: Rscript src/operational/validation/validate_forecast.R <ecoregion_name_clean>
+#   Example: Rscript src/operational/validation/validate_forecast.R middle_rockies
 #
 # Validation checks:
 # 1. Fire danger values are in [0, 1] range
@@ -32,7 +32,7 @@ suppressPackageStartupMessages({
 
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args) < 1) {
-  stop("Usage: Rscript src/validate_forecast.R <ecoregion_name_clean>")
+  stop("Usage: Rscript src/operational/validation/validate_forecast.R <ecoregion_name_clean>")
 }
 
 ecoregion_name_clean <- args[1]

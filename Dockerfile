@@ -56,8 +56,8 @@ COPY ./config /app/config
 
 
 # Make Scripts Executable
-RUN chmod +x /app/src/*.sh
+RUN find /app/src -name "*.sh" -type f -exec chmod +x {} \;
 
 # Set Default Command
 # You can override this at runtime if you want to run a different script.
-CMD ["/app/src/daily_forecast.sh"]
+CMD ["/app/src/operational/pipeline/daily_forecast.sh"]

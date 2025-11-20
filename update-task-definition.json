@@ -11,7 +11,7 @@
       "name": "wildfire-update-app",
       "image": "791795474719.dkr.ecr.us-west-2.amazonaws.com/wildfire-forecast",
       "essential": true,
-      "command": ["/app/src/update_all_forecasts.sh"],
+      "command": ["/app/src/operational/pipeline/update_all_forecasts.sh"],
       "environment": [
         {
           "name": "ENVIRONMENT",

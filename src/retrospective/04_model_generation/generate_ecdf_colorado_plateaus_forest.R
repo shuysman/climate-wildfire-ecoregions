@@ -7,7 +7,7 @@
 ### - Variable: FM1000 (inverted to 100 - FM1000)
 ### - Forest: 5-day rolling mean
 
-source("./src/03_dryness.R")
+source("./src/retrospective/03_analysis/dryness_roc_analysis.R")
 
 ## 1. Load the MTBS fire data and filter for Colorado Plateaus forest
 mtbs_polys_veg <- st_read("./data/mtbs_polys_plus_cover_ecoregion.gpkg")

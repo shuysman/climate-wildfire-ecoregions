@@ -119,8 +119,8 @@ The ensemble mean from 16 members produces results that are:
 
 ## Files Generated
 
-- **Validation script:** `src/validate_vpd_ensemble_averaging.R`
-- **Time alignment check:** `src/check_vpd_time_alignment.R`
+- **Validation script:** `src/utilities/validate_vpd_ensemble_averaging.R`
+- **Time alignment check:** `src/utilities/check_vpd_time_alignment.R`
 - **Difference investigation:** `src/investigate_vpd_difference.R`
 - **Results:** `data/forecasts/vpd_test/validation_results.csv`
 - **Visualization:** `data/forecasts/vpd_test/vpd_ensemble_comparison.png`

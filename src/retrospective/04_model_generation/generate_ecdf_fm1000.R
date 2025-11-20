@@ -8,7 +8,7 @@
 ### - Forest: 5-day rolling mean
 ### - Non-forest: 1-day (no rolling average)
 
-source("./src/03_dryness.R")
+source("./src/retrospective/03_analysis/dryness_roc_analysis.R")
 
 ## 1. Load the MTBS fire data and filter for Southern Rockies forest
 mtbs_polys_veg <- st_read("./data/mtbs_polys_plus_cover_ecoregion.gpkg")

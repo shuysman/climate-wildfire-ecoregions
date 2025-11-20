@@ -156,7 +156,7 @@ docker run --rm \
 docker run --rm \
   -v $(pwd)/data:/app/data \
   -v $(pwd)/out:/app/out \
-  wildfire-forecast bash src/hourly_lightning_map.sh
+  wildfire-forecast bash src/operational/html_generation/hourly_lightning_map.sh
 ```
 
 ## Data Sources
@@ -170,7 +170,7 @@ docker run --rm \
 
 ## Code Structure
 
-*   `src/03_dryness.R`: The core retrospective analysis script. It iterates through ecoregions and cover types, calculates rolling climate metrics, performs the ROC/AUC analysis, and saves the best predictors and eCDF models.
+*   `src/retrospective/03_analysis/dryness_roc_analysis.R`: The core retrospective analysis script. It iterates through ecoregions and cover types, calculates rolling climate metrics, performs the ROC/AUC analysis, and saves the best predictors and eCDF models.
 *   `src/update_rotate_vpd_forecasts.sh`: A shell script for the automated daily download of forecast data, featuring retry logic and file rotation.
 *   `src/save_quants_lyr.R`: A script for the one-time pre-computation step that generates the quantile rasters from the long-term historical climate record.
 *   `src/map_forecast_danger.R`: The operational script that combines recent historical data, new forecast data, the pre-computed quantile rasters, and the eCDF models to generate the final daily fire danger maps.
@@ -186,7 +186,7 @@ docker run --rm \
 4.  Prepare the cover type (`01_extract_cover.R`) and climate data (`01_extract_gridmet.R` and `01_extract_npswb.R`) for each US L3 ecoregion.
 5. Prepare a list of bad sites based on missing or erroneous data using `02_data_qc.R`.
 6.  Ensure input data is correctly placed in the `data/` directory. The analysis expects pre-processed Parquet files of climate data linked to MTBS fire `Event_ID`s.
-7.  Execute the main analysis script: `Rscript src/03_dryness.R`
+7.  Execute the main analysis script: `Rscript src/retrospective/03_analysis/dryness_roc_analysis.R`
 8.  Results, including CSV files of AUC scores and the RDS files containing the eCDF objects for the best predictors for each ecoregion, will be saved in the `out/` directory.
 
 ## Acknowledgments

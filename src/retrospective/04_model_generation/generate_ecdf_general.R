@@ -7,7 +7,7 @@
 ### Can use the post-run QC script to identify which predictors also
 ### perform well.
 
-source("./src/03_dryness.R")
+source("./src/retrospective/03_analysis/dryness_roc_analysis.R")
 
 ## 1. Load the MTBS fire data and filter for your target ecoregion and cover
 mtbs_polys_veg <- st_read("./data/mtbs_polys_plus_cover_ecoregion.gpkg")

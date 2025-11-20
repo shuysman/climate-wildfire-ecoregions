@@ -83,7 +83,7 @@ bin_rast <- function(new_rast, quants_rast, probs) {
   return(percentile_rast_binned)
 }
 
-# From src/03_dryness.R
+# From src/retrospective/03_analysis/dryness_roc_analysis.R
 my_percent_rank <- function(x) {
   # Round to 1 decimal place, substitute zeros with NA, remove duplicates
   x <- round(x, 1)

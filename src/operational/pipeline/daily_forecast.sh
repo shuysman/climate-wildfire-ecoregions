@@ -9,7 +9,7 @@ IFS=$'\n\t'
 # CONFIGURATION
 # ============================================================================
 
-PROJECT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")"/.. &> /dev/null && pwd)
+PROJECT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")"/../../../ &> /dev/null && pwd)
 cd "$PROJECT_DIR"
 
 # Get ecoregion from environment variable (default to middle_rockies for backward compat)
@@ -117,11 +117,11 @@ echo "$(date)"
 
 # Run the map generation script with ecoregion parameter
 echo "Step 1: Generating fire danger forecast maps..."
-Rscript ./src/map_forecast_danger.R "$ECOREGION"
+Rscript ./src/operational/forecast/map_forecast_danger.R "$ECOREGION"
 
 # Validate the generated forecast
 echo "Step 2: Validating forecast..."
-if ! Rscript ./src/validate_forecast.R "$ECOREGION"; then
+if ! Rscript ./src/operational/validation/validate_forecast.R "$ECOREGION"; then
   VALIDATION_EXIT_CODE=$?
   if [ $VALIDATION_EXIT_CODE -eq 1 ]; then
     echo "ERROR: Forecast validation FAILED. Do not publish this forecast." >&2
@@ -134,15 +134,15 @@ fi
 
 # Run the threshold plot generation script
 echo "Step 3: Generating park threshold plots..."
-Rscript ./src/generate_threshold_plots.R "$ECOREGION"
+Rscript ./src/operational/visualization/generate_threshold_plots.R "$ECOREGION"
 
 # Generate the daily HTML report
 echo "Step 4: Generating daily HTML report..."
-./src/generate_daily_html.sh "$ECOREGION"
+./src/operational/html_generation/generate_daily_html.sh "$ECOREGION"
 
 # Create the Cloud-Optimized GeoTIFF for today for web mapping use
 echo "Step 5: Creating Cloud-Optimized GeoTIFF..."
-./src/create_cog_for_today.sh "$ECOREGION"
+./src/operational/visualization/create_cog_for_today.sh "$ECOREGION"
 
 # ============================================================================
 # S3 POST-FLIGHT (Cloud mode only)

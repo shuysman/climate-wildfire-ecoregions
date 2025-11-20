@@ -2,6 +2,7 @@ library(tidyverse)
 library(terra)
 library(tidyterra)
 library(RColorBrewer)
+library(Polychrome)
 # library(ggpattern)
 
 auc_data <- read_csv("out/auc_data.csv")
@@ -24,6 +25,10 @@ best_predictors %>%
   geom_density(aes(window, color = var)) +
   theme_bw()
 
+n_vars <- length(unique(auc_data$name))
+
+color_palette <- glasbey.colors(n_vars + 1)[2:(n_vars + 1)]
+names(color_palette) <- NULL
 
 ecoregions <- vect("data/us_eco_l3/us_eco_l3.shp") %>%
   mutate(US_L3CODE = as.numeric(US_L3CODE)) %>%
@@ -74,13 +79,6 @@ non_forest %>% ggplot() +
 
 
 auc_data %>%
-  filter(ecoregion_id == 23) %>%
-  pivot_longer(cols = c(AUC, AUC10, AUC20), names_to = "auc") %>%
-  ggplot() +
-  geom_line(aes(x = window, y = value, color = name)) +
-  facet_wrap(vars(cover, auc), scales = "free_y")
-
-auc_data %>%
   filter(ecoregion_id == 14) %>%
   slice_max(AUC)
 
@@ -90,10 +88,16 @@ auc_data %>%
   view()
 
 
-
 ### Best predictors for Middle Rockies
 mrockies_data <- auc_data %>%
-  filter(ecoregion_name == "middle_rockies")
+  filter(ecoregion_name == "mojave_basin_and_range")
+
+mrockies_data %>%
+  pivot_longer(cols = c(AUC, AUC10, AUC20), names_to = "auc") %>%
+  ggplot() +
+  geom_line(aes(x = window, y = value, color = name)) +
+  scale_color_manual(values = color_palette) +
+  facet_wrap(vars(cover, auc), scales = "free_y")
 
 mrockies_data %>%
   pivot_longer(cols = c(AUC, AUC10, AUC20), names_to = "auc") %>%
@@ -104,10 +108,10 @@ mrockies_data %>%
 
 ### find best window for VPD for forest and non-forest to use with raw gridmet grids for POC. We can't use water balance yet because need to generate new grids each day. TODO?
 mrockies_data %>%
-  filter(name == "VPD") %>%
+  filter(name != "CWD") %>%
   filter(cover == "forest") %>%
-  arrange(desc(AUC)) %>%
-  print(n = 50)
+  arrange(desc(AUC10)) %>%
+  print(n = 10)
 
 ## # A tibble: 31 × 8
 ##    name    AUC  AUC10 AUC20 window ecoregion_id ecoregion_name cover
@@ -126,10 +130,10 @@ mrockies_data %>%
 ## # ℹ Use `print(n = ...)` to see more rows
 
 mrockies_data %>%
-  filter(name == "VPD") %>%
+  filter(name != "CWD", name != "PET") %>%
   filter(cover == "non_forest") %>%
-  arrange(desc(AUC)) %>%
-  print(n = 50)
+  arrange(desc(AUC10)) %>%
+  print(n = 10)
 
 ## # A tibble: 31 × 8
 ##    name    AUC  AUC10 AUC20 window ecoregion_id ecoregion_name cover

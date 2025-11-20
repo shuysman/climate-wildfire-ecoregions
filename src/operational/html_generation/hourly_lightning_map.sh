@@ -73,9 +73,9 @@ else
 fi
 
 # Run the R script to generate the map (pass ecoregion as 4th argument)
-Rscript ./src/map_lightning.R "$COG_TO_USE" "$FORECAST_STATUS" "$TODAY" "$ECOREGION_NAME_CLEAN"
+Rscript ./src/operational/visualization/map_lightning.R "$COG_TO_USE" "$FORECAST_STATUS" "$TODAY" "$ECOREGION_NAME_CLEAN"
 
-./src/generate_daily_html.sh "${ECOREGION_NAME_CLEAN}"
+./src/operational/html_generation/generate_daily_html.sh "${ECOREGION_NAME_CLEAN}"
 
 if [ "${ENVIRONMENT}" = "cloud" ]; then
   echo "--- Running in cloud mode: Syncing specific HTML outputs to S3 ---"
