@@ -4,7 +4,8 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-PROJECT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")"/.. &> /dev/null && pwd)
+# Get the project directory (go up 3 levels: html_generation -> operational -> src -> project_root)
+PROJECT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")"/../../../ &> /dev/null && pwd)
 cd "$PROJECT_DIR"
 
 TODAY=$(date +%Y-%m-%d)

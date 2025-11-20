@@ -17,8 +17,8 @@ fi
 
 VARIABLE=$1
 
-# Get the project directory
-PROJECT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")"/.. &> /dev/null && pwd)
+# Get the project directory (go up 3 levels: data_update -> operational -> src -> project_root)
+PROJECT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")"/../../../ &> /dev/null && pwd)
 
 # --- S3 Pre-flight (only in cloud mode) ---
 if [ "${ENVIRONMENT:-local}" = "cloud" ]; then

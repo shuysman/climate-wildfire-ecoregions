@@ -5,11 +5,11 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-# Get ecoregion from parameter or use default
-ECOREGION=${1:-middle_rockies}
+# Get ecoregion from parameter, environment variable, or use default
+ECOREGION=${1:-${ECOREGION:-middle_rockies}}
 
-# Get the project directory
-PROJECT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")"/.. &> /dev/null && pwd)
+# Get the project directory (go up 3 levels: html_generation -> operational -> src -> project_root)
+PROJECT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")"/../../../ &> /dev/null && pwd)
 
 # Define dates
 TODAY=$(date +%Y-%m-%d)
@@ -127,7 +127,7 @@ ECOREGION_OUT_DIR="$PROJECT_DIR/out/forecasts/$ECOREGION"
 TODAY_DIR="$ECOREGION_OUT_DIR/$TODAY"
 YESTERDAY_DIR="$ECOREGION_OUT_DIR/$YESTERDAY"
 
-TEMPLATE_FILE="$PROJECT_DIR/src/daily_forecast.template.html"
+TEMPLATE_FILE="$PROJECT_DIR/src/operational/html_generation/daily_forecast.template.html"
 OUTPUT_FILE="$ECOREGION_OUT_DIR/daily_forecast.html"
 
 # --- Check for forecast map (today or yesterday fallback) ---
