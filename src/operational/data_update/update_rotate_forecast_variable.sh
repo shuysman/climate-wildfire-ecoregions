@@ -87,6 +87,54 @@ uses_ensemble_format() {
   fi
 }
 
+# Function to validate that the forecast file contains current data
+# Returns 0 if forecast starts today or tomorrow, 1 if stale
+validate_forecast_date() {
+  local nc_file=$1
+
+  if ! command -v ncdump &> /dev/null; then
+    log "WARNING: ncdump not found, skipping date validation"
+    return 0
+  fi
+
+  # Extract the first day value from the NetCDF file
+  # The 'day' variable contains days since 1900-01-01
+  # Note: ncdump outputs "day = N ;" for dimension size and " day = 45980, ..." for data values
+  # We need the data line which contains 5-digit numbers (days since 1900 are ~45000+)
+  local first_day
+  first_day=$(ncdump -v day "$nc_file" 2>/dev/null | grep -oE "day = [0-9]{5}" | head -1 | grep -oE "[0-9]{5}")
+
+  if [ -z "$first_day" ]; then
+    log "WARNING: Could not extract date from $nc_file, skipping date validation"
+    return 0
+  fi
+
+  # Convert days since 1900-01-01 to date string
+  local forecast_date
+  forecast_date=$(date -d "1900-01-01 + ${first_day} days" +%Y-%m-%d 2>/dev/null)
+
+  if [ -z "$forecast_date" ]; then
+    log "WARNING: Could not convert day value $first_day to date, skipping validation"
+    return 0
+  fi
+
+  local today
+  local tomorrow
+  today=$(date +%Y-%m-%d)
+  tomorrow=$(date -d "tomorrow" +%Y-%m-%d)
+
+  log "Forecast file starts on: $forecast_date (today: $today, tomorrow: $tomorrow)"
+
+  if [[ "$forecast_date" == "$today" ]] || [[ "$forecast_date" == "$tomorrow" ]]; then
+    log "✓ Forecast date is current"
+    return 0
+  else
+    log "ERROR: Forecast is stale! File contains data starting $forecast_date but expected $today or $tomorrow"
+    log "ERROR: The upstream data provider has not yet published today's forecast."
+    return 1
+  fi
+}
+
 # Function to download and average ensemble members for a given day
 download_ensemble_average() {
   local day=$1
@@ -170,6 +218,12 @@ if uses_ensemble_format "$VARIABLE"; then
     # Download and create ensemble mean for day 0 (today)
     if download_ensemble_average 0 "$TODAY_FILENAME"; then
       log "Day 0 ensemble mean created successfully."
+      # Validate that the downloaded data is current
+      if ! validate_forecast_date "$TODAY_FILENAME"; then
+        log "ERROR: Downloaded forecast data is stale. Removing file."
+        rm -f "$TODAY_FILENAME"
+        exit 1
+      fi
     else
       log "ERROR: Day 0 ensemble download failed."
       exit 1
@@ -204,6 +258,12 @@ if uses_ensemble_format "$VARIABLE"; then
   # Download and create new ensemble mean
   if ! download_ensemble_average 0 "$TEMP_FILENAME"; then
     log "ERROR: Failed to download new ensemble data. Keeping existing forecast."
+    exit 1
+  fi
+
+  # Validate that the downloaded data is current before proceeding
+  if ! validate_forecast_date "$TEMP_FILENAME"; then
+    log "ERROR: Downloaded forecast data is stale. Not updating."
     exit 1
   fi
 
@@ -248,6 +308,13 @@ else
     log "No existing forecast file. Downloading for the first time."
     if wget -q "$FORECAST_URL" -O "$TODAY_FILENAME"; then
       log "Initial download successful."
+      # Validate that the downloaded data is current
+      if ! validate_forecast_date "$TODAY_FILENAME"; then
+        log "ERROR: Downloaded forecast data is stale. Removing file."
+        rm -f "$TODAY_FILENAME"
+        exit 1
+      fi
+      SUCCESS=true
       exit 0
     else
       log "ERROR: Initial download failed."
@@ -265,6 +332,12 @@ else
   # Download the new file to a temporary location
   if ! wget -q "$FORECAST_URL" -O "$TEMP_FILENAME"; then
     log "ERROR: Download failed. Keeping existing forecast."
+    exit 1
+  fi
+
+  # Validate that the downloaded data is current before proceeding
+  if ! validate_forecast_date "$TEMP_FILENAME"; then
+    log "ERROR: Downloaded forecast data is stale. Not updating."
     exit 1
   fi
 
