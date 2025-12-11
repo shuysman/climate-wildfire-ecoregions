@@ -368,11 +368,11 @@ optimal_windows %>%
   geom_tile() +
   geom_point(data = . %>% filter(is_optimal),
              aes(x = window, y = name),
-             shape = 8, size = 2, color = "white") +
+             shape = 21, size = 2, color = "black", fill = "white") +
   scale_fill_viridis_c(option = "magma") +
   labs(
     title = "AUC by Predictor and Rolling Window",
-    subtitle = "Stars indicate optimal window for each predictor",
+    subtitle = "Dots indicate optimal window for each predictor",
     x = "Rolling Window (days)",
     y = "Predictor",
     fill = "Mean AUC"
@@ -403,11 +403,11 @@ optimal_windows_pauc10 %>%
   geom_tile() +
   geom_point(data = . %>% filter(is_optimal),
              aes(x = window, y = name),
-             shape = 8, size = 2, color = "white") +
-  scale_fill_viridis_c(option = "magma") +
+             shape = 21, size = 2, color = "black", fill = "white") +
+             scale_fill_viridis_c(option = "magma") +
   labs(
     title = "pAUC10 by Predictor and Rolling Window",
-    subtitle = "Stars indicate optimal window for each predictor (optimizing for low FPR)",
+    subtitle = "Dots indicate optimal window for each predictor (optimizing for low FPR)",
     x = "Rolling Window (days)",
     y = "Predictor",
     fill = "Mean pAUC10"
