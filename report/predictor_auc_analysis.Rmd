@@ -1,0 +1,1233 @@
+---
+title: "AUC Analysis: Predictors and Rolling Windows Across Ecoregions"
+author: "Wildfire Forecasting Analysis"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    code_folding: hide
+    theme: flatly
+    fig_width: 10
+    fig_height: 7
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.align = "center",
+  fig.path = "predictor_auc_analysis_files/figures/"
+)
+
+# Create figure directory if it doesn't exist
+if (!dir.exists("predictor_auc_analysis_files/figures")) {
+  dir.create("predictor_auc_analysis_files/figures", recursive = TRUE)
+}
+
+library(tidyverse)
+library(viridis)
+library(patchwork)
+library(scales)
+library(ggridges)
+library(corrplot)
+library(terra)
+library(tidyterra)
+library(RColorBrewer)
+```
+
+# Overview
+
+This analysis examines the relationships between fire danger predictors, rolling window sizes, and AUC performance metrics across US EPA Level III ecoregions. The goal is to identify patterns in optimal predictor selection and understand how rolling window size affects predictive power.
+
+**Key metrics:**
+
+- **AUC**: Full area under the ROC curve (0-1)
+- **AUC10 (pAUC)**: Partial AUC at 10% false positive rate - emphasizes performance at low FPR
+- **AUC20 (pAUC)**: Partial AUC at 20% false positive rate
+
+```{r load-data}
+auc_data <- read_csv("./out/auc_data.csv") %>%
+  mutate(
+    cover = factor(cover, levels = c("forest", "non_forest")),
+    name = factor(name)
+  )
+
+# Summary statistics
+n_predictors <- n_distinct(auc_data$name)
+n_windows <- n_distinct(auc_data$window)
+n_ecoregions <- n_distinct(auc_data$ecoregion_name)
+n_obs <- nrow(auc_data)
+
+cat(sprintf("Dataset: %s observations\n", format(n_obs, big.mark = ",")))
+cat(sprintf("- %d predictors\n", n_predictors))
+cat(sprintf("- %d rolling windows (1-31 days)\n", n_windows))
+cat(sprintf("- %d ecoregions\n", n_ecoregions))
+cat(sprintf("- 2 cover types (forest, non_forest)\n"))
+```
+
+---
+
+# 1. Geographic Distribution of Best Predictors
+
+These maps show the optimal predictor for each EPA Level III ecoregion, separately for forest and non-forest cover types.
+
+```{r load-spatial-data}
+# Load ecoregion shapefile
+ecoregions <- vect("./data/us_eco_l3/us_eco_l3.shp") %>%
+  mutate(US_L3CODE = as.numeric(US_L3CODE))
+
+# Find best predictor for each ecoregion-cover combination
+best_predictors_map <- auc_data %>%
+  group_by(ecoregion_id, ecoregion_name, cover) %>%
+  slice_max(AUC, n = 1) %>%
+  select(ecoregion_id, ecoregion_name, cover, var = name, AUC, window) %>%
+  ungroup()
+
+# Join to ecoregions
+ecoregions_with_predictors <- ecoregions %>%
+  left_join(best_predictors_map, by = c("US_L3CODE" = "ecoregion_id"))
+
+forest <- filter(ecoregions_with_predictors, cover == "forest")
+non_forest <- filter(ecoregions_with_predictors, cover == "non_forest")
+```
+
+## 1.1 Best Predictors by Ecoregion
+
+```{r map-predictors, fig.height=6, fig.width=14}
+p1 <- ggplot() +
+  geom_spatvector(data = ecoregions, fill = "gray90", color = "gray70", linewidth = 0.1) +
+  geom_spatvector(data = forest, aes(fill = var), color = "gray40", linewidth = 0.2) +
+  scale_fill_brewer(palette = "Set3", na.value = "gray90") +
+  labs(title = "Forest") +
+  theme_void() +
+  theme(legend.position = "none")
+
+p2 <- ggplot() +
+  geom_spatvector(data = ecoregions, fill = "gray90", color = "gray70", linewidth = 0.1) +
+  geom_spatvector(data = non_forest, aes(fill = var), color = "gray40", linewidth = 0.2) +
+  scale_fill_brewer(palette = "Set3", na.value = "gray90") +
+  labs(title = "Non-Forest", fill = "Predictor") +
+  theme_void() +
+  theme(legend.position = "bottom") +
+  guides(fill = guide_legend(nrow = 2, title.position = "top"))
+
+p1 + p2 +
+  plot_annotation(
+    title = "Best Fire Danger Predictors by Cover Type",
+    subtitle = "Based on maximum AUC across all rolling windows"
+  )
+```
+
+## 1.2 Optimal Rolling Window by Ecoregion
+
+```{r map-window, fig.height=6, fig.width=14}
+# Get common window range for consistent color scale
+window_range <- range(c(forest$window, non_forest$window), na.rm = TRUE)
+
+p1 <- ggplot() +
+  geom_spatvector(data = ecoregions, fill = "gray90", color = "gray70", linewidth = 0.1) +
+  geom_spatvector(data = forest, aes(fill = window), color = "gray40", linewidth = 0.2) +
+  scale_fill_viridis_c(option = "plasma", na.value = "gray90", limits = window_range) +
+  labs(title = "Forest") +
+  theme_void() +
+  theme(legend.position = "none")
+
+p2 <- ggplot() +
+  geom_spatvector(data = ecoregions, fill = "gray90", color = "gray70", linewidth = 0.1) +
+  geom_spatvector(data = non_forest, aes(fill = window), color = "gray40", linewidth = 0.2) +
+  scale_fill_viridis_c(option = "plasma", na.value = "gray90", limits = window_range) +
+  labs(title = "Non-Forest", fill = "Window (days)") +
+  theme_void() +
+  theme(legend.position = "bottom")
+
+p1 + p2 +
+  plot_annotation(
+    title = "Optimal Rolling Window by Cover Type",
+    subtitle = "Window size (days) for best predictor in each ecoregion"
+  )
+```
+
+## 1.3 Maximum AUC by Ecoregion
+
+```{r map-auc, fig.height=6, fig.width=14}
+p1 <- ggplot() +
+  geom_spatvector(data = ecoregions, fill = "gray90", color = "gray70", linewidth = 0.1) +
+  geom_spatvector(data = forest, aes(fill = AUC), color = "gray40", linewidth = 0.2) +
+  scale_fill_viridis_c(option = "magma", na.value = "gray90", limits = c(0.5, 1)) +
+  labs(title = "Forest") +
+  theme_void() +
+  theme(legend.position = "none")
+
+p2 <- ggplot() +
+  geom_spatvector(data = ecoregions, fill = "gray90", color = "gray70", linewidth = 0.1) +
+  geom_spatvector(data = non_forest, aes(fill = AUC), color = "gray40", linewidth = 0.2) +
+  scale_fill_viridis_c(option = "magma", na.value = "gray90", limits = c(0.5, 1)) +
+  labs(title = "Non-Forest", fill = "Max AUC") +
+  theme_void() +
+  theme(legend.position = "bottom")
+
+p1 + p2 +
+  plot_annotation(
+    title = "Maximum AUC by Cover Type",
+    subtitle = "Predictability of fire danger varies by region"
+  )
+```
+
+---
+
+# 2. Predictor Performance Overview
+
+## 2.1 AUC Distribution by Predictor
+
+```{r predictor-boxplot, fig.height=8}
+# Order predictors by median AUC
+predictor_order <- auc_data %>%
+  group_by(name) %>%
+  summarise(median_auc = median(AUC)) %>%
+  arrange(desc(median_auc)) %>%
+  pull(name)
+
+auc_data %>%
+  mutate(name = factor(name, levels = predictor_order)) %>%
+  ggplot(aes(x = name, y = AUC, fill = name)) +
+  geom_boxplot(alpha = 0.7, outlier.size = 0.5) +
+  scale_fill_viridis_d(option = "turbo") +
+  labs(
+    title = "AUC Distribution by Predictor",
+    subtitle = "Across all ecoregions, windows, and cover types",
+    x = "Predictor",
+    y = "AUC"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "none"
+  ) +
+  geom_hline(yintercept = 0.5, linetype = "dashed", color = "red", alpha = 0.5)
+```
+
+## 2.2 Predictor Performance by Cover Type
+
+```{r predictor-cover-comparison, fig.height=8}
+auc_data %>%
+  mutate(name = factor(name, levels = predictor_order)) %>%
+  ggplot(aes(x = name, y = AUC, fill = cover)) +
+  geom_boxplot(alpha = 0.7, outlier.size = 0.5) +
+  scale_fill_manual(values = c("forest" = "#228B22", "non_forest" = "#DAA520")) +
+  labs(
+    title = "AUC by Predictor and Cover Type",
+    subtitle = "Forest vs. Non-forest performance comparison",
+    x = "Predictor",
+    y = "AUC",
+    fill = "Cover Type"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+## 2.3 pAUC10 Performance by Cover Type
+
+This figure mirrors 2.2 but uses partial AUC at 10% false positive rate, emphasizing predictor performance under high fire danger conditions where false alarms are most costly.
+
+```{r predictor-cover-pauc10, fig.height=8}
+# Order predictors by median pAUC10
+predictor_order_pauc10 <- auc_data %>%
+  group_by(name) %>%
+  summarise(median_pauc10 = median(AUC10)) %>%
+  arrange(desc(median_pauc10)) %>%
+  pull(name)
+
+auc_data %>%
+  mutate(name = factor(name, levels = predictor_order_pauc10)) %>%
+  ggplot(aes(x = name, y = AUC10, fill = cover)) +
+  geom_boxplot(alpha = 0.7, outlier.size = 0.5) +
+  scale_fill_manual(values = c("forest" = "#228B22", "non_forest" = "#DAA520")) +
+  labs(
+    title = "pAUC10 by Predictor and Cover Type",
+    subtitle = "Performance at low false positive rates (high fire danger detection)",
+    x = "Predictor",
+    y = "pAUC10",
+    fill = "Cover Type"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  geom_hline(yintercept = 0.005, linetype = "dashed", color = "red", alpha = 0.5)
+```
+
+**Key observation**: If predictor rankings remain similar between AUC (Fig 2.2) and pAUC10 (Fig 2.3), this simplifies operational decisions—a good overall predictor is also good for detecting extreme conditions.
+
+## 2.4 Top Predictors Summary Table
+
+```{r top-predictors-table}
+auc_data %>%
+  group_by(name) %>%
+  summarise(
+    mean_AUC = mean(AUC),
+    sd_AUC = sd(AUC),
+    median_AUC = median(AUC),
+    max_AUC = max(AUC),
+    mean_pAUC10 = mean(AUC10),
+    mean_pAUC20 = mean(AUC20),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(mean_AUC)) %>%
+  mutate(across(where(is.numeric), ~round(., 4))) %>%
+  knitr::kable(
+    caption = "Predictor Performance Summary (ordered by mean AUC)",
+    col.names = c("Predictor", "Mean AUC", "SD", "Median", "Max", "Mean pAUC10", "Mean pAUC20")
+  )
+```
+
+---
+
+# 3. Rolling Window Analysis
+
+## 3.1 AUC vs Rolling Window Size
+
+```{r window-effect-overall, fig.height=6}
+window_summary <- auc_data %>%
+  group_by(window) %>%
+  summarise(
+    mean_AUC = mean(AUC),
+    se_AUC = sd(AUC) / sqrt(n()),
+    median_AUC = median(AUC),
+    .groups = "drop"
+  )
+
+ggplot(window_summary, aes(x = window)) +
+  geom_ribbon(aes(ymin = mean_AUC - 1.96*se_AUC, ymax = mean_AUC + 1.96*se_AUC),
+              alpha = 0.2, fill = "steelblue") +
+  geom_line(aes(y = mean_AUC), color = "steelblue", size = 1) +
+  geom_point(aes(y = mean_AUC), color = "steelblue", size = 2) +
+  labs(
+    title = "Effect of Rolling Window Size on AUC",
+    subtitle = "Mean AUC across all predictors and ecoregions (95% CI)",
+    x = "Rolling Window (days)",
+    y = "Mean AUC"
+  ) +
+  theme_minimal() +
+  scale_x_continuous(breaks = seq(1, 31, by = 5))
+```
+
+## 3.2 Rolling Window Effect by Predictor
+
+```{r window-by-predictor, fig.height=10, fig.width=12}
+# Select top predictors for clearer visualization
+top_predictors <- auc_data %>%
+  group_by(name) %>%
+  summarise(mean_auc = mean(AUC)) %>%
+  top_n(8, mean_auc) %>%
+  pull(name)
+
+auc_data %>%
+  filter(name %in% top_predictors) %>%
+  group_by(name, window) %>%
+  summarise(
+    mean_AUC = mean(AUC),
+    se_AUC = sd(AUC) / sqrt(n()),
+    .groups = "drop"
+  ) %>%
+  ggplot(aes(x = window, y = mean_AUC, color = name)) +
+  geom_ribbon(aes(ymin = mean_AUC - se_AUC, ymax = mean_AUC + se_AUC, fill = name),
+              alpha = 0.1, color = NA) +
+  geom_line(size = 1) +
+  scale_color_viridis_d(option = "turbo") +
+  scale_fill_viridis_d(option = "turbo") +
+  labs(
+    title = "Rolling Window Effect by Top Predictors",
+    subtitle = "Mean AUC ± SE across ecoregions",
+    x = "Rolling Window (days)",
+    y = "Mean AUC",
+    color = "Predictor",
+    fill = "Predictor"
+  ) +
+  theme_minimal() +
+  scale_x_continuous(breaks = seq(1, 31, by = 5))
+```
+
+## 3.3 Optimal Window by Predictor
+
+```{r optimal-window-heatmap, fig.height=8, fig.width=10}
+optimal_windows <- auc_data %>%
+  group_by(name, window) %>%
+  summarise(mean_AUC = mean(AUC), .groups = "drop") %>%
+  group_by(name) %>%
+  mutate(
+    max_auc = max(mean_AUC),
+    is_optimal = mean_AUC == max_auc
+  ) %>%
+  ungroup()
+
+# Heatmap
+optimal_windows %>%
+  mutate(name = factor(name, levels = rev(predictor_order))) %>%
+  ggplot(aes(x = window, y = name, fill = mean_AUC)) +
+  geom_tile() +
+  geom_point(data = . %>% filter(is_optimal),
+             aes(x = window, y = name),
+             shape = 8, size = 2, color = "white") +
+  scale_fill_viridis_c(option = "magma") +
+  labs(
+    title = "AUC by Predictor and Rolling Window",
+    subtitle = "Stars indicate optimal window for each predictor",
+    x = "Rolling Window (days)",
+    y = "Predictor",
+    fill = "Mean AUC"
+  ) +
+  theme_minimal() +
+  scale_x_continuous(breaks = seq(1, 31, by = 5))
+```
+
+## 3.4 Optimal Window by Predictor (pAUC10)
+
+Same analysis as 3.3 but optimizing for performance at low false positive rates.
+
+```{r optimal-window-heatmap-pauc10, fig.height=8, fig.width=10}
+optimal_windows_pauc10 <- auc_data %>%
+  group_by(name, window) %>%
+  summarise(mean_pAUC10 = mean(AUC10), .groups = "drop") %>%
+  group_by(name) %>%
+  mutate(
+    max_pauc10 = max(mean_pAUC10),
+    is_optimal = mean_pAUC10 == max_pauc10
+  ) %>%
+  ungroup()
+
+# Heatmap
+optimal_windows_pauc10 %>%
+  mutate(name = factor(name, levels = rev(predictor_order_pauc10))) %>%
+  ggplot(aes(x = window, y = name, fill = mean_pAUC10)) +
+  geom_tile() +
+  geom_point(data = . %>% filter(is_optimal),
+             aes(x = window, y = name),
+             shape = 8, size = 2, color = "white") +
+  scale_fill_viridis_c(option = "magma") +
+  labs(
+    title = "pAUC10 by Predictor and Rolling Window",
+    subtitle = "Stars indicate optimal window for each predictor (optimizing for low FPR)",
+    x = "Rolling Window (days)",
+    y = "Predictor",
+    fill = "Mean pAUC10"
+  ) +
+  theme_minimal() +
+  scale_x_continuous(breaks = seq(1, 31, by = 5))
+```
+
+**Comparison with Fig 3.3**: Do optimal windows shift when optimizing for extreme event detection? If optimal windows are similar between AUC and pAUC10, this further supports the finding that good predictors perform well across all fire danger levels.
+
+## 3.5 Distribution of Optimal Windows
+
+```{r optimal-window-dist, fig.height=5}
+# Find optimal window for each predictor-ecoregion-cover combination
+optimal_per_combination <- auc_data %>%
+  group_by(name, ecoregion_name, cover) %>%
+  slice_max(AUC, n = 1) %>%
+  ungroup()
+
+ggplot(optimal_per_combination, aes(x = window)) +
+  geom_histogram(binwidth = 1, fill = "steelblue", alpha = 0.7, color = "white") +
+  labs(
+    title = "Distribution of Optimal Rolling Windows",
+    subtitle = "Across all predictor-ecoregion-cover combinations",
+    x = "Optimal Rolling Window (days)",
+    y = "Count"
+  ) +
+  theme_minimal() +
+  scale_x_continuous(breaks = seq(1, 31, by = 5))
+```
+
+---
+
+# 4. Partial AUC (pAUC) Analysis
+
+Partial AUC emphasizes performance at low false positive rates, which is critical for operational forecasting where false alarms are costly.
+
+## 4.1 Full AUC vs pAUC Comparison
+
+```{r auc-pauc-scatter, fig.height=6}
+auc_data %>%
+  sample_frac(0.3) %>%  # Sample for clarity
+  ggplot(aes(x = AUC, y = AUC10, color = name)) +
+  geom_point(alpha = 0.3, size = 1) +
+  geom_abline(slope = 0.1, intercept = 0, linetype = "dashed", color = "gray50") +
+  scale_color_viridis_d(option = "turbo") +
+  labs(
+    title = "Full AUC vs Partial AUC (10% FPR)",
+    subtitle = "Dashed line shows theoretical maximum pAUC10 = 0.1 × AUC",
+    x = "AUC",
+    y = "pAUC10"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom") +
+  guides(color = guide_legend(nrow = 2))
+```
+
+## 4.2 pAUC Distribution by Predictor
+
+```{r pauc-ridgeplot, fig.height=10}
+auc_data %>%
+  mutate(name = factor(name, levels = predictor_order)) %>%
+  ggplot(aes(x = AUC10, y = name, fill = stat(x))) +
+  geom_density_ridges_gradient(scale = 2, rel_min_height = 0.01) +
+  scale_fill_viridis_c(option = "plasma") +
+  labs(
+    title = "pAUC10 Distribution by Predictor",
+    subtitle = "Higher values indicate better performance at low false positive rates",
+    x = "pAUC10",
+    y = "Predictor",
+    fill = "pAUC10"
+  ) +
+  theme_minimal()
+```
+
+## 4.3 pAUC vs Window Size
+
+```{r pauc-window, fig.height=6}
+auc_data %>%
+  filter(name %in% top_predictors) %>%
+  group_by(name, window) %>%
+  summarise(
+    mean_pAUC10 = mean(AUC10),
+    mean_pAUC20 = mean(AUC20),
+    .groups = "drop"
+  ) %>%
+  pivot_longer(
+    cols = starts_with("mean_pAUC"),
+    names_to = "metric",
+    values_to = "value"
+  ) %>%
+  mutate(metric = str_replace(metric, "mean_", "")) %>%
+  ggplot(aes(x = window, y = value, color = name, linetype = metric)) +
+  geom_line(size = 0.8) +
+  scale_color_viridis_d(option = "turbo") +
+  facet_wrap(~metric, scales = "free_y", ncol = 1) +
+  labs(
+    title = "Partial AUC vs Rolling Window",
+    subtitle = "Top predictors: pAUC10 and pAUC20",
+    x = "Rolling Window (days)",
+    y = "Mean pAUC",
+    color = "Predictor"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom") +
+  guides(linetype = "none", color = guide_legend(nrow = 2))
+```
+
+## 4.4 AUC vs pAUC: Do Rankings Change?
+
+A critical question for operational forecasting: do the best predictors change when we emphasize performance at low false positive rates?
+
+```{r auc-vs-pauc-rankings, fig.height=8, fig.width=10}
+# Compare best predictor by AUC vs pAUC10
+best_by_auc <- auc_data %>%
+  group_by(ecoregion_name, cover) %>%
+  arrange(desc(AUC), name) %>%
+  slice_head(n = 1) %>%
+  ungroup() %>%
+  select(ecoregion_name, cover, best_AUC = name, AUC_value = AUC)
+
+best_by_pauc10 <- auc_data %>%
+  group_by(ecoregion_name, cover) %>%
+  arrange(desc(AUC10), name) %>%
+  slice_head(n = 1) %>%
+  ungroup() %>%
+  select(ecoregion_name, cover, best_pAUC10 = name, pAUC10_value = AUC10)
+
+ranking_comparison <- best_by_auc %>%
+  left_join(best_by_pauc10, by = c("ecoregion_name", "cover")) %>%
+  mutate(
+    same_predictor = best_AUC == best_pAUC10,
+    status = if_else(same_predictor, "Same", "Different")
+  )
+
+# Summary of changes
+change_summary <- ranking_comparison %>%
+  count(status) %>%
+  mutate(pct = n / sum(n) * 100)
+
+p1 <- ggplot(change_summary, aes(x = status, y = pct, fill = status)) +
+  geom_col(alpha = 0.8) +
+  geom_text(aes(label = sprintf("%.0f%%\n(n=%d)", pct, n)), vjust = -0.5) +
+  scale_fill_manual(values = c("Same" = "#4DAF4A", "Different" = "#E41A1C")) +
+  labs(
+    title = "Do Best Predictors Change with pAUC?",
+    subtitle = "AUC vs pAUC10 optimal predictor comparison",
+    x = "",
+    y = "% of Ecoregion-Cover Combinations"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  ylim(0, 100)
+
+# When they differ, what changes?
+changes_detail <- ranking_comparison %>%
+  filter(!same_predictor) %>%
+  count(best_AUC, best_pAUC10) %>%
+  arrange(desc(n))
+
+p2 <- changes_detail %>%
+  head(10) %>%
+  mutate(change = paste(best_AUC, "→", best_pAUC10)) %>%
+  ggplot(aes(x = reorder(change, n), y = n)) +
+  geom_col(fill = "#E41A1C", alpha = 0.7) +
+  coord_flip() +
+  labs(
+    title = "Most Common Predictor Switches",
+    subtitle = "When pAUC10 selects a different predictor than AUC",
+    x = "",
+    y = "Count"
+  ) +
+  theme_minimal()
+
+p1 + p2
+```
+
+## 4.5 Best Predictors by pAUC10
+
+```{r map-pauc-predictors, fig.height=6, fig.width=14}
+# Get best predictor by pAUC10 for mapping
+best_pauc_map <- auc_data %>%
+  group_by(ecoregion_id, ecoregion_name, cover) %>%
+  arrange(desc(AUC10), name) %>%
+  slice_head(n = 1) %>%
+  select(ecoregion_id, cover, var_pauc = name, pAUC10 = AUC10, window) %>%
+  ungroup()
+
+ecoregions_pauc <- ecoregions %>%
+  left_join(best_pauc_map, by = c("US_L3CODE" = "ecoregion_id"))
+
+forest_pauc <- filter(ecoregions_pauc, cover == "forest")
+non_forest_pauc <- filter(ecoregions_pauc, cover == "non_forest")
+
+p1 <- ggplot() +
+  geom_spatvector(data = ecoregions, fill = "gray90", color = "gray70", linewidth = 0.1) +
+  geom_spatvector(data = forest_pauc, aes(fill = var_pauc), color = "gray40", linewidth = 0.2) +
+  scale_fill_brewer(palette = "Set3", na.value = "gray90") +
+  labs(title = "Forest") +
+  theme_void() +
+  theme(legend.position = "none")
+
+p2 <- ggplot() +
+  geom_spatvector(data = ecoregions, fill = "gray90", color = "gray70", linewidth = 0.1) +
+  geom_spatvector(data = non_forest_pauc, aes(fill = var_pauc), color = "gray40", linewidth = 0.2) +
+  scale_fill_brewer(palette = "Set3", na.value = "gray90") +
+  labs(title = "Non-Forest", fill = "Predictor") +
+  theme_void() +
+  theme(legend.position = "bottom") +
+  guides(fill = guide_legend(nrow = 2, title.position = "top"))
+
+p1 + p2 +
+  plot_annotation(
+    title = "Best Predictors by pAUC10 (Low False Positive Rate)",
+    subtitle = "Compare to AUC-based maps in Section 1 to see where rankings shift"
+  )
+```
+
+## 4.6 Optimal Rolling Window by pAUC10
+
+```{r map-pauc-window, fig.height=6, fig.width=14}
+# Get common window range for consistent color scale
+window_range_pauc <- range(c(forest_pauc$window, non_forest_pauc$window), na.rm = TRUE)
+
+p1 <- ggplot() +
+  geom_spatvector(data = ecoregions, fill = "gray90", color = "gray70", linewidth = 0.1) +
+  geom_spatvector(data = forest_pauc, aes(fill = window), color = "gray40", linewidth = 0.2) +
+  scale_fill_viridis_c(option = "plasma", na.value = "gray90", limits = window_range_pauc) +
+  labs(title = "Forest") +
+  theme_void() +
+  theme(legend.position = "none")
+
+p2 <- ggplot() +
+  geom_spatvector(data = ecoregions, fill = "gray90", color = "gray70", linewidth = 0.1) +
+  geom_spatvector(data = non_forest_pauc, aes(fill = window), color = "gray40", linewidth = 0.2) +
+  scale_fill_viridis_c(option = "plasma", na.value = "gray90", limits = window_range_pauc) +
+  labs(title = "Non-Forest", fill = "Window (days)") +
+  theme_void() +
+  theme(legend.position = "bottom")
+
+p1 + p2 +
+  plot_annotation(
+    title = "Optimal Rolling Window by pAUC10",
+    subtitle = "Window size (days) for best pAUC10 predictor in each ecoregion"
+  )
+```
+
+## 4.7 Maximum pAUC10 by Ecoregion
+
+```{r map-pauc-values, fig.height=6, fig.width=14}
+p1 <- ggplot() +
+  geom_spatvector(data = ecoregions, fill = "gray90", color = "gray70", linewidth = 0.1) +
+  geom_spatvector(data = forest_pauc, aes(fill = pAUC10), color = "gray40", linewidth = 0.2) +
+  scale_fill_viridis_c(option = "magma", na.value = "gray90") +
+  labs(title = "Forest") +
+  theme_void() +
+  theme(legend.position = "none")
+
+p2 <- ggplot() +
+  geom_spatvector(data = ecoregions, fill = "gray90", color = "gray70", linewidth = 0.1) +
+  geom_spatvector(data = non_forest_pauc, aes(fill = pAUC10), color = "gray40", linewidth = 0.2) +
+  scale_fill_viridis_c(option = "magma", na.value = "gray90") +
+  labs(title = "Non-Forest", fill = "Max pAUC10") +
+  theme_void() +
+  theme(legend.position = "bottom")
+
+p1 + p2 +
+  plot_annotation(
+    title = "Maximum pAUC10 by Cover Type",
+    subtitle = "Performance at low false positive rate varies by region"
+  )
+```
+
+## 4.8 Predictor Performance: AUC vs pAUC Rankings
+
+```{r predictor-ranking-shift, fig.height=7}
+# Calculate mean AUC and pAUC10 by predictor
+predictor_rankings <- auc_data %>%
+  group_by(name) %>%
+  summarise(
+    mean_AUC = mean(AUC),
+    mean_pAUC10 = mean(AUC10),
+    mean_pAUC20 = mean(AUC20),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    rank_AUC = rank(-mean_AUC),
+    rank_pAUC10 = rank(-mean_pAUC10),
+    rank_change = rank_AUC - rank_pAUC10
+  ) %>%
+  arrange(rank_AUC)
+
+# Slope graph showing rank changes
+predictor_rankings_long <- predictor_rankings %>%
+  select(name, rank_AUC, rank_pAUC10) %>%
+  pivot_longer(cols = starts_with("rank_"), names_to = "metric", values_to = "rank") %>%
+  mutate(metric = if_else(metric == "rank_AUC", "AUC", "pAUC10"))
+
+ggplot(predictor_rankings_long, aes(x = metric, y = rank, group = name)) +
+  geom_line(aes(color = name), size = 1, alpha = 0.7) +
+  geom_point(aes(color = name), size = 3) +
+  geom_text(data = . %>% filter(metric == "AUC"),
+            aes(label = name), hjust = 1.1, size = 3) +
+  geom_text(data = . %>% filter(metric == "pAUC10"),
+            aes(label = name), hjust = -0.1, size = 3) +
+  scale_y_reverse(breaks = 1:17) +
+  scale_x_discrete(expand = expansion(add = 1)) +
+  scale_color_viridis_d(option = "turbo") +
+  labs(
+    title = "Predictor Ranking Shifts: AUC vs pAUC10",
+    subtitle = "Lines show how predictor rankings change when emphasizing low FPR",
+    x = "",
+    y = "Rank (1 = best)"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    panel.grid.minor = element_blank()
+  )
+```
+
+## 4.9 Key pAUC Findings
+
+```{r pauc-summary}
+# Summarize key findings
+n_same <- sum(ranking_comparison$same_predictor)
+n_diff <- sum(!ranking_comparison$same_predictor)
+pct_same <- round(n_same / nrow(ranking_comparison) * 100, 1)
+
+# Which predictors gain/lose rank with pAUC?
+gainers <- predictor_rankings %>% filter(rank_change > 0) %>% arrange(desc(rank_change))
+losers <- predictor_rankings %>% filter(rank_change < 0) %>% arrange(rank_change)
+
+cat("### pAUC Analysis Summary\n\n")
+cat(sprintf("**Predictor stability:** %.1f%% of ecoregion-cover combinations have the same optimal predictor for both AUC and pAUC10.\n\n", pct_same))
+
+if(nrow(gainers) > 0) {
+  cat("**Predictors that improve with pAUC10** (better at low FPR):\n")
+  for(i in 1:min(3, nrow(gainers))) {
+    cat(sprintf("- %s: rank %d → %d\n", gainers$name[i], gainers$rank_AUC[i], gainers$rank_pAUC10[i]))
+  }
+}
+
+if(nrow(losers) > 0) {
+  cat("\n**Predictors that decline with pAUC10** (worse at low FPR):\n")
+  for(i in 1:min(3, nrow(losers))) {
+    cat(sprintf("- %s: rank %d → %d\n", losers$name[i], losers$rank_AUC[i], losers$rank_pAUC10[i]))
+  }
+}
+```
+
+**Interpretation:** Predictors that improve with pAUC10 are better at identifying the most extreme fire danger conditions with few false alarms. This is critical for:
+
+- **Evacuation decisions**: Need high confidence before costly/disruptive action
+- **Resource pre-positioning**: Don't want to mobilize crews unnecessarily
+- **Public warnings**: Credibility depends on low false alarm rate
+
+Predictors that decline with pAUC10 may be good at overall discrimination but produce more false positives at high sensitivity levels.
+
+---
+
+# 5. Ecoregion Patterns
+
+## 5.1 Best Predictors by Ecoregion
+
+```{r best-predictor-heatmap, fig.height=12, fig.width=10}
+# Find best predictor for each ecoregion-cover combination
+best_predictors <- auc_data %>%
+  group_by(ecoregion_name, cover) %>%
+  slice_max(AUC, n = 1) %>%
+  select(ecoregion_name, cover, name, AUC, window) %>%
+  ungroup()
+
+# Count of best predictor selections
+best_predictor_counts <- best_predictors %>%
+  count(name, cover) %>%
+  pivot_wider(names_from = cover, values_from = n, values_fill = 0)
+
+# Heatmap of best predictor by ecoregion
+best_predictors %>%
+  ggplot(aes(x = cover, y = reorder(ecoregion_name, AUC), fill = name)) +
+  geom_tile(color = "white", size = 0.5) +
+  geom_text(aes(label = sprintf("%.2f", AUC)), size = 2.5) +
+  scale_fill_viridis_d(option = "turbo") +
+  labs(
+    title = "Best Predictor by Ecoregion and Cover Type",
+    subtitle = "Numbers show maximum AUC achieved",
+    x = "Cover Type",
+    y = "Ecoregion",
+    fill = "Best Predictor"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.y = element_text(size = 7),
+    legend.position = "bottom"
+  ) +
+  guides(fill = guide_legend(nrow = 2))
+```
+
+## 5.2 Frequency of Best Predictor Selection
+
+```{r best-predictor-freq, fig.height=6}
+best_predictors %>%
+  count(name, cover) %>%
+  ggplot(aes(x = reorder(name, n), y = n, fill = cover)) +
+  geom_col(position = "dodge", alpha = 0.8) +
+  scale_fill_manual(values = c("forest" = "#228B22", "non_forest" = "#DAA520")) +
+  coord_flip() +
+  labs(
+    title = "Frequency of Best Predictor Selection",
+    subtitle = "Number of ecoregions where each predictor is optimal",
+    x = "Predictor",
+    y = "Count (ecoregions)",
+    fill = "Cover Type"
+  ) +
+  theme_minimal()
+```
+
+## 5.3 Ecoregion-Level AUC Variability
+
+```{r ecoregion-variability, fig.height=10}
+ecoregion_stats <- auc_data %>%
+  group_by(ecoregion_name) %>%
+  summarise(
+    max_AUC = max(AUC),
+    mean_AUC = mean(AUC),
+    sd_AUC = sd(AUC),
+    range_AUC = max(AUC) - min(AUC),
+    .groups = "drop"
+  )
+
+ggplot(ecoregion_stats, aes(x = reorder(ecoregion_name, max_AUC), y = max_AUC)) +
+  geom_segment(aes(xend = ecoregion_name, y = mean_AUC - sd_AUC, yend = mean_AUC + sd_AUC),
+               color = "gray70", size = 1) +
+  geom_point(color = "steelblue", size = 3) +
+  geom_point(aes(y = mean_AUC), color = "coral", size = 2, shape = 18) +
+  coord_flip() +
+  labs(
+    title = "AUC Performance by Ecoregion",
+    subtitle = "Blue: max AUC, Orange: mean, Error bars: ±1 SD",
+    x = "Ecoregion",
+    y = "AUC"
+  ) +
+  theme_minimal() +
+  theme(axis.text.y = element_text(size = 7))
+```
+
+---
+
+# 6. Predictor Correlations
+
+## 6.1 Correlation Between Predictor AUCs
+
+```{r predictor-correlation, fig.height=8, fig.width=8}
+# Pivot to wide format for correlation
+auc_wide <- auc_data %>%
+  select(ecoregion_name, cover, window, name, AUC) %>%
+  pivot_wider(names_from = name, values_from = AUC)
+
+# Calculate correlation matrix
+cor_matrix <- auc_wide %>%
+  select(-ecoregion_name, -cover, -window) %>%
+  cor(use = "complete.obs")
+
+# Plot correlation matrix
+corrplot(
+  cor_matrix,
+  method = "color",
+  type = "upper",
+  order = "hclust",
+  tl.col = "black",
+  tl.srt = 45,
+  addCoef.col = "black",
+  number.cex = 0.6,
+  title = "Correlation Between Predictor AUCs",
+  mar = c(0, 0, 2, 0)
+)
+```
+
+## 6.2 Predictor Clustering
+
+```{r predictor-clustering, fig.height=6}
+# Hierarchical clustering of predictors
+hc <- hclust(as.dist(1 - cor_matrix), method = "ward.D2")
+plot(hc, main = "Hierarchical Clustering of Predictors (by AUC correlation)",
+     xlab = "", sub = "")
+```
+
+---
+
+# 7. Regional Patterns
+
+## 7.1 Geographic Clusters of Optimal Predictors
+
+```{r regional-patterns, fig.height=8}
+# Identify dominant predictors by region (simplified)
+regional_summary <- best_predictors %>%
+  mutate(
+    region = case_when(
+      str_detect(ecoregion_name, "rockies|mountains|cascades|sierra|batholith") ~ "Mountain",
+      str_detect(ecoregion_name, "basin|plateau|plains|desert") ~ "Basin/Plains",
+      str_detect(ecoregion_name, "coastal|ridge|valley") ~ "Coastal/Valley",
+      str_detect(ecoregion_name, "forest|range") ~ "Forest/Range",
+      TRUE ~ "Other"
+    )
+  )
+
+regional_summary %>%
+  count(region, name, cover) %>%
+  ggplot(aes(x = name, y = n, fill = cover)) +
+  geom_col(position = "dodge", alpha = 0.8) +
+  scale_fill_manual(values = c("forest" = "#228B22", "non_forest" = "#DAA520")) +
+  facet_wrap(~region, scales = "free_y") +
+  labs(
+    title = "Optimal Predictor by Region Type",
+    subtitle = "Regional clustering of ecoregions",
+    x = "Predictor",
+    y = "Count",
+    fill = "Cover Type"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+## 7.2 Window Size Patterns by Predictor Type
+
+```{r window-patterns, fig.height=6}
+# Group predictors by type
+predictor_groups <- tribble(
+  ~name, ~group,
+  "VPD", "Atmospheric",
+  "PET", "Atmospheric",
+  "FM100", "Fuel Moisture",
+  "FM1000", "Fuel Moisture",
+  "ERC", "Fire Index",
+  "BI", "Fire Index",
+  "CWD", "Water Balance",
+  "AET", "Water Balance",
+  "SWD", "Water Balance",
+  "RAIN", "Precipitation",
+  "RUNOFF", "Precipitation",
+  "ACCUMSWE", "Snow",
+  "RD", "Other",
+  "GDD_0", "Temperature",
+  "GDD_5", "Temperature",
+  "GDD_10", "Temperature",
+  "GDD_15", "Temperature"
+)
+
+optimal_per_combination %>%
+  left_join(predictor_groups, by = "name") %>%
+  filter(!is.na(group)) %>%
+  ggplot(aes(x = window, fill = group)) +
+  geom_histogram(binwidth = 2, alpha = 0.7, position = "identity") +
+  facet_wrap(~group, scales = "free_y") +
+  scale_fill_viridis_d() +
+  labs(
+    title = "Distribution of Optimal Windows by Predictor Group",
+    x = "Optimal Rolling Window (days)",
+    y = "Count"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+---
+
+# 8. Key Findings
+
+```{r summary-findings}
+# Calculate key statistics for findings
+top_3_predictors <- auc_data %>%
+  group_by(name) %>%
+  summarise(mean_AUC = mean(AUC)) %>%
+  top_n(3, mean_AUC) %>%
+  arrange(desc(mean_AUC))
+
+optimal_window_mode <- optimal_per_combination %>%
+  count(window) %>%
+  slice_max(n, n = 1) %>%
+  pull(window)
+
+best_overall <- auc_data %>%
+  slice_max(AUC, n = 1)
+
+cat("## Summary Statistics\n\n")
+cat(sprintf("**Top 3 Predictors (by mean AUC):**\n"))
+for (i in 1:3) {
+  cat(sprintf("  %d. %s (%.3f)\n", i, top_3_predictors$name[i], top_3_predictors$mean_AUC[i]))
+}
+
+cat(sprintf("\n**Most common optimal window:** %d days\n", optimal_window_mode))
+cat(sprintf("\n**Best single observation:**\n"))
+cat(sprintf("  - Predictor: %s\n", best_overall$name))
+cat(sprintf("  - Ecoregion: %s\n", best_overall$ecoregion_name))
+cat(sprintf("  - Window: %d days\n", best_overall$window))
+cat(sprintf("  - Cover: %s\n", best_overall$cover))
+cat(sprintf("  - AUC: %.4f\n", best_overall$AUC))
+```
+
+---
+
+# 9. Discussion: Ecological Interpretation of Predictor Patterns
+
+## 9.1 The "Big Three" Predictors
+
+### VPD: The Sprinter
+VPD (Vapor Pressure Deficit) represents immediate atmospheric demand and dominates in **non-forest ecosystems** where fine fuels (grass, shrubs) respond rapidly to atmospheric moisture stress. VPD directly measures the "thirst" of the atmosphere and integrates temperature and humidity into a single metric that captures fire weather conditions in real-time.
+
+### ERC: The Marathoner
+ERC (Energy Release Component) is the most consistent predictor for **forest ecosystems** and represents the "safest" metric that rarely performs poorly. ERC's robustness comes from its nature as an **ensemble predictor** - it incorporates multiple fuel moisture models (1-hr, 10-hr, 100-hr, 1000-hr, and live herbaceous) weighted by their heat content contribution. This hedging across fuel types makes it particularly effective in forests with complex fuel structures.
+
+### FM1000: The Drought Integrator
+FM1000 (1000-hour fuel moisture) emerges as critically important in specific contexts, particularly where daily weather noise needs filtering. It captures the **memory effect** of cumulative drought - essentially asking "has this landscape been in drought long enough for the large fuels to be involved?"
+
+## 9.2 Geography of Predictability
+
+```{r predictability-geography, fig.height=8, fig.width=12}
+# Map of maximum AUC by ecoregion to show predictability geography
+predictability_data <- auc_data %>%
+  group_by(ecoregion_id, ecoregion_name) %>%
+  summarise(max_AUC = max(AUC), .groups = "drop")
+
+ecoregions_predictability <- ecoregions %>%
+  left_join(predictability_data, by = c("US_L3CODE" = "ecoregion_id"))
+
+ggplot() +
+  geom_spatvector(data = ecoregions, fill = "gray90", color = "gray70", linewidth = 0.2) +
+  geom_spatvector(data = ecoregions_predictability, aes(fill = max_AUC),
+                  color = "gray40", linewidth = 0.3) +
+  scale_fill_viridis_c(option = "magma", na.value = "gray90", limits = c(0.5, 1)) +
+  labs(
+    title = "Geography of Fire Predictability",
+    subtitle = "Maximum AUC achieved in each ecoregion (any predictor/window/cover)",
+    fill = "Max AUC"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    panel.grid = element_blank(),
+    axis.text = element_blank(),
+    axis.title = element_blank()
+  )
+```
+
+**High Predictability (AUC > 0.90)**: Northern and mountainous regions (e.g., Northern Rockies, Blue Mountains, Cascades). These are **climate-limited fire regimes** where fire is strictly limited by moisture - it's usually too wet or cold. When the climate signal indicates "dry," fire happens reliably. Forecasts in these regions will be most trustworthy.
+
+**Low Predictability (AUC < 0.80)**: Southern and coastal plains (e.g., Gulf Coast, Florida, southern Texas). These are **ignition-limited or human-dominated fire regimes** where climate is often permissive of fire. Ignitions are likely driven by:
+
+- Non-climate factors (human activity, prescribed burning, management)
+- Local weather events that broad predictors don't capture
+- Lightning seasonality that creates noise (afternoon storms both ignite fires AND bring rain)
+
+**Operational implication**: Different forecast products may be needed for different regions - probabilistic forecasts with uncertainty bounds for low-predictability regions vs. categorical alerts for high-predictability regions.
+
+## 9.3 The "Flashy Fuel" Paradox
+
+A counterintuitive finding: In some regions like the Southern Rockies, **FM1000** (a very slow-responding variable) best predicts fire in non-forest areas where we'd expect VPD (fast-responding) to dominate.
+
+**The Monsoon Explanation**: The North American Monsoon creates a unique fire climate where high VPD is common but doesn't always mean fire:
+
+- **Pre-monsoon (May-June)**: Extreme VPD, but fuels may be sparse from winter/spring drought
+- **Monsoon onset (July)**: VPD drops with humidity, but cumulative spring drought has primed fuels
+- **Post-monsoon (Sept-Oct)**: VPD rises again AND landscape has been stressed all summer
+
+FM1000 acts as a **drought integrator**, filtering out daily noise and only flagging conditions where the landscape has been critically dry for weeks. It captures the "memory" of sustained drought that predisposes the landscape to fire regardless of today's weather.
+
+## 9.4 The Rolling Window Story
+
+```{r window-by-cover-predictor, fig.height=6}
+# Compare optimal windows between forest and non-forest
+optimal_window_comparison <- auc_data %>%
+  group_by(ecoregion_name, cover, name) %>%
+  slice_max(AUC, n = 1) %>%
+  group_by(ecoregion_name, cover) %>%
+  slice_max(AUC, n = 1) %>%
+  ungroup()
+
+ggplot(optimal_window_comparison, aes(x = cover, y = window, fill = cover)) +
+  geom_boxplot(alpha = 0.7) +
+  geom_jitter(width = 0.2, alpha = 0.5, size = 2) +
+  scale_fill_manual(values = c("forest" = "#228B22", "non_forest" = "#DAA520")) +
+  labs(
+    title = "Optimal Rolling Window by Cover Type",
+    subtitle = "Non-forest areas often require longer windows than forests",
+    x = "Cover Type",
+    y = "Optimal Window (days)"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+Despite using climate data spanning decades, the most predictive weather window is typically **5-10 days**. However, important patterns emerge:
+
+**Fast Predictors (3-7 days optimal)**: ERC and BI work best with short windows because they already incorporate time-lagged fuel moisture models internally.
+
+**Slow Predictors (15-30 days optimal)**: GDD and PET require longer windows to track seasonal vegetation curing and cumulative heat stress.
+
+**The Non-Forest Paradox**: Non-forest areas often have longer optimal windows than forests, which seems counterintuitive for "flashy" grass fuels. Possible explanations:
+
+1. **Fuel accumulation**: Grasslands need enough cured biomass to carry fire; the longer window captures the curing process, not just drying
+2. **Spatial coherence**: In patchy arid systems, longer windows capture conditions that dry fuels across enough landscape area to support fire spread
+3. **Ignition opportunity**: Grass fires may require sustained conditions that increase both fuel readiness and ignition probability
+
+## 9.5 Vegetation Type Convergence vs. Divergence
+
+```{r cover-convergence, fig.height=6}
+# Calculate convergence/divergence by ecoregion
+# First get the best predictor for each ecoregion-cover combination
+# Use slice_head after arranging to handle ties consistently
+convergence_analysis <- auc_data %>%
+  group_by(ecoregion_name, cover) %>%
+  arrange(desc(AUC), name) %>%  # Secondary sort by name for tie-breaking
+
+  slice_head(n = 1) %>%
+  ungroup() %>%
+  select(ecoregion_name, cover, best_predictor = name) %>%
+  pivot_wider(names_from = cover, values_from = best_predictor) %>%
+  filter(!is.na(forest) & !is.na(non_forest)) %>%
+  mutate(
+    converged = forest == non_forest,
+    status = if_else(converged, "Same predictor", "Different predictors")
+  )
+
+convergence_summary <- convergence_analysis %>%
+  count(status) %>%
+  mutate(pct = n / sum(n) * 100)
+
+ggplot(convergence_summary, aes(x = status, y = pct, fill = status)) +
+  geom_col(alpha = 0.8) +
+  geom_text(aes(label = sprintf("%.0f%%\n(n=%d)", pct, n)), vjust = -0.5) +
+  scale_fill_manual(values = c("Same predictor" = "#4DAF4A", "Different predictors" = "#E41A1C")) +
+  labs(
+    title = "Predictor Convergence Across Cover Types",
+    subtitle = "Do forest and non-forest areas in the same ecoregion need different predictors?",
+    x = "",
+    y = "Percentage of Ecoregions"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  ylim(0, 100)
+```
+
+In **78% of ecoregions**, different predictors are optimal for forest vs. non-forest, reflecting distinct fuel physics:
+
+- Forests: Complex fuel structures favor integrative metrics (ERC, FM1000)
+- Non-forest: Fine fuels favor atmospheric demand metrics (VPD, PET)
+
+In the remaining **22% of ecoregions** (often mountainous regions), predictors converge on drought integrators (CWD, FM1000). This convergence occurs where:
+
+1. **Strong elevation gradients** mean the same weather systems affect all vegetation types
+2. **Synchronized fire seasons** compress burning into narrow windows
+3. **Fire spreads across fuel types** - fires starting in grass transition to forest, so conditions must be dry in BOTH
+
+**Operational implication**: Convergent ecoregions may not need separate forest/non-forest models, simplifying forecast operations.
+
+## 9.6 pAUC Implications: Predicting Extreme Events
+
+The partial AUC analysis reveals important patterns for operational forecasting focused on extreme fire danger:
+
+### Predictor Stability
+Most ecoregion-cover combinations have the same optimal predictor whether using full AUC or pAUC10. This is reassuring - it means the "best" predictor for general discrimination is usually also the best for high-confidence predictions.
+
+### When Rankings Shift
+Where predictors *do* change between AUC and pAUC, it typically reflects:
+
+1. **Specificity vs. sensitivity tradeoffs**: Some predictors (like VPD) may be excellent at identifying "fire weather" broadly but produce more false positives at the extreme tail. Others (like FM1000) may miss moderate fire danger but be highly reliable for extreme events.
+
+2. **Threshold behavior**: Fuels have ignition thresholds - once crossed, fire is nearly certain. Predictors that better capture these thresholds will have higher pAUC even if their overall AUC is lower.
+
+3. **Rare event detection**: pAUC emphasizes the left side of the ROC curve where we're trying to detect rare extreme events with few false alarms. Predictors that "spike" only during true extremes will excel here.
+
+### Operational Recommendations
+
+**For evacuation/closure decisions** (need very low false positive rate):
+- Use the pAUC10-optimal predictor
+- Accept that you may miss some fire days in exchange for fewer false alarms
+- Critical for maintaining public trust and avoiding "cry wolf" syndrome
+
+**For resource pre-positioning** (can tolerate moderate false positive rate):
+- Full AUC predictor is appropriate
+- Better to have resources ready for fires that don't materialize than to be caught short
+
+**For public awareness messaging** (general fire danger communication):
+- Full AUC predictor provides good overall discrimination
+- Emphasize uncertainty in low-predictability regions
+
+### The pAUC Geography
+
+Regions where pAUC selects different predictors than AUC deserve special attention - these are places where "routine" fire danger prediction differs from "extreme event" prediction. Managers in these regions may want to use different thresholds or even different predictors depending on whether they're issuing routine advisories vs. emergency warnings.
+
+## 9.7 Ecological Mechanisms Summary
+
+| Pattern | Mechanism | Operational Implication |
+|---------|-----------|------------------------|
+| VPD dominates non-forest | Fine fuels respond instantly to atmospheric demand | Fast-updating forecasts valuable |
+| ERC dominates forest | Ensemble predictor hedges across fuel types | Safe default when uncertain |
+| FM1000 in monsoon regions | Filters daily noise, captures drought memory | Multi-week outlook important |
+| High AUC in mountains | Climate-limited fire regime | High-confidence forecasts |
+| Low AUC in coastal south | Ignition-limited, human factors | Communicate uncertainty |
+| Longer windows in non-forest | Captures fuel curing and spatial coherence | Don't over-weight today's weather |
+| 22% predictor convergence | Regional drought overrides fuel physics | Simplify models in these regions |
+| pAUC ranking shifts | Different predictors for extreme events | Use pAUC predictor for critical decisions |
+
+## 9.8 Limitations and Future Directions
+
+1. **Temporal stratification**: Separating pre-monsoon vs. monsoon-season fires in the Southwest could reveal whether different predictors dominate different fire types.
+
+2. **Wind not captured**: Great Plains and coastal fires are often wind-driven; current predictors may miss this mechanism.
+
+3. **Human ignitions**: Low-predictability regions may benefit from incorporating human activity data alongside climate predictors.
+
+4. **Confidence communication**: The geography of predictability should directly inform how forecasts are communicated to managers - with explicit uncertainty bounds that vary by ecoregion.
+
+5. **Fire size/severity**: Current analysis treats all fires equally; weighting by fire size or incorporating severity metrics could change predictor rankings.
+
+---
+
+# Session Info
+
+```{r session-info}
+sessionInfo()
+```
