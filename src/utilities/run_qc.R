@@ -12,6 +12,12 @@ auc_data %>%
   group_by(ecoregion_id, cover) %>%
   summarize(n = n())
 
+auc_data %>%
+  group_by(ecoregion_id, cover) %>%
+  arrange(desc(AUC10)) %>%
+  slice(1) %>%
+  print(n = 100)
+
 best_predictors <- read_csv("out/best_predictors.csv")
 
 ## Count of variable by ecoregion

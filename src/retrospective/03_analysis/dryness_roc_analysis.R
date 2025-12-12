@@ -123,6 +123,7 @@ process_roc <- function(climate_data, cover, windows, state_vars, state_vars_no_
   best_varname <- ""
   best_window <- 0
   ecdf_fn <- NULL
+  best_model_data <- NULL  # Store predictions for global pooled AUC
 
   roc_img_dir <- glue("out/img/roc/{ecoregion_id}-{ecoregion_name_clean}")
   ecdf_dir <- glue("data/ecdf/{ecoregion_id}-{ecoregion_name_clean}-{cover}")
@@ -171,6 +172,11 @@ process_roc <- function(climate_data, cover, windows, state_vars, state_vars_no_
       best_window <<- best_model_this_loop$window
       ignition_data <- filter(climate_percentiles, fire == 1)
       ecdf_fn <<- ecdf(ignition_data[[best_varname]])
+
+      # Save predictions for global pooled AUC
+      best_model_data <<- climate_percentiles %>%
+        select(fire, all_of(best_varname)) %>%
+        rename(predictor = all_of(best_varname))
     }
     return(data_auc)
   })
@@ -178,7 +184,7 @@ process_roc <- function(climate_data, cover, windows, state_vars, state_vars_no_
   auc_data <- bind_rows(auc_results_list)
 
   if (is.null(ecdf_fn)) {
-    return(list(auc = auc_data, best = tibble()))
+    return(list(auc = auc_data, best = tibble(), predictions = NULL))
   }
 
   png(filename = file.path(ecdf_dir, glue("{ecoregion_id}-{ecoregion_name_clean}-{cover}-{best_window}-{best_varname}-ecdf.png")), pointsize = 32, width = 1280, height = 1280)
@@ -192,7 +198,19 @@ process_roc <- function(climate_data, cover, windows, state_vars, state_vars_no_
     var = best_varname, cover = cover, pAUC10 = best_pauc10
   )
 
-  return(list(auc = auc_data, best = best_predictors))
+  # Add ecoregion metadata to predictions for pooling
+  if (!is.null(best_model_data)) {
+    best_model_data <- best_model_data %>%
+      mutate(
+        ecoregion_id = ecoregion_id,
+        ecoregion_name = ecoregion_name_clean,
+        cover = cover,
+        variable = best_varname,
+        window = best_window
+      )
+  }
+
+  return(list(auc = auc_data, best = best_predictors, predictions = best_model_data))
 }
 
 bin_rast <- function(new_rast, quants_rast, probs) {
