@@ -36,6 +36,12 @@ LOG_DIR="$PROJECT_DIR/log"
 LOG_FILE="$LOG_DIR/${VARIABLE}_forecast.log"
 BASE_URL="http://thredds.northwestknowledge.net:8080/thredds/fileServer/NWCSC_INTEGRATED_SCENARIOS_ALL_CLIMATE/cfsv2_metdata_90day"
 
+# Time-based cutoff for accepting stale data (UTC hour, 0-23)
+# Before this hour: exit 1 on stale data to trigger Step Functions retry
+# After this hour: accept stale data and proceed with warning
+# Default 18:00 UTC (~11:00 AM Mountain, after typical ~17:06 UTC update)
+STALE_DATA_CUTOFF_HOUR="${STALE_DATA_CUTOFF_HOUR:-18}"
+
 # Create directories if they don't exist
 mkdir -p "$FORECAST_DATA_DIR"
 mkdir -p "$LOG_DIR"
@@ -47,10 +53,80 @@ TODAY_FILENAME="cfsv2_metdata_forecast_${VARIABLE}_daily_0.nc"
 Tminus1_FILENAME="cfsv2_metdata_forecast_${VARIABLE}_daily_1.nc"
 Tminus2_FILENAME="cfsv2_metdata_forecast_${VARIABLE}_daily_2.nc"
 TEMP_FILENAME="cfsv2_metdata_forecast_${VARIABLE}_daily.nc.tmp"
+STALE_WARNING_FILE="STALE_DATA_WARNING.txt"
 
 # --- Functions ---
 log() {
   echo "$(date '+%Y-%m-%d %H:%M:%S') - [$VARIABLE] $1" | tee -a "$LOG_FILE"
+}
+
+# Check if current time is past the stale data cutoff
+# Returns 0 (true) if past cutoff, 1 (false) if before cutoff
+past_stale_cutoff() {
+  local current_hour
+  current_hour=$(date -u +%H)
+  # Remove leading zero for numeric comparison
+  current_hour=$((10#$current_hour))
+
+  if [ "$current_hour" -ge "$STALE_DATA_CUTOFF_HOUR" ]; then
+    return 0  # true - past cutoff, accept stale data
+  else
+    return 1  # false - before cutoff, keep retrying
+  fi
+}
+
+# Handle stale data based on time cutoff
+# Returns 0 if we should proceed with stale data, 1 if we should retry
+handle_stale_data() {
+  local forecast_date=$1
+
+  if past_stale_cutoff; then
+    log "Past stale data cutoff (${STALE_DATA_CUTOFF_HOUR}:00 UTC) - accepting stale data"
+    create_stale_warning "$forecast_date"
+    return 0  # proceed with stale data
+  else
+    log "Before stale data cutoff (${STALE_DATA_CUTOFF_HOUR}:00 UTC) - will retry for fresh data"
+    log "Current time: $(date -u '+%H:%M UTC')"
+    return 1  # retry
+  fi
+}
+
+# Create a stale data warning file and log prominently
+create_stale_warning() {
+  local forecast_date=$1
+  local today
+  today=$(date +%Y-%m-%d)
+
+  log "╔════════════════════════════════════════════════════════════════╗"
+  log "║ WARNING: USING STALE FORECAST DATA                             ║"
+  log "║ Variable: $VARIABLE"
+  log "║ Expected forecast start: $today or $(date -d 'tomorrow' +%Y-%m-%d)"
+  log "║ Actual forecast start: $forecast_date"
+  log "║ Proceeding with existing (previous day's) forecast data.       ║"
+  log "╚════════════════════════════════════════════════════════════════╝"
+
+  # Create/update the warning file
+  cat > "$STALE_WARNING_FILE" <<EOF
+STALE FORECAST DATA WARNING
+===========================
+Variable: $VARIABLE
+Generated: $(date -Iseconds)
+Expected forecast date: $today
+Actual forecast date: $forecast_date
+
+The upstream data provider (gridMET/CFSv2) has not published today's forecast.
+This pipeline is using the previous day's forecast data.
+EOF
+
+  log "Created stale data warning file: $STALE_WARNING_FILE"
+}
+
+# Clear stale warning if forecast is current
+clear_stale_warning() {
+  if [[ -f "$STALE_WARNING_FILE" ]]; then
+    rm -f "$STALE_WARNING_FILE"
+    log "Cleared previous stale data warning - forecast is now current"
+  fi
 }
 
 # Track success state for S3 sync
@@ -89,11 +165,13 @@ uses_ensemble_format() {
 
 # Function to validate that the forecast file contains current data
 # Returns 0 if forecast starts today or tomorrow, 1 if stale
+# Outputs the forecast date to stdout for capture by caller
 validate_forecast_date() {
   local nc_file=$1
 
   if ! command -v ncdump &> /dev/null; then
     log "WARNING: ncdump not found, skipping date validation"
+    echo "unknown"
     return 0
   fi
 
@@ -106,6 +184,7 @@ validate_forecast_date() {
 
   if [ -z "$first_day" ]; then
     log "WARNING: Could not extract date from $nc_file, skipping date validation"
+    echo "unknown"
     return 0
   fi
 
@@ -115,6 +194,7 @@ validate_forecast_date() {
 
   if [ -z "$forecast_date" ]; then
     log "WARNING: Could not convert day value $first_day to date, skipping validation"
+    echo "unknown"
     return 0
   fi
 
@@ -125,12 +205,15 @@ validate_forecast_date() {
 
   log "Forecast file starts on: $forecast_date (today: $today, tomorrow: $tomorrow)"
 
+  # Always output the forecast date for caller to capture
+  echo "$forecast_date"
+
   if [[ "$forecast_date" == "$today" ]] || [[ "$forecast_date" == "$tomorrow" ]]; then
     log "✓ Forecast date is current"
     return 0
   else
-    log "ERROR: Forecast is stale! File contains data starting $forecast_date but expected $today or $tomorrow"
-    log "ERROR: The upstream data provider has not yet published today's forecast."
+    log "WARNING: Forecast is stale! File contains data starting $forecast_date but expected $today or $tomorrow"
+    log "WARNING: The upstream data provider has not yet published today's forecast."
     return 1
   fi
 }
@@ -219,11 +302,14 @@ if uses_ensemble_format "$VARIABLE"; then
     if download_ensemble_average 0 "$TODAY_FILENAME"; then
       log "Day 0 ensemble mean created successfully."
       # Validate that the downloaded data is current
-      if ! validate_forecast_date "$TODAY_FILENAME"; then
-        log "ERROR: Downloaded forecast data is stale. Removing file."
+      FORECAST_DATE=$(validate_forecast_date "$TODAY_FILENAME")
+      if [ $? -ne 0 ]; then
+        log "ERROR: Downloaded forecast data is stale (starts $FORECAST_DATE). Removing file."
+        log "ERROR: Cannot proceed without any forecast data. Try again later."
         rm -f "$TODAY_FILENAME"
         exit 1
       fi
+      clear_stale_warning
     else
       log "ERROR: Day 0 ensemble download failed."
       exit 1
@@ -257,22 +343,45 @@ if uses_ensemble_format "$VARIABLE"; then
 
   # Download and create new ensemble mean
   if ! download_ensemble_average 0 "$TEMP_FILENAME"; then
-    log "ERROR: Failed to download new ensemble data. Keeping existing forecast."
-    exit 1
+    log "WARNING: Failed to download new ensemble data."
+    if handle_stale_data "download_failed"; then
+      log "Proceeding with existing forecast data."
+      SUCCESS=true
+      exit 0
+    else
+      log "ERROR: Will retry to get fresh data."
+      exit 1
+    fi
   fi
 
   # Validate that the downloaded data is current before proceeding
-  if ! validate_forecast_date "$TEMP_FILENAME"; then
-    log "ERROR: Downloaded forecast data is stale. Not updating."
-    exit 1
+  # Capture the forecast date for potential warning message
+  FORECAST_DATE=$(validate_forecast_date "$TEMP_FILENAME")
+  VALIDATE_STATUS=$?
+
+  if [ $VALIDATE_STATUS -ne 0 ]; then
+    log "Downloaded forecast data is stale (starts $FORECAST_DATE)."
+    rm -f "$TEMP_FILENAME"
+    if handle_stale_data "$FORECAST_DATE"; then
+      log "Proceeding with existing forecast data."
+      SUCCESS=true
+      exit 0
+    else
+      log "ERROR: Will retry to get fresh data."
+      exit 1
+    fi
   fi
+
+  # Fresh data available - clear any previous stale warning
+  clear_stale_warning
 
   # Get the checksum of the new file
   NEW_CHECKSUM=$(sha256sum "$TEMP_FILENAME" | awk '{print $1}')
 
   # Compare checksums
   if [[ "$OLD_CHECKSUM" == "$NEW_CHECKSUM" ]]; then
-    log "No update detected. Forecast is unchanged."
+    log "No update detected. Forecast is unchanged but current."
+    rm -f "$TEMP_FILENAME"
     SUCCESS=true
     exit 0
   fi
@@ -309,11 +418,14 @@ else
     if wget -q "$FORECAST_URL" -O "$TODAY_FILENAME"; then
       log "Initial download successful."
       # Validate that the downloaded data is current
-      if ! validate_forecast_date "$TODAY_FILENAME"; then
-        log "ERROR: Downloaded forecast data is stale. Removing file."
+      FORECAST_DATE=$(validate_forecast_date "$TODAY_FILENAME")
+      if [ $? -ne 0 ]; then
+        log "ERROR: Downloaded forecast data is stale (starts $FORECAST_DATE). Removing file."
+        log "ERROR: Cannot proceed without any forecast data. Try again later."
         rm -f "$TODAY_FILENAME"
         exit 1
       fi
+      clear_stale_warning
       SUCCESS=true
       exit 0
     else
@@ -331,22 +443,45 @@ else
 
   # Download the new file to a temporary location
   if ! wget -q "$FORECAST_URL" -O "$TEMP_FILENAME"; then
-    log "ERROR: Download failed. Keeping existing forecast."
-    exit 1
+    log "WARNING: Download failed."
+    if handle_stale_data "download_failed"; then
+      log "Proceeding with existing forecast data."
+      SUCCESS=true
+      exit 0
+    else
+      log "ERROR: Will retry to get fresh data."
+      exit 1
+    fi
   fi
 
   # Validate that the downloaded data is current before proceeding
-  if ! validate_forecast_date "$TEMP_FILENAME"; then
-    log "ERROR: Downloaded forecast data is stale. Not updating."
-    exit 1
+  # Capture the forecast date for potential warning message
+  FORECAST_DATE=$(validate_forecast_date "$TEMP_FILENAME")
+  VALIDATE_STATUS=$?
+
+  if [ $VALIDATE_STATUS -ne 0 ]; then
+    log "Downloaded forecast data is stale (starts $FORECAST_DATE)."
+    rm -f "$TEMP_FILENAME"
+    if handle_stale_data "$FORECAST_DATE"; then
+      log "Proceeding with existing forecast data."
+      SUCCESS=true
+      exit 0
+    else
+      log "ERROR: Will retry to get fresh data."
+      exit 1
+    fi
   fi
+
+  # Fresh data available - clear any previous stale warning
+  clear_stale_warning
 
   # Get the checksum of the new file
   NEW_CHECKSUM=$(sha256sum "$TEMP_FILENAME" | awk '{print $1}')
 
   # Compare checksums
   if [[ "$OLD_CHECKSUM" == "$NEW_CHECKSUM" ]]; then
-    log "No update detected. Forecast is unchanged."
+    log "No update detected. Forecast is unchanged but current."
+    rm -f "$TEMP_FILENAME"
     SUCCESS=true
     exit 0
   fi

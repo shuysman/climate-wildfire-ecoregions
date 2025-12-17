@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gdal-bin \
     imagemagick \
     nco \
+    netcdf-bin \
     yq \
     libcurl4-openssl-dev \
     libfontconfig1-dev \

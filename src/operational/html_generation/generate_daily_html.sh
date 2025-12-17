@@ -122,6 +122,81 @@ generate_methodology_html() {
 
 METHODOLOGY_TABLE_HTML=$(generate_methodology_html)
 
+# --- Check for stale data warnings ---
+# Map variable names to their forecast data directories
+# (e.g., fm1000inv uses fm1000 data)
+get_forecast_variable() {
+  local var=$1
+  case "$var" in
+    "fm1000inv")
+      echo "fm1000"
+      ;;
+    *)
+      echo "$var"
+      ;;
+  esac
+}
+
+generate_stale_warning_html() {
+  local stale_vars=()
+
+  # Get forecast variables (mapped from config variable names)
+  local forest_forecast_var=""
+  local non_forest_forecast_var=""
+
+  if [ -n "$FOREST_VARIABLE" ] && [ "$FOREST_VARIABLE" != "NA" ]; then
+    forest_forecast_var=$(get_forecast_variable "$FOREST_VARIABLE")
+  fi
+  if [ -n "$NON_FOREST_VARIABLE" ] && [ "$NON_FOREST_VARIABLE" != "NA" ]; then
+    non_forest_forecast_var=$(get_forecast_variable "$NON_FOREST_VARIABLE")
+  fi
+
+  # Check if both use the same forecast variable
+  local same_variable=false
+  if [ -n "$forest_forecast_var" ] && [ "$forest_forecast_var" = "$non_forest_forecast_var" ]; then
+    same_variable=true
+  fi
+
+  # Check forest variable
+  if [ -n "$forest_forecast_var" ]; then
+    local warning_file="$PROJECT_DIR/data/forecasts/${forest_forecast_var}/STALE_DATA_WARNING.txt"
+    if [ -f "$warning_file" ]; then
+      if [ "$same_variable" = true ]; then
+        # Same variable used for both cover types - no qualifier needed
+        stale_vars+=("$(get_variable_display "$FOREST_VARIABLE")")
+        echo "Warning: Stale data detected for $FOREST_VARIABLE (all cover types)" >&2
+      else
+        stale_vars+=("$(get_variable_display "$FOREST_VARIABLE") (forest)")
+        echo "Warning: Stale data detected for $FOREST_VARIABLE (forest)" >&2
+      fi
+    fi
+  fi
+
+  # Check non-forest variable (only if different from forest)
+  if [ -n "$non_forest_forecast_var" ] && [ "$same_variable" = false ]; then
+    local warning_file="$PROJECT_DIR/data/forecasts/${non_forest_forecast_var}/STALE_DATA_WARNING.txt"
+    if [ -f "$warning_file" ]; then
+      stale_vars+=("$(get_variable_display "$NON_FOREST_VARIABLE") (non-forest)")
+      echo "Warning: Stale data detected for $NON_FOREST_VARIABLE (non-forest)" >&2
+    fi
+  fi
+
+  # Generate HTML if any stale warnings found
+  if [ ${#stale_vars[@]} -gt 0 ]; then
+    local vars_list=$(printf ", %s" "${stale_vars[@]}")
+    vars_list=${vars_list:2}  # Remove leading ", "
+
+    cat <<EOF
+    <div class="stale-data-warning">
+      <h4>⚠️ Stale Forecast Data Warning</h4>
+      <p>Today's forecast for <strong>${vars_list}</strong> was not available from the upstream data provider. This forecast is using yesterday's data for the affected variable(s). Forecast accuracy may be reduced.</p>
+    </div>
+EOF
+  fi
+}
+
+STALE_WARNING_HTML=$(generate_stale_warning_html)
+
 # --- Define paths using new directory structure ---
 ECOREGION_OUT_DIR="$PROJECT_DIR/out/forecasts/$ECOREGION"
 TODAY_DIR="$ECOREGION_OUT_DIR/$TODAY"
@@ -301,6 +376,20 @@ awk -v table="$METHODOLOGY_TABLE_HTML" '{
   print
 }' "$OUTPUT_FILE" > "$OUTPUT_FILE.tmp"
 mv "$OUTPUT_FILE.tmp" "$OUTPUT_FILE"
+
+# Replace stale data warning placeholder
+if [ -n "$STALE_WARNING_HTML" ]; then
+  awk -v warning="$STALE_WARNING_HTML" '{
+    if (index($0, "__STALE_DATA_WARNING__") > 0) {
+      gsub("__STALE_DATA_WARNING__", warning)
+    }
+    print
+  }' "$OUTPUT_FILE" > "$OUTPUT_FILE.tmp"
+  mv "$OUTPUT_FILE.tmp" "$OUTPUT_FILE"
+else
+  # No warning - just remove the placeholder
+  sed -i 's|__STALE_DATA_WARNING__||g' "$OUTPUT_FILE"
+fi
 
 echo "========================================="
 echo "Successfully generated daily_forecast.html for $ECOREGION"

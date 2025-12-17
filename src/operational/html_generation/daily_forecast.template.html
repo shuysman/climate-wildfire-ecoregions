@@ -200,6 +200,29 @@
                 flex-direction: column;
             }
         }
+        .stale-data-warning {
+            background: linear-gradient(135deg, #fff3cd 0%, #ffe69c 100%);
+            border: 2px solid #ffc107;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin: 20px auto;
+            max-width: 900px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .stale-data-warning h4 {
+            color: #856404;
+            margin: 0 0 8px 0;
+            font-size: 1.1em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .stale-data-warning p {
+            color: #664d03;
+            margin: 0;
+            font-size: 0.95em;
+            line-height: 1.5;
+        }
     </style>
   </head>
   <body>
@@ -225,6 +248,8 @@ __ECOREGION_DROPDOWN__
         <li><a href="#info">Info</a></li>
       </ul>
     </nav>
+
+__STALE_DATA_WARNING__
 
     <div class="main-container">
               <div id="forecast-map" class="container content-section">
