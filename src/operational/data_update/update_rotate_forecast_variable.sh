@@ -57,7 +57,7 @@ STALE_WARNING_FILE="STALE_DATA_WARNING.txt"
 
 # --- Functions ---
 log() {
-  echo "$(date '+%Y-%m-%d %H:%M:%S') - [$VARIABLE] $1" | tee -a "$LOG_FILE"
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - [$VARIABLE] $1" | tee -a "$LOG_FILE" >&2
 }
 
 # Check if current time is past the stale data cutoff
@@ -302,8 +302,11 @@ if uses_ensemble_format "$VARIABLE"; then
     if download_ensemble_average 0 "$TODAY_FILENAME"; then
       log "Day 0 ensemble mean created successfully."
       # Validate that the downloaded data is current
+      set +e
       FORECAST_DATE=$(validate_forecast_date "$TODAY_FILENAME")
-      if [ $? -ne 0 ]; then
+      VALIDATE_STATUS=$?
+      set -e
+      if [ $VALIDATE_STATUS -ne 0 ]; then
         log "ERROR: Downloaded forecast data is stale (starts $FORECAST_DATE). Removing file."
         log "ERROR: Cannot proceed without any forecast data. Try again later."
         rm -f "$TODAY_FILENAME"
@@ -356,8 +359,10 @@ if uses_ensemble_format "$VARIABLE"; then
 
   # Validate that the downloaded data is current before proceeding
   # Capture the forecast date for potential warning message
+  set +e
   FORECAST_DATE=$(validate_forecast_date "$TEMP_FILENAME")
   VALIDATE_STATUS=$?
+  set -e
 
   if [ $VALIDATE_STATUS -ne 0 ]; then
     log "Downloaded forecast data is stale (starts $FORECAST_DATE)."
@@ -418,8 +423,11 @@ else
     if wget -q "$FORECAST_URL" -O "$TODAY_FILENAME"; then
       log "Initial download successful."
       # Validate that the downloaded data is current
+      set +e
       FORECAST_DATE=$(validate_forecast_date "$TODAY_FILENAME")
-      if [ $? -ne 0 ]; then
+      VALIDATE_STATUS=$?
+      set -e
+      if [ $VALIDATE_STATUS -ne 0 ]; then
         log "ERROR: Downloaded forecast data is stale (starts $FORECAST_DATE). Removing file."
         log "ERROR: Cannot proceed without any forecast data. Try again later."
         rm -f "$TODAY_FILENAME"
@@ -456,8 +464,10 @@ else
 
   # Validate that the downloaded data is current before proceeding
   # Capture the forecast date for potential warning message
+  set +e
   FORECAST_DATE=$(validate_forecast_date "$TEMP_FILENAME")
   VALIDATE_STATUS=$?
+  set -e
 
   if [ $VALIDATE_STATUS -ne 0 ]; then
     log "Downloaded forecast data is stale (starts $FORECAST_DATE)."
