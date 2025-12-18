@@ -307,12 +307,19 @@ if uses_ensemble_format "$VARIABLE"; then
       VALIDATE_STATUS=$?
       set -e
       if [ $VALIDATE_STATUS -ne 0 ]; then
-        log "ERROR: Downloaded forecast data is stale (starts $FORECAST_DATE). Removing file."
-        log "ERROR: Cannot proceed without any forecast data. Try again later."
-        rm -f "$TODAY_FILENAME"
-        exit 1
+        # No existing data to fall back on - check if we should accept stale data
+        if handle_stale_data "$FORECAST_DATE"; then
+          log "Accepting stale forecast data for initial download (no existing data to fall back on)."
+          # Keep the file and continue
+        else
+          log "ERROR: Downloaded forecast data is stale (starts $FORECAST_DATE). Removing file."
+          log "ERROR: Cannot proceed without any forecast data. Try again later."
+          rm -f "$TODAY_FILENAME"
+          exit 1
+        fi
+      else
+        clear_stale_warning
       fi
-      clear_stale_warning
     else
       log "ERROR: Day 0 ensemble download failed."
       exit 1
@@ -428,12 +435,19 @@ else
       VALIDATE_STATUS=$?
       set -e
       if [ $VALIDATE_STATUS -ne 0 ]; then
-        log "ERROR: Downloaded forecast data is stale (starts $FORECAST_DATE). Removing file."
-        log "ERROR: Cannot proceed without any forecast data. Try again later."
-        rm -f "$TODAY_FILENAME"
-        exit 1
+        # No existing data to fall back on - check if we should accept stale data
+        if handle_stale_data "$FORECAST_DATE"; then
+          log "Accepting stale forecast data for initial download (no existing data to fall back on)."
+          # Keep the file and continue
+        else
+          log "ERROR: Downloaded forecast data is stale (starts $FORECAST_DATE). Removing file."
+          log "ERROR: Cannot proceed without any forecast data. Try again later."
+          rm -f "$TODAY_FILENAME"
+          exit 1
+        fi
+      else
+        clear_stale_warning
       fi
-      clear_stale_warning
       SUCCESS=true
       exit 0
     else

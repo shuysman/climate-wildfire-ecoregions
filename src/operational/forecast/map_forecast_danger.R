@@ -322,23 +322,37 @@ if (has_non_forest) {
 
 start_date <- today - 40
 
+# Helper function to validate forecast date, allowing for stale data if warning file exists
+check_forecast_date <- function(most_recent_date, var_name, label) {
+  # Accept forecasts starting either today or tomorrow
+  if (most_recent_date == today + 1 || most_recent_date == today) {
+    if (most_recent_date == today) {
+      message(glue("Note: {label} forecast starts today ({today}). This is expected for ensemble variables."))
+    }
+    return(TRUE)
+  }
+
+  # Check for stale data warning file
+  stale_warning_file <- glue("data/forecasts/{var_name}/STALE_DATA_WARNING.txt")
+  if (file.exists(stale_warning_file)) {
+    warning(glue("WARNING: Using stale {label} forecast data (starts {most_recent_date}). Stale warning file found."))
+    return(TRUE)
+  }
+
+  # If no warning file and date is invalid, stop
+  stop(glue("{label} forecast date is {most_recent_date} but should be either {today} or {today + 1}. Exiting..."))
+}
+
 ### Check if most recent forecast is available or raise error
 if (has_forest) {
   if (forest_needs_gdd) {
     forest_most_recent <- time(subset(forest_tmax_forecasts$f0, 1))
+    # Check both tmax and tmin for stale files? usually they come together. checking tmax/tmmn generic check.
+    # checking tmmx implies checking tmmn usually in this pipeline
+    check_forecast_date(forest_most_recent, "tmmx", "Forest (tmax)")
   } else {
     forest_most_recent <- time(subset(forest_forecasts$f0, 1))
-  }
-
-  # Accept forecasts starting either today or tomorrow
-  # - Aggregated variables (VPD) typically start tomorrow
-  # - Ensemble variables (FM1000, tmax, tmin) typically start today
-  if (forest_most_recent != today + 1 && forest_most_recent != today) {
-    stop(glue("Forest forecast date is {forest_most_recent} but should be either {today} or {today + 1}. Exiting..."))
-  }
-
-  if (forest_most_recent == today) {
-    message(glue("Note: Forest forecast starts today ({today}) instead of tomorrow. This is expected for ensemble variables."))
+    check_forecast_date(forest_most_recent, forest_gridmet_var, "Forest")
   }
 }
 
@@ -348,25 +362,11 @@ if (has_non_forest && (!has_forest || forest_gridmet_var != non_forest_gridmet_v
     # Only check if we didn't already validate forest temps
     if (!forest_needs_gdd) {
       non_forest_most_recent <- time(subset(non_forest_tmax_forecasts$f0, 1))
-
-      if (non_forest_most_recent != today + 1 && non_forest_most_recent != today) {
-        stop(glue("Non-forest forecast date is {non_forest_most_recent} but should be either {today} or {today + 1}. Exiting..."))
-      }
-
-      if (non_forest_most_recent == today) {
-        message(glue("Note: Non-forest forecast starts today ({today}). This is expected for ensemble variables."))
-      }
+      check_forecast_date(non_forest_most_recent, "tmmx", "Non-forest (tmax)")
     }
   } else {
     non_forest_most_recent <- time(subset(non_forest_forecasts$f0, 1))
-
-    if (non_forest_most_recent != today + 1 && non_forest_most_recent != today) {
-      stop(glue("Non-forest forecast date is {non_forest_most_recent} but should be either {today} or {today + 1}. Exiting..."))
-    }
-
-    if (non_forest_most_recent == today) {
-      message(glue("Note: Non-forest forecast starts today ({today}). This is expected for ensemble variables."))
-    }
+    check_forecast_date(non_forest_most_recent, non_forest_gridmet_var, "Non-forest")
   }
 }
 
