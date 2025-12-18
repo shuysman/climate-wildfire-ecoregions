@@ -3790,6 +3790,24 @@
       "Maintainer": "Henrik Bengtsson <henrikb@braju.com>",
       "Repository": "CRAN"
     },
+    "patchwork": {
+      "Package": "patchwork",
+      "Version": "1.3.0",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Requirements": [
+        "R",
+        "cli",
+        "ggplot2",
+        "grDevices",
+        "graphics",
+        "grid",
+        "gtable",
+        "rlang",
+        "stats",
+        "utils"
+      ]
+    },
     "paws": {
       "Package": "paws",
       "Version": "0.10.0",
