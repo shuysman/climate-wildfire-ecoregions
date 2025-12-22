@@ -141,7 +141,7 @@ cleanup() {
   if [ "${ENVIRONMENT:-local}" = "cloud" ]; then
     if [ "$SUCCESS" = true ]; then
       echo "--- Running in cloud mode: Syncing results to S3 for ${VARIABLE} ---"
-      aws s3 sync "$FORECAST_DATA_DIR" "${S3_BUCKET_PATH}/data/forecasts/${VARIABLE}/"
+      aws s3 sync --delete "$FORECAST_DATA_DIR" "${S3_BUCKET_PATH}/data/forecasts/${VARIABLE}/"
       aws s3 sync "$LOG_DIR" "${S3_BUCKET_PATH}/log/"
     else
       echo "--- Script failed: Skipping S3 sync to prevent uploading incomplete data ---" >&2
