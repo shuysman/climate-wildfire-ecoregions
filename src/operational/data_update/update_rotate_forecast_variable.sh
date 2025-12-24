@@ -138,7 +138,9 @@ cleanup() {
   rm -rf ./ensemble_temp_${VARIABLE}/
 
   # --- S3 Post-flight (only in cloud mode and only if successful) ---
-  if [ "${ENVIRONMENT:-local}" = "cloud" ]; then
+  # SKIP_S3_SYNC: When set to "true", skip S3 sync (caller will handle it after all variables complete)
+  # This prevents over-rotation when some variables are stale and cause retries
+  if [ "${ENVIRONMENT:-local}" = "cloud" ] && [ "${SKIP_S3_SYNC:-false}" != "true" ]; then
     if [ "$SUCCESS" = true ]; then
       echo "--- Running in cloud mode: Syncing results to S3 for ${VARIABLE} ---"
       aws s3 sync --delete "$FORECAST_DATA_DIR" "${S3_BUCKET_PATH}/data/forecasts/${VARIABLE}/"
@@ -148,6 +150,8 @@ cleanup() {
       # Still sync logs for debugging
       aws s3 sync "$LOG_DIR" "${S3_BUCKET_PATH}/log/" 2>/dev/null || true
     fi
+  elif [ "${SKIP_S3_SYNC:-false}" = "true" ]; then
+    echo "--- S3 sync deferred (SKIP_S3_SYNC=true) ---"
   fi
 }
 

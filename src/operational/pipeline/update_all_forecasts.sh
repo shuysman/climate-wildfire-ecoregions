@@ -47,8 +47,11 @@ echo "Required forecast variables: $REQUIRED_VARS"
 echo ""
 
 # Download each required variable
+# IMPORTANT: Defer S3 sync until ALL variables succeed to prevent over-rotation
+# when retries occur due to stale data for some variables
 SUCCESS_COUNT=0
 FAIL_COUNT=0
+DOWNLOADED_VARS=""
 
 # Temporarily reset IFS to split on spaces
 OLD_IFS="$IFS"
@@ -59,9 +62,11 @@ for VAR in $REQUIRED_VARS; do
   echo "Downloading $VAR forecasts..."
   echo "========================================="
 
-  if bash "$PROJECT_DIR/src/operational/data_update/update_rotate_forecast_variable.sh" "$VAR"; then
+  # Skip per-variable S3 sync - we'll sync all at once after all succeed
+  if SKIP_S3_SYNC=true bash "$PROJECT_DIR/src/operational/data_update/update_rotate_forecast_variable.sh" "$VAR"; then
     echo "✓ Successfully updated $VAR forecasts"
     SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+    DOWNLOADED_VARS="$DOWNLOADED_VARS $VAR"
   else
     echo "✗ Failed to update $VAR forecasts" >&2
     FAIL_COUNT=$((FAIL_COUNT + 1))
@@ -82,7 +87,32 @@ echo "========================================="
 
 if [ $FAIL_COUNT -gt 0 ]; then
   echo "Warning: Some forecast downloads failed. Check logs for details." >&2
+  echo "S3 sync skipped - no changes uploaded to prevent partial updates." >&2
   exit 1
+fi
+
+# --- S3 Sync (only after ALL variables succeed) ---
+# This prevents over-rotation: if any variable fails and causes a retry,
+# the old (correctly offset) files remain on S3
+if [ "${ENVIRONMENT:-local}" = "cloud" ]; then
+  if [ -z "${S3_BUCKET_PATH:-}" ]; then
+    echo "Error: S3_BUCKET_PATH environment variable must be set in cloud mode." >&2
+    exit 1
+  fi
+
+  echo "========================================="
+  echo "Syncing all forecast data to S3..."
+  echo "========================================="
+
+  for VAR in $DOWNLOADED_VARS; do
+    echo "Syncing $VAR..."
+    aws s3 sync --delete "$PROJECT_DIR/data/forecasts/${VAR}/" "${S3_BUCKET_PATH}/data/forecasts/${VAR}/"
+  done
+
+  echo "Syncing logs..."
+  aws s3 sync "$PROJECT_DIR/log/" "${S3_BUCKET_PATH}/log/"
+
+  echo "✓ S3 sync complete"
 fi
 
 echo "All forecast variables updated successfully!"
