@@ -104,6 +104,8 @@ if [ "${ENVIRONMENT:-local}" = "cloud" ]; then
   echo "Syncing all forecast data to S3..."
   echo "========================================="
 
+  # Reset IFS to split on spaces for the variable list
+  IFS=' '
   for VAR in $DOWNLOADED_VARS; do
     echo "Syncing $VAR..."
     aws s3 sync --delete "$PROJECT_DIR/data/forecasts/${VAR}/" "${S3_BUCKET_PATH}/data/forecasts/${VAR}/"
