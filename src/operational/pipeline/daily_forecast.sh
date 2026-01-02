@@ -156,10 +156,8 @@ if [ "${ENVIRONMENT:-local}" = "cloud" ]; then
   S3_ECOREGION_OUT_DIR="${S3_BUCKET_PATH}/out/forecasts/${ECOREGION}"
 
   # Sync the entire ecoregion output directory
-  # Exclude NetCDF files (too large, not needed for web display)
   echo "Syncing ${ECOREGION} outputs to S3..."
   aws s3 sync "$ECOREGION_OUT_DIR" "$S3_ECOREGION_OUT_DIR" \
-    --exclude "*.nc" \
     --acl "public-read" \
     --delete
 
