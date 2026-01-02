@@ -218,6 +218,7 @@ load_forecast_data <- function(var_name, label, boundary = NULL) {
   forecast_0_path <- glue("data/forecasts/{var_name}/cfsv2_metdata_forecast_{var_name}_daily_0.nc")
   forecast_1_path <- glue("data/forecasts/{var_name}/cfsv2_metdata_forecast_{var_name}_daily_1.nc")
   forecast_2_path <- glue("data/forecasts/{var_name}/cfsv2_metdata_forecast_{var_name}_daily_2.nc")
+  forecast_3_path <- glue("data/forecasts/{var_name}/cfsv2_metdata_forecast_{var_name}_daily_3.nc")
 
   if (!file.exists(forecast_0_path)) {
     stop(glue("{label} forecast file not found: {forecast_0_path}\nPlease run src/update_all_forecasts.sh first."))
@@ -232,14 +233,28 @@ load_forecast_data <- function(var_name, label, boundary = NULL) {
   forecast_2 <- rast(forecast_2_path)
   time(forecast_2) <- as_date(depth(forecast_2), origin = "1900-01-01")
 
+  # Load f3 if it exists (helps bridge gridMET lag gaps)
+  forecast_3 <- if (file.exists(forecast_3_path)) {
+    message(glue("  Found f3 forecast file - loading for gap coverage"))
+    f3 <- rast(forecast_3_path)
+    time(f3) <- as_date(depth(f3), origin = "1900-01-01")
+    f3
+  } else {
+    message(glue("  No f3 forecast file found (expected during initial setup)"))
+    NULL
+  }
+
   # Crop to ecoregion extent if boundary provided
   if (!is.null(boundary)) {
     forecast_0 <- crop(forecast_0, boundary)
     forecast_1 <- crop(forecast_1, boundary)
     forecast_2 <- crop(forecast_2, boundary)
+    if (!is.null(forecast_3)) {
+      forecast_3 <- crop(forecast_3, boundary)
+    }
   }
 
-  return(list(f0 = forecast_0, f1 = forecast_1, f2 = forecast_2))
+  return(list(f0 = forecast_0, f1 = forecast_1, f2 = forecast_2, f3 = forecast_3))
 }
 
 # Determine which forecast variables to load
@@ -393,35 +408,56 @@ fetch_gridmet_data <- function(var_name, label, reference_raster) {
     stop(glue("Unknown gridMET variable: {var_name}. Add mapping to gridmet_column_map."))
   }
 
-  gridmet_data <- tryCatch(
-    {
-      message("Attempting to download fresh gridMET data...")
-      fresh_gridmet <- getGridMET(
-        AOI = ecoregion_boundary,
-        varname = var_name,
-        startDate = start_date,
-        endDate = today - 2,
-        verbose = TRUE
-      )[[gridmet_column_map[[var_name]]]] %>%
-        project(crs(reference_raster)) %>%
-        crop(reference_raster)
+  gridmet_data <- NULL
 
-      message("Successfully downloaded fresh gridMET data. Caching to NetCDF file.")
-      writeCDF(fresh_gridmet, cache_file, overwrite = TRUE, varname = var_name)
+  # Try progressively earlier end dates to handle variable gridMET lag
+  # During holidays/weekends, gridMET may lag by 3-4 days instead of usual 2
+  for (days_back in 2:5) {
+    end_date <- today - days_back
 
-      fresh_gridmet
-    },
-    error = function(e) {
-      warning(glue("Failed to retrieve fresh gridMET data: {e$message}"))
+    gridmet_data <- tryCatch(
+      {
+        message(glue("Attempting to download fresh gridMET data through {end_date} (today - {days_back})..."))
+        fresh_gridmet <- getGridMET(
+          AOI = ecoregion_boundary,
+          varname = var_name,
+          startDate = start_date,
+          endDate = end_date,
+          verbose = TRUE
+        )[[gridmet_column_map[[var_name]]]] %>%
+          project(crs(reference_raster)) %>%
+          crop(reference_raster)
 
-      if (file.exists(cache_file)) {
-        warning("Using cached gridMET data as a fallback. Data may be stale.")
-        rast(cache_file)
-      } else {
-        stop("Failed to retrieve gridMET data and no cache file is available. Cannot proceed.")
+        message(glue("✓ Successfully downloaded fresh gridMET data through {end_date}"))
+
+        # Cache the successful download
+        writeCDF(fresh_gridmet, cache_file, overwrite = TRUE, varname = var_name)
+
+        return(fresh_gridmet)
+      },
+      error = function(e) {
+        message(glue("  Failed with endDate={end_date}: {e$message}"))
+        NULL
       }
+    )
+
+    # If download succeeded, break out of loop
+    if (!is.null(gridmet_data)) {
+      break
     }
-  )
+  }
+
+  # If all attempts failed, fall back to cache
+  if (is.null(gridmet_data)) {
+    warning("All gridMET download attempts failed. Trying cache as fallback.")
+
+    if (file.exists(cache_file)) {
+      warning("Using cached gridMET data as a fallback. Data may be stale.")
+      gridmet_data <- rast(cache_file)
+    } else {
+      stop("Failed to retrieve gridMET data and no cache file is available. Cannot proceed.")
+    }
+  }
 
   return(gridmet_data)
 }
@@ -483,9 +519,15 @@ create_timeseries <- function(gridmet_data = NULL, forecasts = NULL,
     last_date <- max(time(series))
     message(glue("  Last historical date: {last_date}"))
 
-    # Infill with forecast data
-    forecast_tmax_list <- list(tmax_forecasts$f2, tmax_forecasts$f1, tmax_forecasts$f0)
-    forecast_tmin_list <- list(tmin_forecasts$f2, tmin_forecasts$f1, tmin_forecasts$f0)
+    # Infill with forecast data (oldest to newest: f3, f2, f1, f0)
+    forecast_tmax_list <- list()
+    forecast_tmin_list <- list()
+    if (!is.null(tmax_forecasts$f3)) {
+      forecast_tmax_list <- c(forecast_tmax_list, list(tmax_forecasts$f3))
+      forecast_tmin_list <- c(forecast_tmin_list, list(tmin_forecasts$f3))
+    }
+    forecast_tmax_list <- c(forecast_tmax_list, list(tmax_forecasts$f2, tmax_forecasts$f1, tmax_forecasts$f0))
+    forecast_tmin_list <- c(forecast_tmin_list, list(tmin_forecasts$f2, tmin_forecasts$f1, tmin_forecasts$f0))
 
     for (i in seq_along(forecast_tmax_list)) {
       tmax_rast <- forecast_tmax_list[[i]]
@@ -511,8 +553,13 @@ create_timeseries <- function(gridmet_data = NULL, forecasts = NULL,
     last_date <- max(time(series))
     message(glue("  Last historical date: {last_date}"))
 
-    # Infill with forecast data (f2, f1, f0 in that order for proper rotation)
-    forecast_list <- list(forecasts$f2, forecasts$f1, forecasts$f0)
+    # Infill with forecast data (oldest to newest: f3, f2, f1, f0)
+    forecast_list <- list()
+    if (!is.null(forecasts$f3)) {
+      forecast_list <- c(forecast_list, list(forecasts$f3))
+    }
+    forecast_list <- c(forecast_list, list(forecasts$f2, forecasts$f1, forecasts$f0))
+
     for (forecast_rast in forecast_list) {
       new_dates <- time(forecast_rast)[time(forecast_rast) > last_date]
       if (length(new_dates) > 0) {
