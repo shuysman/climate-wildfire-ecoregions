@@ -52,7 +52,6 @@ cd "$FORECAST_DATA_DIR"
 TODAY_FILENAME="cfsv2_metdata_forecast_${VARIABLE}_daily_0.nc"
 Tminus1_FILENAME="cfsv2_metdata_forecast_${VARIABLE}_daily_1.nc"
 Tminus2_FILENAME="cfsv2_metdata_forecast_${VARIABLE}_daily_2.nc"
-Tminus3_FILENAME="cfsv2_metdata_forecast_${VARIABLE}_daily_3.nc"
 TEMP_FILENAME="cfsv2_metdata_forecast_${VARIABLE}_daily.nc.tmp"
 STALE_WARNING_FILE="STALE_DATA_WARNING.txt"
 
@@ -299,9 +298,9 @@ trap cleanup EXIT
 if uses_ensemble_format "$VARIABLE"; then
   log "Variable $VARIABLE uses ensemble format - will compute ensemble means"
 
-  # If there's no existing forecast, download and create ensemble means for all 4 days
+  # If there's no existing forecast, download and create ensemble means for all 3 days
   if [[ ! -f "$TODAY_FILENAME" ]]; then
-    log "No existing forecast files. Downloading ensemble members for days 0, 1, 2, and 3..."
+    log "No existing forecast files. Downloading ensemble members for days 0, 1, and 2..."
 
     # Download and create ensemble mean for day 0 (today)
     if download_ensemble_average 0 "$TODAY_FILENAME"; then
@@ -342,13 +341,6 @@ if uses_ensemble_format "$VARIABLE"; then
       log "Day 2 ensemble mean created successfully."
     else
       log "WARNING: Day 2 ensemble download failed. Continuing without day 2."
-    fi
-
-    # Download and create ensemble mean for day 3 (three days ago)
-    if download_ensemble_average 3 "$Tminus3_FILENAME"; then
-      log "Day 3 ensemble mean created successfully."
-    else
-      log "WARNING: Day 3 ensemble download failed. Continuing without day 3."
     fi
 
     log "Initial ensemble means created successfully."
@@ -412,13 +404,7 @@ if uses_ensemble_format "$VARIABLE"; then
 
   log "Update detected! Rotating forecast files."
 
-  # Rotate files: T-2→T-3, T-1→T-2, T→T-1, new→T
-  # Keep 4 files (daily_0, daily_1, daily_2, daily_3) to handle gridMET lag
-  if [[ -f "$Tminus2_FILENAME" ]]; then
-    mv "$Tminus2_FILENAME" "$Tminus3_FILENAME"
-    log "Rotated T-2 to T-3."
-  fi
-
+  # Rotate files: T-1 becomes T-2, T becomes T-1, new becomes T
   if [[ -f "$Tminus1_FILENAME" ]]; then
     mv "$Tminus1_FILENAME" "$Tminus2_FILENAME"
     log "Rotated T-1 to T-2."
@@ -530,13 +516,7 @@ else
 
   log "Update detected! Rotating forecast files."
 
-  # Rotate files: T-2→T-3, T-1→T-2, T→T-1, new→T
-  # Keep 4 files (daily_0, daily_1, daily_2, daily_3) to handle gridMET lag
-  if [[ -f "$Tminus2_FILENAME" ]]; then
-    mv "$Tminus2_FILENAME" "$Tminus3_FILENAME"
-    log "Rotated T-2 to T-3."
-  fi
-
+  # Rotate files: T-1 becomes T-2, T becomes T-1, new becomes T
   if [[ -f "$Tminus1_FILENAME" ]]; then
     mv "$Tminus1_FILENAME" "$Tminus2_FILENAME"
     log "Rotated T-1 to T-2."
