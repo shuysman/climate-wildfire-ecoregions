@@ -775,10 +775,16 @@ for (i in 1:N_DAYS) {
     resample(processed_nonforest, classified_rast, filename = resampled_nonforest_file, threads = nthreads, wopt = list(gdal = c("COMPRESS=NONE")))
 
     # Combine based on cover type (character values: "forest", "non_forest")
-    ifel(classified_rast == "forest", rast(resampled_forest_file), rast(resampled_nonforest_file), filename = combined_layer_file, wopt = list(gdal = c("COMPRESS=DEFLATE")))
+    # First combine to temp file, then mask out non-vegetated areas (urban, water, barren, etc.)
+    combined_temp_file <- tempfile(fileext = ".tif")
+    ifel(classified_rast == "forest", rast(resampled_forest_file), rast(resampled_nonforest_file), filename = combined_temp_file, wopt = list(gdal = c("COMPRESS=NONE")))
+
+    # Mask to valid cover types only (exclude NA pixels which are urban/water/barren/etc.)
+    valid_cover_mask <- !is.na(classified_rast)
+    mask(rast(combined_temp_file), valid_cover_mask, maskvalues = FALSE, filename = combined_layer_file, wopt = list(gdal = c("COMPRESS=DEFLATE")))
 
     # Cleanup
-    unlink(c(resampled_forest_file, resampled_nonforest_file))
+    unlink(c(resampled_forest_file, resampled_nonforest_file, combined_temp_file))
 
   } else if (has_forest) {
     # Forest only - mask to forest pixels
