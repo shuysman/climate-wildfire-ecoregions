@@ -296,11 +296,11 @@ pal <- colorNumeric(
   na.color = "transparent"
 )
 
-# Park styling
-park_line_color <- "#3B7A57"  # NPS green
+# Park styling - bright green for visibility against purple/red raster
+park_line_color <- "#00FF7F"  # Spring green - bright and contrasting
 park_fill_color <- "transparent"
-park_line_weight <- 2
-park_fill_opacity <- 0.5
+park_line_weight <- 4  # Thicker for visibility
+park_fill_opacity <- 0.1
 
 # Create leaflet map
 m <- leaflet() %>%
