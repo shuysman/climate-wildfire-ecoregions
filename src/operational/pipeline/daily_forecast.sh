@@ -155,11 +155,15 @@ if [ "${ENVIRONMENT:-local}" = "cloud" ]; then
   ECOREGION_OUT_DIR="/app/out/forecasts/${ECOREGION}"
   S3_ECOREGION_OUT_DIR="${S3_BUCKET_PATH}/out/forecasts/${ECOREGION}"
 
-  # Sync the entire ecoregion output directory
-  echo "Syncing ${ECOREGION} outputs to S3..."
-  aws s3 sync "$ECOREGION_OUT_DIR" "$S3_ECOREGION_OUT_DIR" \
-    --acl "public-read" \
-    --delete
+  # Sync only today's date directory (preserves historical forecasts in S3)
+  echo "Syncing ${ECOREGION}/${TODAY} outputs to S3..."
+  aws s3 sync "$ECOREGION_OUT_DIR/${TODAY}" "$S3_ECOREGION_OUT_DIR/${TODAY}" \
+    --acl "public-read"
+
+  # Sync the landing page HTML (lives at ecoregion root level)
+  echo "Syncing dashboard HTML..."
+  aws s3 cp "$ECOREGION_OUT_DIR/daily_forecast.html" "$S3_ECOREGION_OUT_DIR/daily_forecast.html" \
+    --acl "public-read"
 
   # Sync cache (gridMET historical data)
   CACHE_DIR="/app/out/cache"
