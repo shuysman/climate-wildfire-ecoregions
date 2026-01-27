@@ -1,6 +1,6 @@
 # Climatic Drivers of Wildfire Ignition Across CONUS Ecoregions
 
-This repository contains the analysis code for a project that develops and evaluates a wildfire ignition danger rating system based on climatic water balance variables. The system is designed to be straightforward, computationally efficient, and applicable across different ecoregions in the conterminous United States (CONUS).
+This repository contains the retrospective analysis code and operational wildfire forecasting pipeline that evaluates a wildfire ignition danger rating system based on climatic water balance variables. The system is designed to be straightforward, computationally efficient, and applicable across different ecoregions in the conterminous United States (CONUS).
 
 This work expands upon an analysis originally conducted for the Southern Rockies (Thoma et al., 2020) which was extended to the Middle Rockies as part the work for a Masters Thesis (Huysman et al., *in prep*) and is generalized here for all US L3 ecoregions.
 
