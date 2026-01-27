@@ -173,6 +173,9 @@ if [ "${ENVIRONMENT:-local}" = "cloud" ]; then
   fi
 
   echo "S3 sync complete for ${ECOREGION}."
+
+  # Archive old forecasts, keeping only 2 most recent
+  bash ./src/operational/pipeline/archive_old_forecasts.sh || echo "Warning: forecast archival failed"
 fi
 
 # ============================================================================
