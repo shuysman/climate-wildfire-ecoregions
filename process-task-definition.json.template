@@ -1,0 +1,38 @@
+{
+  "family": "wildfire-forecast-process",
+  "taskRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/${IAM_TASK_ROLE_NAME}",
+  "executionRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/${IAM_EXECUTION_ROLE_NAME}",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "16384",
+  "memory": "81920",
+  "ephemeralStorage": {
+    "sizeInGiB": 45
+  },
+  "containerDefinitions": [
+    {
+      "name": "wildfire-process-app",
+      "image": "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY_NAME}",
+      "essential": true,
+      "command": ["/app/src/operational/pipeline/daily_forecast.sh"],
+      "environment": [
+        {
+          "name": "ENVIRONMENT",
+          "value": "cloud"
+        },
+        {
+          "name": "S3_BUCKET_PATH",
+          "value": "s3://${S3_BUCKET_NAME}"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/wildfire-forecast",
+          "awslogs-region": "${AWS_REGION}",
+          "awslogs-stream-prefix": "process-step"
+        }
+      }
+    }
+  ]
+}
