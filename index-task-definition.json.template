@@ -1,0 +1,35 @@
+{
+  "family": "wildfire-forecast-index",
+  "taskRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/${IAM_TASK_ROLE_NAME}",
+  "executionRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/${IAM_EXECUTION_ROLE_NAME}",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "containerDefinitions": [
+    {
+      "name": "wildfire-index-app",
+      "image": "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY_NAME}",
+      "essential": true,
+      "command": ["/bin/bash", "-c", "cd /app && bash src/generate_index_html.sh && aws s3 cp out/forecasts/index.html s3://${S3_BUCKET_NAME}/out/forecasts/ --acl public-read"],
+      "environment": [
+        {
+          "name": "ENVIRONMENT",
+          "value": "cloud"
+        },
+        {
+          "name": "S3_BUCKET_PATH",
+          "value": "s3://${S3_BUCKET_NAME}"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/wildfire-forecast",
+          "awslogs-region": "${AWS_REGION}",
+          "awslogs-stream-prefix": "index-step"
+        }
+      }
+    }
+  ]
+}
