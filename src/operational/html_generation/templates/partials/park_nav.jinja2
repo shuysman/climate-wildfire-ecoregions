@@ -1,0 +1,11 @@
+        <nav class="navbar sub-navbar">
+          <ul>
+{% for park in parks %}
+{% if park.is_first %}
+            <li><a href="javascript:void(0)" class="park-link active" onclick="showPark('{{ park.park_code }}')">{{ park.park_code }}</a></li>
+{% else %}
+            <li><a href="javascript:void(0)" class="park-link" onclick="showPark('{{ park.park_code }}')">{{ park.park_code }}</a></li>
+{% endif %}
+{% endfor %}
+          </ul>
+        </nav>

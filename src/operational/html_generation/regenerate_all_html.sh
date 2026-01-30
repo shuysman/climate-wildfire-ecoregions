@@ -81,7 +81,7 @@ for ECOREGION in $ENABLED_ECOREGIONS; do
   echo "Regenerating HTML for: $ECOREGION"
   echo "========================================="
 
-  if bash "$PROJECT_DIR/src/operational/html_generation/generate_daily_html.sh" "$ECOREGION"; then
+  if Rscript "$PROJECT_DIR/src/operational/html_generation/generate_daily_html.R" "$ECOREGION"; then
     echo "✓ Successfully regenerated HTML for $ECOREGION"
     SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
   else
@@ -102,7 +102,7 @@ echo "========================================="
 echo "Regenerating index landing page..."
 echo "========================================="
 
-if bash "$PROJECT_DIR/src/operational/html_generation/generate_index_html.sh"; then
+if Rscript "$PROJECT_DIR/src/operational/html_generation/generate_index_html.R"; then
   echo "✓ Successfully regenerated index page"
 else
   echo "✗ Failed to regenerate index page" >&2

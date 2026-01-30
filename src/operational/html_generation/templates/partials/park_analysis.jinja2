@@ -1,0 +1,21 @@
+<h3 style="margin: 20px 0 20px 0; padding: 15px; font-size: 1.5em; font-weight: 600; color: #2c3e50; background: #f8f9fa; border-left: 5px solid #3B7A57; border-radius: 4px;">{{ park_name }}</h3>
+{% if has_coverage_note %}
+<p style="margin: 8px 0; font-size: 0.9em; color: #856404; background: #fff3cd; padding: 8px; border-radius: 3px; border-left: 3px solid #ffc107;"><strong>Note:</strong> Showing {{ coverage_pct }}% of park area within {{ ecoregion_name }} ({{ park_area_clipped_km2 }} of {{ park_area_total_km2 }} km²)</p>
+{% endif %}
+<div style="margin: 0 0 20px 0; padding: 15px; background: #f9f9f9; border-left: 4px solid {{ status_color }}; border-radius: 3px;">
+  <h4 style="margin: 0 0 10px 0;">Current Fire Danger Distribution</h4>
+  <p style="margin: 8px 0; font-size: 0.85em; color: #666; line-height: 1.4;"><em>Categories represent fire danger index ranges: Extreme ≥0.95 | Very High 0.90-0.95 | High 0.75-0.90 | Elevated 0.50-0.75 | Normal <0.50</em></p>
+  <p style="margin: 8px 0; font-size: 0.95em;"><strong>Overall Status:</strong> {{ status_emoji }} {{ status_label }}</p>
+  <p style="margin: 8px 0; font-size: 0.95em;"><strong>Peak Danger:</strong> {{ max_danger }} | <strong>Median:</strong> {{ median_danger }}</p>
+  <div style="font-size: 0.9em; margin-top: 12px;">
+{% for level in danger_levels %}
+    <div style="margin: 5px 0; display: flex; align-items: center;">
+      <span style="width: 90px; flex-shrink: 0;">{{ level.emoji }} {{ level.label }}:</span>
+      <div style="flex-grow: 1; background: #e0e0e0; height: 14px; border-radius: 2px; overflow: hidden;">
+        <div style="width: {{ level.pct }}%; background: {{ level.color }}; height: 100%;"></div>
+      </div>
+      <span style="margin-left: 8px; width: 50px; text-align: right;">{{ level.pct_display }}%</span>
+    </div>
+{% endfor %}
+  </div>
+</div>

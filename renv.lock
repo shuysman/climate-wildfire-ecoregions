@@ -2944,6 +2944,11 @@
       "Maintainer": "Sam Firke <samuel.firke@gmail.com>",
       "Repository": "CRAN"
     },
+    "jinjar": {
+      "Package": "jinjar",
+      "Version": "0.3.2",
+      "Source": "Repository"
+    },
     "jquerylib": {
       "Package": "jquerylib",
       "Version": "0.1.4",

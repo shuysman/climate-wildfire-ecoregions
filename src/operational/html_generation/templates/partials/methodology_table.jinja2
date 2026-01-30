@@ -1,0 +1,18 @@
+                <div style="margin: 20px auto; max-width: 600px; padding: 15px; background: #e8f4f8; border-left: 4px solid #3B7A57; border-radius: 4px;">
+                  <h4 style="margin-top: 0; color: #2c3e50;">Forecast Methodology for {{ ecoregion_name }}</h4>
+                  <table style="width: 100%; font-size: 0.95rem;">
+{% if methodology.has_forest %}
+                    <tr>
+                      <td style="padding: 5px 10px 5px 0; font-weight: 600;">Forest Variable:</td>
+                      <td style="padding: 5px 0;">{{ methodology.forest_variable }} ({{ methodology.forest_window }}-day {{ methodology.forest_roll_type }})</td>
+                    </tr>
+{% endif %}
+{% if methodology.has_non_forest %}
+                    <tr>
+                      <td style="padding: 5px 10px 5px 0; font-weight: 600;">Non-forest Variable:</td>
+                      <td style="padding: 5px 0;">{{ methodology.non_forest_variable }} ({{ methodology.non_forest_window }}-day {{ methodology.non_forest_roll_type }})</td>
+                    </tr>
+{% endif %}
+                  </table>
+                  <p style="margin: 10px 0 0 0; font-size: 0.85rem; color: #555;"><em>Variables and windows selected through retrospective analysis to maximize predictive skill for this ecoregion.</em></p>
+                </div>

@@ -1,0 +1,23 @@
+{% if park.is_first %}
+        <div id="{{ park.park_code }}" class="park-plots">
+{% else %}
+        <div id="{{ park.park_code }}" class="park-plots" style="display:none;">
+{% endif %}
+{% if park.has_analysis %}
+          {{ park.analysis_html }}
+{% else %}
+          <p>Analysis not available for this park.</p>
+{% endif %}
+          <h3 style="margin-top: 30px;">Category Distribution Forecast</h3>
+          <p style="font-size: 0.9em; color: #666; line-height: 1.6;">This stacked bar chart shows how the distribution of fire danger categories changes across the 7-day forecast period. Each bar represents one day, with colors showing the percentage of park area in each fire danger category (Extreme &ge;0.95, Very High 0.90-0.95, High 0.75-0.90, Elevated 0.50-0.75, Normal &lt;0.50). Use this visualization to see when danger categories are shifting and plan accordingly.</p>
+          <img src="{{ park.distribution_img }}" alt="Fire Danger Category Distribution Forecast for {{ park.park_code }}" style="width: 100%; max-width: 1000px;">
+          <h3 style="margin-top: 40px;">Threshold Plots - Forecast Trend</h3>
+          <p style="font-size: 0.9em; color: #666; line-height: 1.6;">These plots show how the percentage of park area at or above specific fire danger thresholds changes over the 7-day forecast period. Each threshold (0.25, 0.50, 0.75) represents the historical proportion of fires that occurred at or below that dryness level. Higher thresholds indicate more severe conditions. Use these trends to identify windows of opportunity for management activities or periods requiring heightened vigilance.</p>
+          <h4>Threshold: 0.25</h4>
+          <img src="{{ park.threshold_025_img }}" alt="Fire Danger Threshold Plot at 0.25 for {{ park.park_code }}">
+          <h4>Threshold: 0.50</h4>
+          <img src="{{ park.threshold_050_img }}" alt="Fire Danger Threshold Plot at 0.50 for {{ park.park_code }}">
+          <h4>Threshold: 0.75</h4>
+          <img src="{{ park.threshold_075_img }}" alt="Fire Danger Threshold Plot at 0.75 for {{ park.park_code }}">
+        </div>
+
