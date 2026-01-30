@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+{% include "partials/head.jinja2" %}
+  </head>
+  <body>
+    <header>
+      <h1>Daily Fire Danger Forecast for {{ display_date }}</h1>
+      <h2>{{ ecoregion_name }}</h2>
+      <p><i>Wildfire danger forecasts update daily at approximately 10:40 AM Mountain Time.</i></p>
+    </header>
+
+{% include "partials/navbar.jinja2" %}
+
+{% if stale_warning.has_stale_warning %}
+{% include "partials/stale_warning.jinja2" %}
+{% endif %}
+
+    <div class="main-container">
+              <div id="forecast-map" class="container content-section">
+                  <h2>1-Week Forecast Map</h2>
+                <center><p>Click to enlarge image.</p></center>
+                  <picture>
+                    <source media="(max-width: 768px)" srcset="{{ forecast_map_mobile_path }}">
+                    <img src="{{ forecast_map_path }}" alt="1-Week Fire Danger Forecast Map" class="pannable-image">
+                  </picture>
+                <center style="margin-top: 20px;">
+                    <p style="margin-bottom: 10px;">
+                        <a href="https://firecachedata.s3-us-west-2.amazonaws.com/out/forecasts/{{ ecoregion }}/{{ forecast_map_date }}/fire_danger_forecast.nc" download="fire_danger_forecast_{{ ecoregion }}_{{ forecast_map_date }}.nc" style="padding: 8px 16px; background-color: #3B7A57; color: white; text-decoration: none; border-radius: 4px; font-weight: 500; display: inline-block; margin-right: 10px;">Download 7-Day Forecast NetCDF</a>
+                        <a href="https://firecachedata.s3-us-west-2.amazonaws.com/out/forecasts/{{ ecoregion }}/{{ forecast_map_date }}/fire_danger.tif" download="fire_danger_{{ ecoregion }}_{{ forecast_map_date }}.tif" style="padding: 8px 16px; background-color: #3B7A57; color: white; text-decoration: none; border-radius: 4px; font-weight: 500; display: inline-block;">Download Today's Fire Danger GeoTIFF</a>
+                    </p>
+                </center>
+
+{% include "partials/methodology_table.jinja2" %}
+              </div>
+      <div id="park-analysis" class="container content-section">
+        <h2>Park Fire Danger Analysis</h2>
+        <p>Select a park below to view current fire danger distribution and threshold plots over time. Fire danger values represent the historical proportion of wildfires that ignited at or below that dryness level (0 = lowest risk, 1 = highest risk).</p>
+
+{% if has_parks %}
+{% include "partials/park_nav.jinja2" %}
+
+{% for park in parks %}
+{% include "partials/park_section.jinja2" %}
+{% endfor %}
+{% else %}
+        <p>No parks configured for this ecoregion.</p>
+{% endif %}
+
+      </div>
+
+      <div id="lightning-map" class="container content-section">
+        <h2>Lightning Map</h2>
+        <!-- Lightning map paused for winter - uncomment in Spring 2026 -->
+        <!-- <iframe src="{{ forecast_map_date }}/lightning_map.html"></iframe> -->
+        <div style="background: #f0f8ff; border: 2px solid #4682b4; border-radius: 8px; padding: 30px; text-align: center; max-width: 600px; margin: 40px auto;">
+          <h3 style="color: #2c5aa0; margin-top: 0;">&#10052;&#65039; Winter Pause</h3>
+          <p style="font-size: 1.1em; line-height: 1.6; color: #333;">
+            Lightning strike mapping is paused during winter months when fire danger is low.
+          </p>
+          <p style="font-size: 0.95em; color: #666; margin-bottom: 0;">
+            Lightning maps will resume in <strong>Spring 2026</strong> when wildfire conditions become more active.
+          </p>
+        </div>
+      </div>
+
+      <div id="info" class="container content-section">
+        <h2>How This Fire Danger System Works</h2>
+
+        <p>This tool provides a daily forecast of wildfire ignition danger, designed to be both scientifically robust and easy for land managers to use, based on a model originally developed for the Southern Rockies by <a href="#references">Thoma et al. (2020)</a>. Here's a simplified overview of how it works:</p>
+
+        <h3>1. Finding the Best Weather Indicators</h3>
+
+        <p>Our goal was to find the simplest and most effective weather signals for predicting when and where a fire is likely to start. We analyzed decades of historical data on wildfires and weather, looking at variables like:</p>
+
+        <ul>
+          <li><strong>Vapor Pressure Deficit (VPD):</strong> A measure of how dry the air is, representing atmospheric moisture demand.</li>
+          <li><strong>Climatic Water Deficit (CWD):</strong> An indicator of drought stress in plants.</li>
+          <li><strong>Temperature</strong></li>
+          <li><strong>Fire danger indices</strong> from the <a href="https://research.fs.usda.gov/firelab/projects/firedangerrating" target="_blank">NFDRS</a> such as BI, ERC, FM100, and FM1000 which are commonly used to model aspects of wildfire behavior.</li>
+        </ul>
+
+        <p>We tested these indicators over different time windows (e.g., the last 3 days, 7 days, etc., up to 31 days) to find the combination that best predicted past fire ignitions for each specific ecoregion and cover type.</p>
+
+        <div style="margin: 20px 0; padding: 15px; background: #e8f4f8; border-left: 4px solid #3B7A57; border-radius: 4px;">
+          <h4 style="margin-top: 0; color: #2c3e50;">Ecoregion-Specific Predictors</h4>
+          <p>Different ecoregions have different optimal fire danger predictors, determined through retrospective analysis of historical fire ignitions and climate data. The current system uses:</p>
+          <ul style="margin-bottom: 0;">
+            <li><strong>Middle Rockies:</strong> VPD (Vapor Pressure Deficit) with 15-day rolling average for forests and 5-day average for non-forest areas</li>
+            <li><strong>Southern Rockies:</strong> FM1000 (1000-hour fuel moisture) with 5-day rolling average for forests and 1-day (current conditions) for non-forest areas</li>
+          </ul>
+          <p style="margin-bottom: 0; margin-top: 10px;"><em>These differences reflect regional climate patterns, vegetation characteristics, and fire regimes. Each predictor was selected because it maximized predictive skill for that specific ecoregion.</em></p>
+        </div>
+
+        <h3>2. Creating a Local "Normal"</h3>
+
+        <p>A hot, dry day in a desert is very different from a hot, dry day in a forest. To account for these local differences, we don't use the raw weather values. Instead, we convert them to a <strong>percentile rank</strong>.</p>
+
+        <p>For example, a VPD value might be normal for Arizona but extreme for Oregon. By converting it to a percentile, we can see that it's the 99th percentile of dryness for that specific location in Oregon, indicating a much higher risk than the raw value would suggest.</p>
+
+        <h3>3. The eCDF: Turning Weather into Risk</h3>
+
+        <p>The heart of our system is the <strong>Empirical Cumulative Distribution Function (eCDF)</strong>. This plot shows the relationship between the local dryness percentile (on the x-axis) and the historical probability of a fire starting (on the y-axis).</p>
+
+        <img src="../ecdf_example.png" alt="eCDF Example" style="max-height: 400px;">
+
+        <p><strong>How to Read the eCDF Plot:</strong></p>
+
+        <ul>
+          <li>The <strong>x-axis</strong> shows the dryness percentile. A value of 0.5 means that conditions are drier than 50% of all historical days for that location.</li>
+          <li>The <strong>y-axis</strong> shows the cumulative probability of fire ignition. A value of 0.5 (or 50%) means that 50% of all historical fires in that ecoregion started at or below that dryness level.</li>
+        </ul>
+
+        <p>By looking at this plot, you can set a risk threshold that makes sense for your management needs. For example, you might decide to increase patrols or issue warnings when the fire danger index reaches a level that corresponds to 75% of historical fire ignitions.</p>
+
+        <h3>4. Daily Forecasting</h3>
+
+        <p>To generate the daily forecast maps, the system performs the following steps every day:</p>
+
+        <ol>
+          <li><strong>Gets the Latest Data:</strong> It automatically downloads the latest historical weather data and the newest 7-day weather forecast from the Northwest Knowledge Network's CFSv2 operational forecast system.</li>
+          <li><strong>Calculates Dryness:</strong> For each ecoregion, it calculates the optimal dryness indicator determined in step 1 above (e.g., 15-day average VPD for Middle Rockies forests, or 5-day average FM1000 for Southern Rockies forests) for the forecast period.</li>
+          <li><strong>Compares to Normal:</strong> It compares the forecast dryness to the pre-calculated local "normal" for every pixel on the map to get a percentile rank.</li>
+          <li><strong>Creates the Danger Map:</strong> It uses the eCDF model (specific to each ecoregion and cover type) to convert the percentile rank into a fire danger index (from 0 to 1) for each pixel, creating the final map you see on the "Forecast Map" tab.</li>
+        </ol>
+
+        <p>These daily forecasts are updated around 10:40 AM MT each day, depending on exact timing of availability from the Northwest Knowledge Network THREDDS server.</p>
+
+        <h3>5. Cover Type</h3>
+
+        <p>Cover type is a critical factor in fire behavior. This system uses the <a href="https://www.landfire.gov/evt.php">LANDFIRE 2023 Existing Vegetation Type</a> dataset to distinguish between different vegetation types. The raw data provides detailed classifications, as shown below.</p>
+
+        <img src="../cover-landfire.png" alt="LANDFIRE Cover Types" style="max-height: 600px;">
+
+        <p>To simplify the modeling process, these detailed classifications are grouped into two main categories: "forest" and "non-forest". The system automatically determines the majority cover type for each area. The resulting categorized data is shown below.</p>
+
+        <img src="../cover-categorized.png" alt="Categorized Cover Types" style="max-height: 600px;">
+
+        <h3>6. Separate Models for Each Ecoregion and Cover Type</h3>
+
+        <p>A separate fire danger model is generated for each ecoregion and cover type combination. For example, the "Middle Rockies" ecoregion has both a "forest" and a "non-forest" model, each using VPD but with different rolling window lengths (15-day vs. 5-day). Similarly, "Southern Rockies" has separate forest and non-forest models, both using FM1000 but with different temporal windows.</p>
+
+        <p>This is crucial because fire behavior, and therefore fire danger, differs significantly between these environments. Forest fires may respond to longer-term moisture deficits (hence longer rolling windows), while non-forest fires may be more responsive to immediate conditions. The system automatically selects the appropriate model based on the cover type of a given area, ensuring that the fire danger forecast is tailored to both the ecoregion and the specific vegetation on the ground.</p>
+
+        <h3>Known Issues</h3>
+        <ul>
+            <li>The daily fire danger raster sometimes does not load in the lightning strikes map when using Firefox. If you are unable to get it to load, try Chrome or another browser.</li>
+        </ul>
+
+        <h3>Support</h3>
+
+        <p>For questions or issues with the wildfire danger forecast system, contact Stephen Huysman (<a href="mailto:shuysman@gmail.com">shuysman@gmail.com</a>).</p>
+
+        <p>Source code for this project is available <a href="https://github.com/shuysman/climate-wildfire-ecoregions" target="_blank">here</a>.</p>
+
+        <h3 id="references">References</h3>
+
+        Thoma, D.P., Tercek, M.T., Schweiger, E.W., Munson, S.M., Gross, J.E., and Olliff, S.T., 2020, Water balance as an indicator of natural resource condition: Case studies from Great Sand Dunes National Park and Preserve: Global Ecology and Conservation, v. 24, p. e01300, doi:<a href="https://doi.org/10.1016/j.gecco.2020.e01300" target="_blank">10.1016/j.gecco.2020.e01300</a>.
+
+      </div>
+    </div>
+
+{% include "partials/modal.jinja2" %}
+
+  </body>
+</html>

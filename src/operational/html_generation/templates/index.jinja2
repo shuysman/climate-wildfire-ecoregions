@@ -1,44 +1,3 @@
-#!/usr/bin/env bash
-# Generate index.html landing page with links to all enabled ecoregions
-
-set -euo pipefail
-IFS=$'\n\t'
-
-# Get the project directory (go up 3 levels: html_generation -> operational -> src -> project_root)
-PROJECT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")"/../../../ &> /dev/null && pwd)
-cd "$PROJECT_DIR"
-
-TODAY=$(date +%Y-%m-%d)
-OUTPUT_FILE="out/forecasts/index.html"
-
-# Create output directory if it doesn't exist
-mkdir -p "$(dirname "$OUTPUT_FILE")"
-
-echo "========================================="
-echo "Generating index landing page"
-echo "Date: $TODAY"
-echo "========================================="
-
-# Get enabled ecoregions from YAML config
-ECOREGIONS_DATA=$(Rscript -e "
-suppressPackageStartupMessages(library(yaml))
-config <- read_yaml('config/ecoregions.yaml')
-enabled <- config\$ecoregions[sapply(config\$ecoregions, function(x) isTRUE(x\$enabled))]
-if (length(enabled) == 0) {
-  stop('No enabled ecoregions found in config')
-}
-for (eco in enabled) {
-  cat(eco\$name_clean, '|', eco\$name, '\\n', sep='')
-}
-")
-
-if [ -z "$ECOREGIONS_DATA" ]; then
-  echo "Error: No enabled ecoregions found" >&2
-  exit 1
-fi
-
-# Create HTML header
-cat > "$OUTPUT_FILE" << 'EOF'
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -146,37 +105,21 @@ cat > "$OUTPUT_FILE" << 'EOF'
 </head>
 <body>
     <div class="container">
-        <h1>🔥 Wildfire Danger Forecasts</h1>
+        <h1>Wildfire Danger Forecasts</h1>
         <p class="subtitle">7-Day Fire Danger Forecasts by Ecoregion</p>
 
         <div class="ecoregion-grid">
-EOF
-
-# Add ecoregion cards
-while IFS='|' read -r name_clean name; do
-  cat >> "$OUTPUT_FILE" << EOF
-            <a href="${name_clean}/daily_forecast.html" class="ecoregion-card">
-                <h2>${name} <span class="arrow">→</span></h2>
+{% for eco in ecoregions %}
+            <a href="{{ eco.name_clean }}/daily_forecast.html" class="ecoregion-card">
+                <h2>{{ eco.name }} <span class="arrow">&rarr;</span></h2>
                 <p>View fire danger forecast and park analyses</p>
             </a>
-EOF
-done <<< "$ECOREGIONS_DATA"
-
-# Add HTML footer
-cat >> "$OUTPUT_FILE" << EOF
+{% endfor %}
         </div>
 
         <div class="footer">
-            <p>Updated: ${TODAY}</p>
+            <p>Updated: {{ today }}</p>
         </div>
     </div>
 </body>
 </html>
-EOF
-
-echo "========================================="
-echo "Successfully generated index.html"
-echo "Output: $OUTPUT_FILE"
-echo "Linked ecoregions:"
-echo "$ECOREGIONS_DATA" | cut -d'|' -f2
-echo "========================================="

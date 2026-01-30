@@ -1,0 +1,22 @@
+    <nav class="navbar">
+      <ul>
+        <li>
+          <details>
+            <summary>Ecoregions &#9660;</summary>
+            <div class="dropdown-content">
+{% for eco in ecoregions %}
+{% if eco.is_current %}
+              <a href="../{{ eco.name_clean }}/daily_forecast.html"><strong>&check; {{ eco.name }}</strong></a>
+{% else %}
+              <a href="../{{ eco.name_clean }}/daily_forecast.html">{{ eco.name }}</a>
+{% endif %}
+{% endfor %}
+            </div>
+          </details>
+        </li>
+        <li><a href="#forecast-map">Forecast Map</a></li>
+        <li><a href="#park-analysis">Park Analysis</a></li>
+        <li><a href="#lightning-map">Lightning Map</a></li>
+        <li><a href="#info">Info</a></li>
+      </ul>
+    </nav>

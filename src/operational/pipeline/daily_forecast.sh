@@ -138,7 +138,7 @@ Rscript ./src/operational/visualization/generate_threshold_plots.R "$ECOREGION"
 
 # Generate the daily HTML report
 echo "Step 4: Generating daily HTML report..."
-./src/operational/html_generation/generate_daily_html.sh "$ECOREGION"
+Rscript ./src/operational/html_generation/generate_daily_html.R "$ECOREGION"
 
 # Create the Cloud-Optimized GeoTIFF for today for web mapping use
 echo "Step 5: Creating Cloud-Optimized GeoTIFF..."
