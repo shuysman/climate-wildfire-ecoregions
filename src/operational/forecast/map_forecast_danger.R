@@ -218,6 +218,7 @@ load_forecast_data <- function(var_name, label, boundary = NULL) {
   forecast_0_path <- glue("data/forecasts/{var_name}/cfsv2_metdata_forecast_{var_name}_daily_0.nc")
   forecast_1_path <- glue("data/forecasts/{var_name}/cfsv2_metdata_forecast_{var_name}_daily_1.nc")
   forecast_2_path <- glue("data/forecasts/{var_name}/cfsv2_metdata_forecast_{var_name}_daily_2.nc")
+  forecast_3_path <- glue("data/forecasts/{var_name}/cfsv2_metdata_forecast_{var_name}_daily_3.nc")
 
   if (!file.exists(forecast_0_path)) {
     stop(glue("{label} forecast file not found: {forecast_0_path}\nPlease run src/update_all_forecasts.sh first."))
@@ -232,14 +233,25 @@ load_forecast_data <- function(var_name, label, boundary = NULL) {
   forecast_2 <- rast(forecast_2_path)
   time(forecast_2) <- as_date(depth(forecast_2), origin = "1900-01-01")
 
+  # f3 is optional - bridges gap when gridMET cache is stale
+  forecast_3 <- if (file.exists(forecast_3_path)) {
+    f3 <- rast(forecast_3_path)
+    time(f3) <- as_date(depth(f3), origin = "1900-01-01")
+    f3
+  } else {
+    message(glue("  Note: {label} forecast file f3 not found (optional). Skipping."))
+    NULL
+  }
+
   # Crop to ecoregion extent if boundary provided
   if (!is.null(boundary)) {
     forecast_0 <- crop(forecast_0, boundary)
     forecast_1 <- crop(forecast_1, boundary)
     forecast_2 <- crop(forecast_2, boundary)
+    if (!is.null(forecast_3)) forecast_3 <- crop(forecast_3, boundary)
   }
 
-  return(list(f0 = forecast_0, f1 = forecast_1, f2 = forecast_2))
+  return(list(f0 = forecast_0, f1 = forecast_1, f2 = forecast_2, f3 = forecast_3))
 }
 
 # Determine which forecast variables to load
@@ -259,9 +271,11 @@ if (has_forest) {
     forest_tmax_forecasts$f0 <- crop(forest_tmax_forecasts$f0, ecoregion_boundary)
     forest_tmax_forecasts$f1 <- crop(forest_tmax_forecasts$f1, ecoregion_boundary)
     forest_tmax_forecasts$f2 <- crop(forest_tmax_forecasts$f2, ecoregion_boundary)
+    if (!is.null(forest_tmax_forecasts$f3)) forest_tmax_forecasts$f3 <- crop(forest_tmax_forecasts$f3, ecoregion_boundary)
     forest_tmin_forecasts$f0 <- crop(forest_tmin_forecasts$f0, ecoregion_boundary)
     forest_tmin_forecasts$f1 <- crop(forest_tmin_forecasts$f1, ecoregion_boundary)
     forest_tmin_forecasts$f2 <- crop(forest_tmin_forecasts$f2, ecoregion_boundary)
+    if (!is.null(forest_tmin_forecasts$f3)) forest_tmin_forecasts$f3 <- crop(forest_tmin_forecasts$f3, ecoregion_boundary)
   } else {
     forest_forecasts <- load_forecast_data(forest_gridmet_var, "forest")
     # Project ecoregion boundary to forecast CRS
@@ -270,6 +284,7 @@ if (has_forest) {
     forest_forecasts$f0 <- crop(forest_forecasts$f0, ecoregion_boundary)
     forest_forecasts$f1 <- crop(forest_forecasts$f1, ecoregion_boundary)
     forest_forecasts$f2 <- crop(forest_forecasts$f2, ecoregion_boundary)
+    if (!is.null(forest_forecasts$f3)) forest_forecasts$f3 <- crop(forest_forecasts$f3, ecoregion_boundary)
   }
 }
 
@@ -294,9 +309,11 @@ if (has_non_forest) {
       non_forest_tmax_forecasts$f0 <- crop(non_forest_tmax_forecasts$f0, ecoregion_boundary)
       non_forest_tmax_forecasts$f1 <- crop(non_forest_tmax_forecasts$f1, ecoregion_boundary)
       non_forest_tmax_forecasts$f2 <- crop(non_forest_tmax_forecasts$f2, ecoregion_boundary)
+      if (!is.null(non_forest_tmax_forecasts$f3)) non_forest_tmax_forecasts$f3 <- crop(non_forest_tmax_forecasts$f3, ecoregion_boundary)
       non_forest_tmin_forecasts$f0 <- crop(non_forest_tmin_forecasts$f0, ecoregion_boundary)
       non_forest_tmin_forecasts$f1 <- crop(non_forest_tmin_forecasts$f1, ecoregion_boundary)
       non_forest_tmin_forecasts$f2 <- crop(non_forest_tmin_forecasts$f2, ecoregion_boundary)
+      if (!is.null(non_forest_tmin_forecasts$f3)) non_forest_tmin_forecasts$f3 <- crop(non_forest_tmin_forecasts$f3, ecoregion_boundary)
     }
   } else if (has_forest && forest_gridmet_var == non_forest_gridmet_var) {
     message("Forest and non-forest use same variable - reusing forecast data")
@@ -309,6 +326,7 @@ if (has_non_forest) {
       non_forest_forecasts$f0 <- crop(non_forest_forecasts$f0, ecoregion_boundary)
       non_forest_forecasts$f1 <- crop(non_forest_forecasts$f1, ecoregion_boundary)
       non_forest_forecasts$f2 <- crop(non_forest_forecasts$f2, ecoregion_boundary)
+      if (!is.null(non_forest_forecasts$f3)) non_forest_forecasts$f3 <- crop(non_forest_forecasts$f3, ecoregion_boundary)
     } else {
       # Boundary already projected, can crop directly
       non_forest_forecasts <- load_forecast_data(non_forest_gridmet_var, "non-forest", ecoregion_boundary)
@@ -483,9 +501,9 @@ create_timeseries <- function(gridmet_data = NULL, forecasts = NULL,
     last_date <- max(time(series))
     message(glue("  Last historical date: {last_date}"))
 
-    # Infill with forecast data
-    forecast_tmax_list <- list(tmax_forecasts$f2, tmax_forecasts$f1, tmax_forecasts$f0)
-    forecast_tmin_list <- list(tmin_forecasts$f2, tmin_forecasts$f1, tmin_forecasts$f0)
+    # Infill with forecast data (oldest first for proper rotation)
+    forecast_tmax_list <- c(if (!is.null(tmax_forecasts$f3)) list(tmax_forecasts$f3), list(tmax_forecasts$f2, tmax_forecasts$f1, tmax_forecasts$f0))
+    forecast_tmin_list <- c(if (!is.null(tmin_forecasts$f3)) list(tmin_forecasts$f3), list(tmin_forecasts$f2, tmin_forecasts$f1, tmin_forecasts$f0))
 
     for (i in seq_along(forecast_tmax_list)) {
       tmax_rast <- forecast_tmax_list[[i]]
@@ -511,8 +529,8 @@ create_timeseries <- function(gridmet_data = NULL, forecasts = NULL,
     last_date <- max(time(series))
     message(glue("  Last historical date: {last_date}"))
 
-    # Infill with forecast data (f2, f1, f0 in that order for proper rotation)
-    forecast_list <- list(forecasts$f2, forecasts$f1, forecasts$f0)
+    # Infill with forecast data (f3, f2, f1, f0 in that order - oldest first for proper rotation)
+    forecast_list <- c(if (!is.null(forecasts$f3)) list(forecasts$f3), list(forecasts$f2, forecasts$f1, forecasts$f0))
     for (forecast_rast in forecast_list) {
       new_dates <- time(forecast_rast)[time(forecast_rast) > last_date]
       if (length(new_dates) > 0) {
