@@ -16,6 +16,10 @@
 {% include "partials/stale_warning.jinja2" %}
 {% endif %}
 
+{% if gridmet_stale.has_gridmet_stale_warning %}
+{% include "partials/gridmet_stale_warning.jinja2" %}
+{% endif %}
+
     <div class="main-container">
               <div id="forecast-map" class="container content-section">
                   <h2>1-Week Forecast Map</h2>
