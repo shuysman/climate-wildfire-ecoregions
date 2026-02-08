@@ -187,28 +187,29 @@ prepare_stale_warning_context <- function(eco_config, data_dir = "data") {
   )
 }
 
-#' Check for gridMET stale data warning
+#' Check for forecast unavailable warning
 #'
-#' Checks if GRIDMET_STALE_WARNING.txt exists in the forecast output directory.
+#' Checks if FORECAST_UNAVAILABLE_WARNING.txt exists at the ecoregion root level.
+#' This file is written when forecast generation fails (e.g., gridMET down, CFSv2
+#' unavailable) and cleared on successful completion.
 #'
 #' @param ecoregion Character string with ecoregion name_clean
-#' @param forecast_date Date of the forecast
 #' @param out_dir Path to output directory
-#' @return List with has_gridmet_stale_warning boolean and gridmet_stale_message string
-prepare_gridmet_stale_context <- function(ecoregion, forecast_date, out_dir = "out/forecasts") {
-  warning_file <- file.path(out_dir, ecoregion, as.character(forecast_date), "GRIDMET_STALE_WARNING.txt")
+#' @return List with has_forecast_warning boolean and forecast_warning_message string
+prepare_forecast_warning_context <- function(ecoregion, out_dir = "out/forecasts") {
+  warning_file <- file.path(out_dir, ecoregion, "FORECAST_UNAVAILABLE_WARNING.txt")
 
   if (file.exists(warning_file)) {
     lines <- readLines(warning_file, warn = FALSE)
     return(list(
-      has_gridmet_stale_warning = TRUE,
-      gridmet_stale_message = paste(lines, collapse = "\n")
+      has_forecast_warning = TRUE,
+      forecast_warning_message = paste(lines, collapse = "\n")
     ))
   }
 
   list(
-    has_gridmet_stale_warning = FALSE,
-    gridmet_stale_message = ""
+    has_forecast_warning = FALSE,
+    forecast_warning_message = ""
   )
 }
 
@@ -256,18 +257,28 @@ prepare_dashboard_context <- function(ecoregion,
   # Get all enabled ecoregions for dropdown
   all_ecoregions <- get_enabled_ecoregions(config_path)
 
-  # Determine forecast map date (today or yesterday fallback)
+  # Determine forecast map date by finding the most recent date directory
+  # that contains a forecast map. This handles multi-day outages gracefully.
   today <- as.character(forecast_date)
-  yesterday <- as.character(forecast_date - 1)
-
   out_dir <- file.path(project_dir, "out/forecasts")
-  today_map <- file.path(out_dir, ecoregion, today, "fire_danger_forecast.png")
+  ecoregion_dir <- file.path(out_dir, ecoregion)
 
-  if (file.exists(today_map)) {
+  map_date <- NULL
+  if (dir.exists(ecoregion_dir)) {
+    date_dirs <- list.dirs(ecoregion_dir, recursive = FALSE, full.names = FALSE)
+    date_dirs <- sort(date_dirs[grepl("^\\d{4}-\\d{2}-\\d{2}$", date_dirs)], decreasing = TRUE)
+    for (d in date_dirs) {
+      if (file.exists(file.path(ecoregion_dir, d, "fire_danger_forecast.png"))) {
+        map_date <- d
+        break
+      }
+    }
+  }
+  if (is.null(map_date)) {
     map_date <- today
-  } else {
-    map_date <- yesterday
-    message("Using yesterday's forecast map (today's not found)")
+    message("No existing forecast map found in any date directory")
+  } else if (map_date != today) {
+    message(glue("Using forecast from {map_date} (today's not available)"))
   }
 
   # Prepare park contexts
@@ -305,9 +316,8 @@ prepare_dashboard_context <- function(ecoregion,
       file.path(project_dir, "data")
     ),
 
-    gridmet_stale = prepare_gridmet_stale_context(
+    forecast_warning = prepare_forecast_warning_context(
       ecoregion,
-      map_date,
       file.path(project_dir, "out/forecasts")
     ),
 

@@ -388,10 +388,12 @@ if (has_non_forest && (!has_forest || forest_gridmet_var != non_forest_gridmet_v
   }
 }
 
-# Define cache directory and gridMET stale warning path
+# Define cache directory and warning file paths
 cache_dir <- "./out/cache"
 dir.create(cache_dir, showWarnings = FALSE, recursive = TRUE)
-gridmet_stale_warning_file <- file.path(out_dir, "GRIDMET_STALE_WARNING.txt")
+# Warning file lives at ecoregion root so it persists across days and is visible
+# to the HTML generator even when today's forecast directory doesn't exist
+forecast_warning_file <- file.path("./out/forecasts", ecoregion_name_clean, "FORECAST_UNAVAILABLE_WARNING.txt")
 
 # Map variable name to gridMET output column name
 gridmet_column_map <- list(
@@ -429,8 +431,8 @@ fetch_gridmet_data <- function(var_name, label, reference_raster) {
       writeCDF(fresh_gridmet, cache_file, overwrite = TRUE, varname = var_name)
 
       # Clear stale warning on successful download
-      if (file.exists(gridmet_stale_warning_file)) {
-        file.remove(gridmet_stale_warning_file)
+      if (file.exists(forecast_warning_file)) {
+        file.remove(forecast_warning_file)
       }
 
       fresh_gridmet
@@ -443,14 +445,14 @@ fetch_gridmet_data <- function(var_name, label, reference_raster) {
         cached <- rast(cache_file)
         cache_end <- max(time(cached))
         writeLines(
-          c("GRIDMET STALE DATA WARNING",
-            "===========================",
+          c("FORECAST UNAVAILABLE WARNING",
+            "============================",
             glue("Variable: {var_name}"),
             glue("Generated: {Sys.time()}"),
             glue("GridMET download failed. Using cached data ending {cache_end}."),
             glue("Expected end date: {today - 2}"),
             "Historical data may be stale. Forecast accuracy may be reduced."),
-          gridmet_stale_warning_file
+          forecast_warning_file
         )
         cached
       } else {
@@ -993,6 +995,12 @@ temp_files_to_clean <- c(final_layer_files)
 if (has_forest && exists("forest_data_file")) temp_files_to_clean <- c(temp_files_to_clean, forest_data_file)
 if (has_non_forest && exists("non_forest_data_file")) temp_files_to_clean <- c(temp_files_to_clean, non_forest_data_file)
 unlink(temp_files_to_clean)
+
+# Clear the forecast warning file on successful completion
+if (file.exists(forecast_warning_file)) {
+  file.remove(forecast_warning_file)
+  message("Cleared forecast unavailable warning (successful run).")
+}
 
 message("Forecast generation complete.")
 

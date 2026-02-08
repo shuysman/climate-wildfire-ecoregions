@@ -12,12 +12,12 @@
 
 {% include "partials/navbar.jinja2" %}
 
+{% if forecast_warning.has_forecast_warning %}
+{% include "partials/forecast_unavailable_warning.jinja2" %}
+{% else %}
 {% if stale_warning.has_stale_warning %}
 {% include "partials/stale_warning.jinja2" %}
 {% endif %}
-
-{% if gridmet_stale.has_gridmet_stale_warning %}
-{% include "partials/gridmet_stale_warning.jinja2" %}
 {% endif %}
 
     <div class="main-container">
