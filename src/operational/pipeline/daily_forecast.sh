@@ -90,15 +90,9 @@ if [ "${ENVIRONMENT:-local}" = "cloud" ]; then
     exit 1
   fi
 
-  # Sync recent outputs for this ecoregion (today + yesterday for fallback)
-  # Only sync last 2 days to minimize bandwidth
-  YESTERDAY=$(date -d "yesterday" +%Y-%m-%d)
-  echo "Syncing recent outputs for ${ECOREGION} (today and yesterday for fallback)..."
-  aws s3 sync "${S3_BUCKET_PATH}/out/forecasts/${ECOREGION}/${TODAY}/" "/app/out/forecasts/${ECOREGION}/${TODAY}/" 2>/dev/null || echo "Info: No output for ${TODAY}"
-  aws s3 sync "${S3_BUCKET_PATH}/out/forecasts/${ECOREGION}/${YESTERDAY}/" "/app/out/forecasts/${ECOREGION}/${YESTERDAY}/" 2>/dev/null || echo "Info: No output for ${YESTERDAY}"
-
-  # Sync the daily_forecast.html file (landing page for this ecoregion)
-  aws s3 cp "${S3_BUCKET_PATH}/out/forecasts/${ECOREGION}/daily_forecast.html" "/app/out/forecasts/${ECOREGION}/daily_forecast.html" 2>/dev/null || echo "Info: No existing dashboard HTML"
+  # Sync all recent outputs for this ecoregion (archive keeps only 2-3 date dirs, so bandwidth is minimal)
+  echo "Syncing recent outputs for ${ECOREGION}..."
+  aws s3 sync "${S3_BUCKET_PATH}/out/forecasts/${ECOREGION}/" "/app/out/forecasts/${ECOREGION}/" 2>/dev/null || echo "Info: No existing outputs for ${ECOREGION}"
 
   # Sync cache (optional - helpful for climateR caching)
   echo "Syncing cache..."
@@ -117,32 +111,62 @@ echo "$(date)"
 
 # Run the map generation script with ecoregion parameter
 echo "Step 1: Generating fire danger forecast maps..."
-Rscript ./src/operational/forecast/map_forecast_danger.R "$ECOREGION"
+FORECAST_FAILED=false
+if ! Rscript ./src/operational/forecast/map_forecast_danger.R "$ECOREGION"; then
+  echo "WARNING: Forecast generation failed for ${ECOREGION}. Will show most recent available forecast." >&2
+  FORECAST_FAILED=true
+fi
 
-# Validate the generated forecast
-echo "Step 2: Validating forecast..."
-if ! Rscript ./src/operational/validation/validate_forecast.R "$ECOREGION"; then
-  VALIDATION_EXIT_CODE=$?
-  if [ $VALIDATION_EXIT_CODE -eq 1 ]; then
-    echo "ERROR: Forecast validation FAILED. Do not publish this forecast." >&2
-    exit 1
-  elif [ $VALIDATION_EXIT_CODE -eq 2 ]; then
-    echo "WARNING: Forecast validation detected anomalies. Review before publishing." >&2
-    # Continue anyway, but log the warning
+if [ "$FORECAST_FAILED" = false ]; then
+  # Validate the generated forecast
+  echo "Step 2: Validating forecast..."
+  if ! Rscript ./src/operational/validation/validate_forecast.R "$ECOREGION"; then
+    VALIDATION_EXIT_CODE=$?
+    if [ $VALIDATION_EXIT_CODE -eq 1 ]; then
+      echo "ERROR: Forecast validation FAILED. Do not publish this forecast." >&2
+      exit 1
+    elif [ $VALIDATION_EXIT_CODE -eq 2 ]; then
+      echo "WARNING: Forecast validation detected anomalies. Review before publishing." >&2
+      # Continue anyway, but log the warning
+    fi
+  fi
+
+  # Run the threshold plot generation script
+  echo "Step 3: Generating park threshold plots..."
+  Rscript ./src/operational/visualization/generate_threshold_plots.R "$ECOREGION"
+
+  # Create the Cloud-Optimized GeoTIFF for today for web mapping use
+  echo "Step 4: Creating Cloud-Optimized GeoTIFF..."
+  ./src/operational/visualization/create_cog_for_today.sh "$ECOREGION"
+else
+  echo "Skipping validation, threshold plots, and COG generation (forecast failed)."
+
+  # Write warning file at ecoregion root so the HTML generator shows a banner.
+  # The R script may have already written this (e.g., on gridMET failure), but if it
+  # failed for another reason (validation, missing data, etc.) we need to catch that too.
+  WARNING_FILE="out/forecasts/${ECOREGION}/FORECAST_UNAVAILABLE_WARNING.txt"
+  mkdir -p "out/forecasts/${ECOREGION}"
+  cat > "$WARNING_FILE" <<EOF
+FORECAST UNAVAILABLE WARNING
+============================
+Generated: $(date)
+Forecast generation failed for ${ECOREGION} on ${TODAY}.
+The most recent available forecast will be shown until the issue is resolved.
+EOF
+
+  # Remove the empty date directory created by map_forecast_danger.R before it failed.
+  # Leaving it would cause the archive script to count it as a real forecast and evict
+  # an older valid one, and confuse other scripts (e.g., lightning maps).
+  TODAY_OUT_DIR="out/forecasts/${ECOREGION}/${TODAY}"
+  if [ -d "$TODAY_OUT_DIR" ] && [ ! -f "$TODAY_OUT_DIR/fire_danger_forecast.png" ]; then
+    echo "Removing empty forecast directory: ${TODAY_OUT_DIR}"
+    rm -rf "$TODAY_OUT_DIR"
   fi
 fi
 
-# Run the threshold plot generation script
-echo "Step 3: Generating park threshold plots..."
-Rscript ./src/operational/visualization/generate_threshold_plots.R "$ECOREGION"
-
-# Generate the daily HTML report
-echo "Step 4: Generating daily HTML report..."
+# ALWAYS generate HTML (shows most recent available forecast + warning if today's failed)
+echo "Step 5: Generating daily HTML report..."
 Rscript ./src/operational/html_generation/generate_daily_html.R "$ECOREGION"
-
-# Create the Cloud-Optimized GeoTIFF for today for web mapping use
-echo "Step 5: Creating Cloud-Optimized GeoTIFF..."
-./src/operational/visualization/create_cog_for_today.sh "$ECOREGION"
 
 # ============================================================================
 # S3 POST-FLIGHT (Cloud mode only)
@@ -155,17 +179,26 @@ if [ "${ENVIRONMENT:-local}" = "cloud" ]; then
   ECOREGION_OUT_DIR="/app/out/forecasts/${ECOREGION}"
   S3_ECOREGION_OUT_DIR="${S3_BUCKET_PATH}/out/forecasts/${ECOREGION}"
 
-  # Sync only today's date directory (preserves historical forecasts in S3)
-  echo "Syncing ${ECOREGION}/${TODAY} outputs to S3..."
-  aws s3 sync "$ECOREGION_OUT_DIR/${TODAY}" "$S3_ECOREGION_OUT_DIR/${TODAY}" \
-    --acl "public-read"
+  # Sync today's date directory if it exists (preserves historical forecasts in S3)
+  if [ -d "$ECOREGION_OUT_DIR/${TODAY}" ]; then
+    echo "Syncing ${ECOREGION}/${TODAY} outputs to S3..."
+    aws s3 sync "$ECOREGION_OUT_DIR/${TODAY}" "$S3_ECOREGION_OUT_DIR/${TODAY}" \
+      --acl "public-read"
+  fi
 
-  # Sync the landing page HTML (lives at ecoregion root level)
-  echo "Syncing dashboard HTML..."
-  aws s3 cp "$ECOREGION_OUT_DIR/daily_forecast.html" "$S3_ECOREGION_OUT_DIR/daily_forecast.html" \
-    --acl "public-read"
+  # Sync ecoregion-level files (dashboard HTML + warning file)
+  echo "Syncing dashboard HTML and warning files..."
+  if [ -f "$ECOREGION_OUT_DIR/daily_forecast.html" ]; then
+    aws s3 cp "$ECOREGION_OUT_DIR/daily_forecast.html" "$S3_ECOREGION_OUT_DIR/daily_forecast.html" --acl "public-read"
+  fi
+  if [ -f "$ECOREGION_OUT_DIR/FORECAST_UNAVAILABLE_WARNING.txt" ]; then
+    aws s3 cp "$ECOREGION_OUT_DIR/FORECAST_UNAVAILABLE_WARNING.txt" "$S3_ECOREGION_OUT_DIR/FORECAST_UNAVAILABLE_WARNING.txt" --acl "public-read"
+  else
+    # Warning file was cleared (successful forecast) — remove from S3 too
+    aws s3 rm "$S3_ECOREGION_OUT_DIR/FORECAST_UNAVAILABLE_WARNING.txt" 2>/dev/null || true
+  fi
 
-  # Sync cache (gridMET historical data)
+  # Always sync cache (gridMET historical data) so fresh downloads survive failures
   CACHE_DIR="/app/out/cache"
   if [ -d "$CACHE_DIR" ]; then
     echo "Syncing cache to S3..."
