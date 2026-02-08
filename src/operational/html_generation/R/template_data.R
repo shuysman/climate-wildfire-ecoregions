@@ -187,6 +187,31 @@ prepare_stale_warning_context <- function(eco_config, data_dir = "data") {
   )
 }
 
+#' Check for gridMET stale data warning
+#'
+#' Checks if GRIDMET_STALE_WARNING.txt exists in the forecast output directory.
+#'
+#' @param ecoregion Character string with ecoregion name_clean
+#' @param forecast_date Date of the forecast
+#' @param out_dir Path to output directory
+#' @return List with has_gridmet_stale_warning boolean and gridmet_stale_message string
+prepare_gridmet_stale_context <- function(ecoregion, forecast_date, out_dir = "out/forecasts") {
+  warning_file <- file.path(out_dir, ecoregion, as.character(forecast_date), "GRIDMET_STALE_WARNING.txt")
+
+  if (file.exists(warning_file)) {
+    lines <- readLines(warning_file, warn = FALSE)
+    return(list(
+      has_gridmet_stale_warning = TRUE,
+      gridmet_stale_message = paste(lines, collapse = "\n")
+    ))
+  }
+
+  list(
+    has_gridmet_stale_warning = FALSE,
+    gridmet_stale_message = ""
+  )
+}
+
 #' Prepare park analysis context for a single park
 #'
 #' @param park_code Character string with park code (e.g., "YELL")
@@ -278,6 +303,12 @@ prepare_dashboard_context <- function(ecoregion,
     stale_warning = prepare_stale_warning_context(
       eco_config,
       file.path(project_dir, "data")
+    ),
+
+    gridmet_stale = prepare_gridmet_stale_context(
+      ecoregion,
+      map_date,
+      file.path(project_dir, "out/forecasts")
     ),
 
     parks = park_contexts,

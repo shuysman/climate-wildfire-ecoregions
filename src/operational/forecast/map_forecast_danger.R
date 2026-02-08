@@ -388,9 +388,10 @@ if (has_non_forest && (!has_forest || forest_gridmet_var != non_forest_gridmet_v
   }
 }
 
-# Define cache directory
+# Define cache directory and gridMET stale warning path
 cache_dir <- "./out/cache"
 dir.create(cache_dir, showWarnings = FALSE, recursive = TRUE)
+gridmet_stale_warning_file <- file.path(out_dir, "GRIDMET_STALE_WARNING.txt")
 
 # Map variable name to gridMET output column name
 gridmet_column_map <- list(
@@ -427,6 +428,11 @@ fetch_gridmet_data <- function(var_name, label, reference_raster) {
       message("Successfully downloaded fresh gridMET data. Caching to NetCDF file.")
       writeCDF(fresh_gridmet, cache_file, overwrite = TRUE, varname = var_name)
 
+      # Clear stale warning on successful download
+      if (file.exists(gridmet_stale_warning_file)) {
+        file.remove(gridmet_stale_warning_file)
+      }
+
       fresh_gridmet
     },
     error = function(e) {
@@ -434,7 +440,19 @@ fetch_gridmet_data <- function(var_name, label, reference_raster) {
 
       if (file.exists(cache_file)) {
         warning("Using cached gridMET data as a fallback. Data may be stale.")
-        rast(cache_file)
+        cached <- rast(cache_file)
+        cache_end <- max(time(cached))
+        writeLines(
+          c("GRIDMET STALE DATA WARNING",
+            "===========================",
+            glue("Variable: {var_name}"),
+            glue("Generated: {Sys.time()}"),
+            glue("GridMET download failed. Using cached data ending {cache_end}."),
+            glue("Expected end date: {today - 2}"),
+            "Historical data may be stale. Forecast accuracy may be reduced."),
+          gridmet_stale_warning_file
+        )
+        cached
       } else {
         stop("Failed to retrieve gridMET data and no cache file is available. Cannot proceed.")
       }
