@@ -12,6 +12,8 @@
 
 {% include "partials/navbar.jinja2" %}
 
+{% include "partials/dev_banner.jinja2" %}
+
 {% if forecast_warning.has_forecast_warning %}
 {% include "partials/forecast_unavailable_warning.jinja2" %}
 {% else %}
