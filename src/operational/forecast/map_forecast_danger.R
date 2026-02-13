@@ -515,9 +515,9 @@ create_timeseries <- function(gridmet_data = NULL, forecasts = NULL,
       stop("GDD_0 calculation requires tmax_gridmet and tmin_gridmet")
     }
 
-    # Calculate historical GDD_0
+    # Calculate historical GDD_0: convert Kelvin → Celsius, clamp negatives to 0
     message("  Calculating historical GDD_0 from tmax and tmin...")
-    series <- (tmax_gridmet + tmin_gridmet) / 2
+    series <- clamp((tmax_gridmet + tmin_gridmet) / 2 - 273.15, lower = 0)
     last_date <- max(time(series))
     message(glue("  Last historical date: {last_date}"))
 
@@ -534,7 +534,7 @@ create_timeseries <- function(gridmet_data = NULL, forecasts = NULL,
         message(glue("  Infilling with {length(new_dates)} day(s) from forecast file"))
         infill_tmax <- subset(tmax_rast, time(tmax_rast) %in% new_dates)
         infill_tmin <- subset(tmin_rast, time(tmin_rast) %in% new_dates)
-        infill_gdd <- (infill_tmax + infill_tmin) / 2
+        infill_gdd <- clamp((infill_tmax + infill_tmin) / 2 - 273.15, lower = 0)
         series <- c(series, infill_gdd)
         last_date <- max(time(series))
       }

@@ -1,8 +1,9 @@
 ## Generate quantile rasters for Mojave Basin and Range using GDD_0 (Growing Degree Days, base 0)
 ## Non-forest only: 27-day rolling sum
 ##
-## GDD_0 is calculated as (Tmax + Tmin) / 2, which represents daily heat accumulation.
-## For fire danger prediction, we use a 27-day rolling sum to capture cumulative warmth.
+## GDD_0 = max(0, (Tmax + Tmin) / 2 - 273.15), converting Kelvin to Celsius
+## and clamping negatives to 0. For fire danger prediction, we use a 27-day
+## rolling sum to capture cumulative warmth.
 
 library(tidyverse)
 library(terra)
@@ -56,11 +57,11 @@ if (!identical(time(tmax_data), time(tmin_data))) {
   stop("ERROR: tmax and tmin data have different dates. Cannot calculate GDD_0.")
 }
 
-# Calculate GDD_0 = (Tmax + Tmin) / 2
-# Note: gridMET temperatures are in Kelvin, but since we're taking differences
-# for percentile calculations, the units cancel out
-message("Calculating GDD_0 = (Tmax + Tmin) / 2...")
-gdd_0_data <- (tmax_data + tmin_data) / 2
+# Calculate GDD_0 = max(0, (Tmax + Tmin) / 2 - 273.15)
+# gridMET temperatures are in Kelvin; convert to Celsius and clamp negatives to 0
+message("Calculating GDD_0 from Kelvin temps (convert to °C, clamp to 0)...")
+gdd_0_data <- (tmax_data + tmin_data) / 2 - 273.15
+gdd_0_data <- clamp(gdd_0_data, lower = 0)
 
 message(glue("Calculated {nlyr(gdd_0_data)} days of GDD_0 data"))
 

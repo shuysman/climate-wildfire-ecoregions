@@ -1,5 +1,5 @@
 ### Script for generating ECDF curves for GDD_0 in Mojave Basin and Range - NON-FOREST only
-### GDD_0 (Growing Degree Days, base 0) is calculated as (Tmax + Tmin) / 2
+### GDD_0 (Growing Degree Days, base 0) = max(0, (Tmax + Tmin) / 2) in °C
 ###
 ### Configuration:
 ### - Ecoregion: Mojave Basin and Range (code 14)
@@ -32,7 +32,7 @@ mojave_non_forest_climate <- prepare_climate_data_for_ecoregion(
 ## 3. Calculate GDD_0 from tmax and tmin
 # NOTE: If your climate data already has GDD_0 column from retrospective analysis, skip this step
 if (!"GDD_0" %in% names(mojave_non_forest_climate)) {
-  message("Calculating GDD_0 = (tmax + tmin) / 2...")
+  message("Calculating GDD_0 = max(0, (tmax + tmin) / 2)...")
 
   # Check if tmax and tmin columns exist
   if (!all(c("tmax", "tmin") %in% names(mojave_non_forest_climate))) {
@@ -42,7 +42,7 @@ if (!"GDD_0" %in% names(mojave_non_forest_climate)) {
     )
   }
 
-  mojave_non_forest_climate$GDD_0 <- (mojave_non_forest_climate$tmax + mojave_non_forest_climate$tmin) / 2
+  mojave_non_forest_climate$GDD_0 <- pmax((mojave_non_forest_climate$tmax + mojave_non_forest_climate$tmin) / 2, 0)
 } else {
   message("GDD_0 column already exists in climate data. Using existing values.")
 }

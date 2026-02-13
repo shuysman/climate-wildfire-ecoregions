@@ -93,7 +93,7 @@ ecoregions:
 
   # Mojave Basin and Range - uses GDD_0 (growing degree days with base temp 0°C)
   # NOTE: Only non-forest cover types are predicted, due to insufficient fires on forest cover in the ecoregion
-  # GDD_0 = (Tmax + Tmin) / 2, calculated from tmax_2m and tmin_2m forecast data
+  # GDD_0 = max(0, (Tmax + Tmin) / 2 - 273.15); Kelvin → Celsius, negatives clamped to 0
   - id: 14
     name: "Mojave Basin and Range"
     name_clean: "mojave_basin_and_range"
