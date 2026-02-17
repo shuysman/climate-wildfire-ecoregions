@@ -46,6 +46,46 @@ fi
 echo "Required forecast variables: $REQUIRED_VARS"
 echo ""
 
+# --- Identify coupled variable groups ---
+# GDD_0 requires tmmx and tmmn with matching date offsets. These must rotate
+# atomically to prevent desync from server-side race conditions (one variable
+# updating on the THREDDS server before the other).
+COUPLED_VARS=""
+INDEPENDENT_VARS="$REQUIRED_VARS"
+
+if echo "$REQUIRED_VARS" | grep -qw "tmmx" && echo "$REQUIRED_VARS" | grep -qw "tmmn"; then
+  COUPLED_VARS="tmmx tmmn"
+  INDEPENDENT_VARS=$(echo "$REQUIRED_VARS" | tr ' ' '\n' | grep -v "^tmmx$" | grep -v "^tmmn$" | tr '\n' ' ' | xargs)
+fi
+
+# Helper: perform rotation for a variable from its existing temp file
+rotate_forecast_variable() {
+  local var=$1
+  local dir="$PROJECT_DIR/data/forecasts/${var}"
+  local f0="${dir}/cfsv2_metdata_forecast_${var}_daily_0.nc"
+  local f1="${dir}/cfsv2_metdata_forecast_${var}_daily_1.nc"
+  local f2="${dir}/cfsv2_metdata_forecast_${var}_daily_2.nc"
+  local f3="${dir}/cfsv2_metdata_forecast_${var}_daily_3.nc"
+  local temp="${dir}/cfsv2_metdata_forecast_${var}_daily.nc.tmp"
+
+  if [[ ! -f "$temp" ]]; then
+    echo "  ERROR: No temp file for $var rotation" >&2
+    return 1
+  fi
+
+  if [[ -f "$f2" ]]; then mv "$f2" "$f3"; fi
+  if [[ -f "$f1" ]]; then mv "$f1" "$f2"; fi
+  if [[ -f "$f0" ]]; then mv "$f0" "$f1"; fi
+  mv "$temp" "$f0"
+  echo "  ✓ $var rotated"
+}
+
+# Helper: clean up temp file for a variable
+cleanup_temp() {
+  local var=$1
+  rm -f "$PROJECT_DIR/data/forecasts/${var}/cfsv2_metdata_forecast_${var}_daily.nc.tmp"
+}
+
 # Download each required variable
 # IMPORTANT: Defer S3 sync until ALL variables succeed to prevent over-rotation
 # when retries occur due to stale data for some variables
@@ -53,11 +93,86 @@ SUCCESS_COUNT=0
 FAIL_COUNT=0
 DOWNLOADED_VARS=""
 
-# Temporarily reset IFS to split on spaces
+# --- Process coupled variables (tmmx/tmmn) with deferred rotation ---
+if [ -n "$COUPLED_VARS" ]; then
+  echo "========================================="
+  echo "Processing coupled variables: $COUPLED_VARS"
+  echo "(rotation deferred until both are checked)"
+  echo "========================================="
+  echo ""
+
+  COUPLED_FAIL=false
+  COUPLED_READY_COUNT=0
+  COUPLED_TOTAL=0
+
+  OLD_IFS="$IFS"
+  IFS=' '
+  for VAR in $COUPLED_VARS; do
+    COUPLED_TOTAL=$((COUPLED_TOTAL + 1))
+    echo "========================================="
+    echo "Downloading $VAR forecasts (deferred rotation)..."
+    echo "========================================="
+
+    if SKIP_S3_SYNC=true DEFER_ROTATION=true bash "$PROJECT_DIR/src/operational/data_update/update_rotate_forecast_variable.sh" "$VAR"; then
+      TEMP_FILE="$PROJECT_DIR/data/forecasts/${VAR}/cfsv2_metdata_forecast_${VAR}_daily.nc.tmp"
+      if [ -f "$TEMP_FILE" ]; then
+        echo "✓ $VAR: new data ready (rotation deferred)"
+        COUPLED_READY_COUNT=$((COUPLED_READY_COUNT + 1))
+      else
+        echo "✓ $VAR: unchanged (no rotation needed)"
+      fi
+    else
+      echo "✗ Failed to download $VAR forecasts" >&2
+      COUPLED_FAIL=true
+    fi
+    echo ""
+  done
+  IFS="$OLD_IFS"
+
+  # Decide whether to rotate
+  if [ "$COUPLED_FAIL" = "true" ]; then
+    echo "ERROR: Coupled variable download failed. Cleaning up temp files." >&2
+    OLD_IFS="$IFS"; IFS=' '
+    for VAR in $COUPLED_VARS; do cleanup_temp "$VAR"; done
+    IFS="$OLD_IFS"
+    FAIL_COUNT=$((FAIL_COUNT + COUPLED_TOTAL))
+  elif [ "$COUPLED_READY_COUNT" -eq "$COUPLED_TOTAL" ]; then
+    # All coupled variables have new data — rotate all together
+    echo "All coupled variables have new data. Rotating together..."
+    OLD_IFS="$IFS"; IFS=' '
+    for VAR in $COUPLED_VARS; do
+      rotate_forecast_variable "$VAR"
+      SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+      DOWNLOADED_VARS="$DOWNLOADED_VARS $VAR"
+    done
+    IFS="$OLD_IFS"
+  elif [ "$COUPLED_READY_COUNT" -eq 0 ]; then
+    # None have new data — all unchanged, nothing to do
+    echo "All coupled variables unchanged. No rotation needed."
+    OLD_IFS="$IFS"; IFS=' '
+    for VAR in $COUPLED_VARS; do
+      SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+      DOWNLOADED_VARS="$DOWNLOADED_VARS $VAR"
+    done
+    IFS="$OLD_IFS"
+  else
+    # Mixed: some have new data, some don't — upstream server mid-update
+    echo "WARNING: Coupled variable desync detected!" >&2
+    echo "  $COUPLED_READY_COUNT of $COUPLED_TOTAL variables have new data." >&2
+    echo "  Upstream server likely mid-update. Discarding new data to trigger retry." >&2
+    OLD_IFS="$IFS"; IFS=' '
+    for VAR in $COUPLED_VARS; do cleanup_temp "$VAR"; done
+    IFS="$OLD_IFS"
+    FAIL_COUNT=$((FAIL_COUNT + COUPLED_TOTAL))
+  fi
+  echo ""
+fi
+
+# --- Process independent variables ---
 OLD_IFS="$IFS"
 IFS=' '
 
-for VAR in $REQUIRED_VARS; do
+for VAR in $INDEPENDENT_VARS; do
   echo "========================================="
   echo "Downloading $VAR forecasts..."
   echo "========================================="
