@@ -132,10 +132,14 @@ clear_stale_warning() {
 
 # Track success state for S3 sync
 SUCCESS=false
+# When true, preserve temp file on exit (used with DEFER_ROTATION)
+KEEP_TEMP=false
 
 cleanup() {
-  # Ensure temporary files are removed on script exit
-  rm -f "$TEMP_FILENAME"
+  # Ensure temporary files are removed on script exit (unless deferred)
+  if [ "$KEEP_TEMP" != "true" ]; then
+    rm -f "$TEMP_FILENAME"
+  fi
   rm -rf ./ensemble_temp_${VARIABLE}/
 
   # --- S3 Post-flight (only in cloud mode and only if successful) ---
@@ -410,6 +414,16 @@ if uses_ensemble_format "$VARIABLE"; then
     exit 0
   fi
 
+  # --- Deferred rotation support for coupled variables ---
+  # When DEFER_ROTATION=true, leave temp file for orchestrator to coordinate
+  # rotation across coupled variables (e.g., tmmx/tmmn for GDD_0).
+  if [[ "${DEFER_ROTATION:-false}" == "true" ]]; then
+    log "Update detected! Deferring rotation (DEFER_ROTATION=true). Temp file preserved."
+    KEEP_TEMP=true
+    SUCCESS=true
+    exit 0
+  fi
+
   log "Update detected! Rotating forecast files."
 
   # Rotate files: T-2 becomes T-3, T-1 becomes T-2, T becomes T-1, new becomes T
@@ -523,6 +537,14 @@ else
   if [[ "$OLD_CHECKSUM" == "$NEW_CHECKSUM" ]]; then
     log "No update detected. Forecast is unchanged but current."
     rm -f "$TEMP_FILENAME"
+    SUCCESS=true
+    exit 0
+  fi
+
+  # --- Deferred rotation support for coupled variables ---
+  if [[ "${DEFER_ROTATION:-false}" == "true" ]]; then
+    log "Update detected! Deferring rotation (DEFER_ROTATION=true). Temp file preserved."
+    KEEP_TEMP=true
     SUCCESS=true
     exit 0
   fi
