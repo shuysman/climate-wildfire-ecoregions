@@ -4,7 +4,7 @@
 {% endif %}
 <div style="margin: 0 0 20px 0; padding: 15px; background: #f9f9f9; border-left: 4px solid {{ status_color }}; border-radius: 3px;">
   <h4 style="margin: 0 0 10px 0;">Current Fire Danger Distribution</h4>
-  <p style="margin: 8px 0; font-size: 0.85em; color: #666; line-height: 1.4;"><em>Categories represent fire danger index ranges: Extreme ≥0.95 | Very High 0.90-0.95 | High 0.75-0.90 | Elevated 0.50-0.75 | Normal <0.50</em></p>
+  <p style="margin: 8px 0; font-size: 0.85em; color: #666; line-height: 1.4;"><em>Categories represent fire danger index ranges: Extreme ≥0.95 | Very High 0.90-0.95 | High 0.75-0.90 | Elevated 0.50-0.75 | Normal &lt;0.50. Overall status reflects the highest danger category covering more than 10% of the park area. Any Extreme-level pixels automatically raise the status to at least Very High.</em></p>
   <p style="margin: 8px 0; font-size: 0.95em;"><strong>Overall Status:</strong> {{ status_emoji }} {{ status_label }}</p>
   <p style="margin: 8px 0; font-size: 0.95em;"><strong>Peak Danger:</strong> {{ max_danger }} | <strong>Median:</strong> {{ median_danger }}</p>
   <div style="font-size: 0.9em; margin-top: 12px;">
