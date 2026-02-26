@@ -1,0 +1,132 @@
+{
+  "Comment": "Multi-ecoregion wildfire forecast pipeline with Map State",
+  "StartAt": "DownloadForecasts",
+  "States": {
+    "DownloadForecasts": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::ecs:runTask.sync",
+      "Parameters": {
+        "TaskDefinition": "wildfire-forecast-update",
+        "LaunchType": "FARGATE",
+        "Cluster": "arn:aws:ecs:${AWS_REGION}:${AWS_ACCOUNT_ID}:cluster/${ECS_CLUSTER_NAME}",
+        "NetworkConfiguration": {
+          "AwsvpcConfiguration": {
+            "Subnets": [
+              "${VPC_SUBNET_1}",
+              "${VPC_SUBNET_2}"
+            ],
+            "SecurityGroups": [
+              "${VPC_SECURITY_GROUP}"
+            ],
+            "AssignPublicIp": "ENABLED"
+          }
+        }
+      },
+      "ResultPath": null,
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.TaskFailed"
+          ],
+          "BackoffRate": 1,
+          "IntervalSeconds": 300,
+          "MaxAttempts": 12,
+          "Comment": "Retry every 5 min for up to 1 hour"
+        }
+      ],
+      "Next": "ProcessEcoregions"
+    },
+    "ProcessEcoregions": {
+      "Type": "Map",
+      "ItemsPath": "$.ecoregions",
+      "ItemSelector": {
+        "ecoregion.$": "$$.Map.Item.Value.ecoregion"
+      },
+      "ItemProcessor": {
+        "ProcessorConfig": {
+          "Mode": "INLINE"
+        },
+        "StartAt": "ProcessSingleEcoregion",
+        "States": {
+          "ProcessSingleEcoregion": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::ecs:runTask.sync",
+            "Parameters": {
+              "TaskDefinition": "wildfire-forecast-process",
+              "LaunchType": "FARGATE",
+              "Cluster": "arn:aws:ecs:${AWS_REGION}:${AWS_ACCOUNT_ID}:cluster/${ECS_CLUSTER_NAME}",
+              "NetworkConfiguration": {
+                "AwsvpcConfiguration": {
+                  "Subnets": [
+                    "${VPC_SUBNET_1}",
+                    "${VPC_SUBNET_2}"
+                  ],
+                  "SecurityGroups": [
+                    "${VPC_SECURITY_GROUP}"
+                  ],
+                  "AssignPublicIp": "ENABLED"
+                }
+              },
+              "Overrides": {
+                "ContainerOverrides": [
+                  {
+                    "Name": "wildfire-process-app",
+                    "Environment": [
+                      {
+                        "Name": "ECOREGION",
+                        "Value.$": "$.ecoregion"
+                      },
+                      {
+                        "Name": "ENVIRONMENT",
+                        "Value": "cloud"
+                      },
+                      {
+                        "Name": "S3_BUCKET_PATH",
+                        "Value": "s3://${S3_BUCKET_NAME}"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            "Catch": [
+              {
+                "ErrorEquals": [
+                  "States.ALL"
+                ],
+                "ResultPath": "$.error",
+                "Next": "HandleEcoregionFailure"
+              }
+            ],
+            "End": true
+          },
+          "HandleEcoregionFailure": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::sns:publish",
+            "Parameters": {
+              "TopicArn": "arn:aws:sns:${AWS_REGION}:${AWS_ACCOUNT_ID}:${SNS_TOPIC_NAME}",
+              "Subject": "Wildfire Forecast Pipeline - Ecoregion Processing Failed",
+              "Message.$": "States.Format('ProcessSingleEcoregion failed for execution: {} | Error: {} | Cause: {} | Timestamp: {}', $$.Execution.Name, $.error.Error, $.error.Cause, $$.State.EnteredTime)"
+            },
+            "Next": "EcoregionFailureComplete",
+            "Retry": [
+              {
+                "ErrorEquals": [
+                  "States.ALL"
+                ],
+                "IntervalSeconds": 2,
+                "MaxAttempts": 3,
+                "BackoffRate": 2
+              }
+            ]
+          },
+          "EcoregionFailureComplete": {
+            "Type": "Pass",
+            "End": true
+          }
+        }
+      },
+      "End": true
+    }
+  }
+}
