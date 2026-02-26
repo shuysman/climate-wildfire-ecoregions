@@ -40,14 +40,30 @@ log/
 forest-predictors.png
 non_forest-predictors.png
 
-# LaTeX build artifacts
+# LaTeX/Org build artifacts
 *.aux
+*.bbl
+*-blx.bib
 *.fdb_latexmk
 *.fls
 *.log
 *.out
 *.synctex.gz
 *.toc
+*.pdf
+*.tex
+*.typ
+
+# Report drafts and exports (source .org files are tracked)
+report/**/*.md
+report/**/*.docx
+report/**/*.odt
+report/**/*.html
+report/**/*.ott
+report/**/*.lua
+report/auto/
+report/figs/
+report/predictor_auc_analysis_files/
 
 # Misc
 update-log.txt
