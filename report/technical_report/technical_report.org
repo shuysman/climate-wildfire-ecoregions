@@ -1,0 +1,533 @@
+#+options: ':t *:t -:t ::t <:t H:3 \n:nil ^:t arch:headline author:t
+#+options: broken-links:nil c:nil creator:nil d:(not "LOGBOOK")
+#+options: date:t e:t email:nil expand-links:t f:t inline:t num:t
+#+options: p:nil pri:nil prop:nil stat:t tags:t tasks:t tex:t
+#+options: timestamp:t title:t toc:t todo:t |:t
+#+title: Ecoregion-Specific Wildfire Ignition Danger Forecasting: Methods and Operational Implementation for National Park Service Units
+#+date: \today
+#+author: Stephen Huysman, Mike Tercek, Kristin Legg, David Thoma, Brian Smithers, Danielle Ulrich
+#+latex_header: \usepackage[margin=1in]{geometry}
+#+latex_header: \usepackage{booktabs}
+#+latex_header: \usepackage{longtable}
+#+select_tags: export
+#+exclude_tags: noexport
+#+creator: Emacs 30.1 (Org mode 9.7.11)
+#+bibliography: Wildfire.bib
+#+cite_export: csl international-journal-of-wildland-fire.csl
+
+#+begin_abstract
+We present a wildfire ignition danger forecasting system that provides daily 7-day forecasts for National Park Service units across four EPA Level III ecoregions in the western United States. The system identifies the optimal climatic predictor of large wildfire ignition (≥405 ha) for each ecoregion and cover type (forest/non-forest) through a retrospective analysis of 17 candidate variables, including water balance, NFDRS indices, and heat accumulation metrics, evaluated across rolling window lengths from 1 to 31 days using overall AUC and partial AUC at a 10% false positive rate. Fire danger is expressed as the proportion of historical fires in the MTBS database (1984–2024) that ignited at or below the current level of dryness, providing an intuitive 0–1 scale index calibrated to each ecoregion's fire history. All four operational ecoregions (Middle Rockies, Southern Rockies, Colorado Plateaus, Mojave Basin and Range) achieve AUC > 0.84, with no single predictor dominating across ecoregions. The system runs as a containerized pipeline on AWS, combining gridMET historical climate data with downscaled CFSv2 ensemble forecasts to produce 30-m resolution fire danger maps, park-specific dashboards, and GIS-ready outputs. This report documents the methodology, describes the forecast products and their interpretation, and details the operational infrastructure.
+#+end_abstract
+
+* Introduction
+
+This technical report documents the implementation and operational use of a wildfire ignition danger rating system ([[https://climateanalyzer.science/fire]]), a data-driven decision support tool developed for public land managers across the western United States, with a focus on NPS-managed units. The primary objectives of this report are to:
+
+1. Document the methodology, providing a transparent, technical explanation of the process for creating daily forecasts of wildfire ignition danger.
+2. Guide interpretation of the forecasts, equipping land managers and fire staff with the knowledge to accurately interpret forecast products and utilize them to inform tactical and strategic decision making.
+3. Detail the architecture of the cloud-based infrastructure that enables reliable delivery of daily forecast products.
+
+The intended audiences for this report are resource managers and fire management officers (FMOs) who use the products, as well as technical staff or researchers interested in the underlying modeling framework.
+
+** Background
+
+Effective wildfire management requires anticipating where and when the landscape is primed for ignition. Traditional fire danger rating systems, such as the National Fire Danger Rating System (NFDRS) [cite:@jollyModernizingUSNational2024;@degrootChapter11Wildland2015], rely on standardized fuel models and indices that are applied broadly across vast landscapes [cite:@jollySevereFireDanger2019]. While these existing systems are valuable, their "one-size-fits-all" approach may not capture the unique local climate-fire relationships found in the landscapes of different ecoregions [cite:@littellReviewRelationshipsDrought2016].
+
+The Wildfire Ignition Danger Forecasting System addresses this by adopting an ecoregion-specific approach based on the climatic indicators that were empirically determined to best predict wildfire ignitions for forest and non-forest cover in each ecoregion. The fundamental premise is that wildfire ignition potential is a function of climatic dryness, with the specific drivers of that dryness varying by ecoregion. The system is based on the wildfire ignition danger rating system developed by [cite/t:@thomaWaterBalanceIndicator2020], which uses 14 day rolling sums of Climatic Water Deficit (CWD) to model fire danger in the Southern Rockies Ecoregion, including Great Sand Dunes National Park. We extended this system by testing more variables---including NFDRS indices such as Burning Index (BI), Energy Release Component (ERC), and 100- and 1000-hr dead fuel moisture (FM100inv, FM1000inv) (Table [[tab:candidate-predictors]]). We also evaluated rolling window lengths from 1 to 31 days and expanded the analysis to additional ecoregions. By systematically selecting the single best predictor of ignition in each specific ecoregion, the system ensures that the most appropriate climate signal is used for each landscape.
+
+** Geographic Scope
+
+The system is designed to be scalable. It is currently operational in four EPA level 3 ecoregions [cite:@omernikEcoregionsConterminousUnited1987] representing different ecosystems and environmental resources and containing key NPS units in the Intermountain West:
+
+- **Middle Rockies**: High-elevation forests and valleys (Yellowstone, Grand Teton National Parks)
+- **Southern Rockies**: Complex mountainous terrain (Rocky Mountain, Great Sand Dunes National Parks)
+- **Colorado Plateaus**: Canyons and mesas (Zion, Grand Canyon, Bryce Canyon National Parks)
+- **Mojave Basin and Range**: Arid desert systems (Death Valley, Joshua Tree National Parks)
+
+While this report focuses on these ecoregions, the system's framework can be applied to any ecoregion with a sufficient historical record of large fires.
+
+** Fire Danger Scale
+
+The system represents wildfire ignition danger as a normalized value between 0 and 1. Interpretation of this value is intuitive: a value of 0.95 means that current conditions are drier than the conditions present during 95% of all historical large fires in that specific ecoregion and cover type.
+
+The following table provides a guide to interpreting these values and suggests management actions for each category of fire danger.
+
+#+NAME: tab:fire-danger-categories
+#+CAPTION: Fire danger categories and interpretation. These categories are suggested by the authors but can be altered based on management knowledge and objectives.
+#+ATTR_LATEX: :font \footnotesize
+| Category      | Range     | Interpretation                                                                               |
+|---------------+-----------+----------------------------------------------------------------------------------------------|
+| **Normal**    | < 0.50    | Below-median dryness. Fire risk is historically low.                                         |
+| **Elevated**  | 0.50–0.75 | Conditions are drier than average.                                                           |
+| **High**      | 0.75–0.90 | Significant dryness. 75--90% of past fires ignited under similar conditions or wetter. |
+| **Very High** | 0.90–0.95 | Rare conditions. Only 5--10% of historical fires ignited under drier conditions.       |
+| **Extreme**   | ≥ 0.95    | Near-record dryness. As dry or drier than conditions during nearly all historical ignitions. |
+
+* Methods
+
+** Data Sources
+
+*** <<sec:fire-veg-data>> Fire History and Vegetation Cover Data
+
+Historical fire records were obtained from the Monitoring Trends in Burn Severity (MTBS) database [cite:@finco2012monitoring;@eidenshinkProjectMonitoringTrends2007], a dataset of large wildfires (≥405 hectares/1,000 acres). We included only wildfires classified as "wildfire" in the MTBS database, excluding prescribed and other fire types. A quality control step identified and excluded fire sites with erroneous or missing climate data; sites were flagged if any associated gridMET or NPS Water Balance time series contained negative or missing value and were excluded from the analysis. Additionally, ecoregion/cover type combinations with fewer than 20 large fires in the MTBS database were excluded, as insufficient sample size precludes reliable ROC/AUC and eCDF analysis.
+
+Vegetation cover was obtained from the LANDFIRE 2023 Existing Vegetation Type (EVT) dataset [cite:@rollinsLANDFIRENationallyConsistent2009]. MTBS fire polygons were classified into forest and non-forest cover types based on the majority pixel count of major vegetation class data from the EVT layer, with "herb", "shrub" and "sparse" major vegetation class considered non-forest, and "tree" as forest cover type. Other cover types in EVT were excluded (e.g., water, agriculture, and other developed land cover types).
+
+*** Historical Climate Data
+
+Daily meteorological and NFDRS index data at a 4-km spatial resolution were obtained from the gridMET dataset [cite:@abatzoglouDevelopmentGriddedSurface2013]. Additionally, daily water balance data at a 1-km spatial resolution were obtained from the NPS 1-km Water Balance Dataset [cite:@tercekHistoricalChangesPlant2021]. These datasets provide high-resolution surface meteorology and water balance model outputs across the coterminous United States (CONUS). The full historical record (1984--2024) from these datasets was used both for the retrospective predictor selection analysis and for computing the per-pixel quantile libraries against which operational forecasts are compared. The centroid locations of each MTBS fire polygon were used to sample a time series of climate data from these datasets.
+
+#+NAME: tab:candidate-predictors
+#+CAPTION: Candidate predictor variables evaluated as classifiers of wildfire ignition. Rolling sums were calculated for flux variables and rolling means for state variables, at window widths from 1 to 31 days. Data sources: gridMET = gridded meteorological data; NPS WB = NPS 1-km Water Balance Dataset; Derived = calculated from gridMET or NPS WB variables.
+#+ATTR_LATEX: :font \footnotesize
+| Variable                      | Abbreviation | Units | Rolling Function | Source  | Note                              |
+|-------------------------------+--------------+-------+------------------+---------+-----------------------------------|
+| Vapor pressure deficit        | VPD          | kPa   | Mean             | gridMET |                                   |
+| Relative dryness              | RD           | %     | Mean             | Derived | 100 - RH                         |
+| Climatic water deficit        | CWD          | mm    | Sum              | NPS WB  |                                   |
+| Actual evapotranspiration     | AET          | mm    | Sum              | NPS WB  |                                   |
+| Potential evapotranspiration  | PET          | mm    | Sum              | NPS WB  |                                   |
+| Soil water deficit            | SWD          | mm    | Mean             | Derived | WHC - SOIL                        |
+| Accumulated snow water equiv. | ACCUMSWE     | mm    | Mean             | NPS WB  |                                   |
+| Rain                          | RAIN         | mm    | Sum              | NPS WB  |                                   |
+| Runoff                        | RUNOFF       | mm    | Sum              | NPS WB  |                                   |
+| Burning index                 | BI           |       | Mean             | gridMET | NFDRS index                       |
+| Energy release component      | ERC          |       | Mean             | gridMET | NFDRS index                       |
+| 100-hr dead fuel moisture (inverted) | FM100inv     | %     | Mean             | Derived | 100 - FM100; NFDRS fuel moisture  |
+| 1000-hr dead fuel moisture (inverted) | FM1000inv    | %     | Mean             | Derived | 100 - FM1000; NFDRS fuel moisture |
+| Growing degree days (base 0)  | GDD_0        | °C    | Sum              | Derived | max((Tmax + Tmin)/2, 0)           |
+| Growing degree days (base 5)  | GDD_5        | °C    | Sum              | Derived | max((Tmax + Tmin)/2 - 5, 0)       |
+| Growing degree days (base 10) | GDD_10       | °C    | Sum              | Derived | max((Tmax + Tmin)/2 - 10, 0)      |
+| Growing degree days (base 15) | GDD_15       | °C    | Sum              | Derived | max((Tmax + Tmin)/2 - 15, 0)      |
+
+
+*** Derived Variables
+
+Several candidate predictors were derived from the gridMET and NPS Water Balance source variables:
+
+- *Relative Dryness (RD):* Calculated as 100 - RH, where RH is average relative humidity from gridMET. Because higher RH indicates wetter conditions, this inversion orients the variable so that higher values correspond to higher fire danger.
+- *Soil Water Deficit (SWD):* Calculated as WHC - SOIL, where WHC is soil water holding capacity from the SSURGO database [cite:@SSURGO] and SOIL is daily soil moisture from the NPS Water Balance Dataset. Because higher soil moisture indicates wetter conditions, this inversion orients the variable so that higher values correspond to higher fire danger.
+- *FM100inv and FM1000inv:* Calculated as 100 - FM100 and 100 - FM1000, where FM100 and FM1000 are the NFDRS 100- and 1000-hour dead fuel moisture indices. Because higher fuel moisture indicates wetter, less dangerous conditions, these inversions orient the variables so that higher values correspond to higher fire danger.
+- *Growing Degree Days (GDD):* Quantifies accumulated heat energy above a base temperature. Daily GDD is calculated as max((T_{max} + T_{min}) / 2 - T_{base}, 0) [cite:@mcmasterGrowingDegreedaysOne1997], where T_{max} and T_{min} are daily maximum and minimum temperatures from gridMET. Four base temperatures were evaluated: 0, 5, 10, and 15°C (GDD_0, GDD_5, GDD_10, GDD_15). Multiple bases were included because the temperature threshold at which heat accumulation becomes relevant to vegetation curing and fire danger likely varies by ecoregion and vegetation type.
+
+All other candidate predictors were included unmodified from the gridMET and NPS Water Balance source data (Table [[tab:candidate-predictors]]).
+
+*** Forecast Climate Data
+
+Operational forecasts utilize the Climate Forecast System version 2 CFSv2 METDATA 90-day ensemble forecasts [cite:@northwestknowledgenetworREACCHMETDATAGRIDMET2025]. Hindcast validation of this downscaled CFSv2 product has demonstrated significant forecast skill for fire danger indices such as ERC and FM100 at lead times of 1--3 weeks across the contiguous United States [cite:@abatzoglouDownscaledSubseasonalFire2023], supporting its use in the 7-day forecast horizon employed here. The system ingests the ensemble mean for the selected variable for each ecoregion/cover type and assembles a continuous gridded time series of climate data for each ecoregion. Then, rolling sums/means are calculated for each variable based on the best performing variable/rolling window combinations identified through the predictor selection process (Section [[sec:predictor-selection]]).
+
+** <<sec:predictor-selection>> Predictor Selection and Model Calibration
+
+The system is built on the principle that the climate variables driving fire ignition vary across different ecosystems. To identify the optimal predictor for each ecoregion, we conducted a systematic retrospective analysis to determine the measures that best predicted wildfire ignitions in the historical MTBS dataset.
+
+*** Vegetation Classification
+
+We hypothesized that fire-climate relationships differ fundamentally between forests and other non-forest covertypes (e.g., open-canopy shrublands or grasslands). Separate models were calibrated for each cover type within an ecoregion by stratifying historical wildfires into forest and non-forest cover types based on majority pixel count, as described in section [[sec:fire-veg-data]].
+
+*** Rolling Window Aggregation
+
+We evaluated the performance of each of the 17 candidate predictors (Table [[tab:candidate-predictors]]) across rolling window lengths from 1 to 31 days preceding date of wildfire ignition. By using a rolling window, the antecedent conditions leading up to ignition are captured [cite:@rileyRelationshipLargeFire2013]. For example, a 30-day window reflects long-term drought, while a 1-day window reflects immediate fire weather.
+
+The rolling window aggregation function---sum or mean---was chosen based on the physical nature of each variable (Table [[tab:candidate-predictors]]) [cite:@wangInterplaysStateFlux2019;@dingmanPhysicalHydrology2015]. *Flux variables* (CWD, AET, PET, RAIN, RUNOFF, GDD) represent daily flows of water or energy. These are summed over the window to capture the cumulative dryness or heat input during the antecedent period; for example, a 14-day rolling sum of CWD represents the total moisture deficit accumulated over two weeks. *State variables* (VPD, RD, SWD, ACCUMSWE, BI, ERC, FM100inv, FM1000inv) represent instantaneous conditions at a point in time. These are averaged over the window to characterize the typical atmospheric or fuel-moisture state during the antecedent period.
+
+*** Percentile Ranking
+
+Before evaluating predictor performance, the rolling-window climate values at each fire site are converted to percentiles of the historical record. For most predictor variables, a custom percentile ranking procedure is applied rather than the standard percent rank formula. This custom procedure reduces issues associated with zero-inflation. Variables such as Climatic Water Deficit (CWD) and Growing Degree Days (GDD) accumulate zero values on the majority of days in the historical record (e.g., days during winter when there is no moisture deficit). Using a standard percentile ranking, these many tied zero-values compress the percentile scale, so that any day with even a marginal positive value is assigned a disproportionately high percentile (often ≥ 40th percentile), reducing the discriminatory power of the metric at the upper end of the distribution where management decisions are most critical. This compression also produced visible artifacts in operational products such as distinct jumps in time-series forecasts and unrealistic pixelation in spatial maps of fire danger.
+
+The custom procedure applies three sequential transformations to the rolling-window time series at each fire site:
+
+1. *Rounding:* Values are rounded to one decimal place. This eliminates inconsistent results from different floating-point arithmetic implementations across platforms.
+2. *Zero removal:* All zero values are temporarily set to missing. This prevents the large mass of zero-valued days from inflating percentile ranks, ensuring that the percentile scale spans the meaningful range of the dryness variable.
+3. *Unique-value ranking:* Percentile ranks are computed on the unique non-missing values only (i.e., the unique positive values remaining after zero removal). The ranks are then mapped back to the full time series by matching rounded values. Days whose original value was zero are assigned a percentile of 0.
+
+The R implementation of this procedure is provided in the Appendix (Section [[sec:percentile-rank-code]]).
+
+This procedure is applied to all candidate predictors except FM100inv and FM1000inv, which are not zero-inflated in the same way. For FM100inv and FM1000inv, the standard =dplyr::percent_rank()= function is used without transformation.
+
+# The same rounding, zero-substitution, and unique-value transformations are applied to the gridded quantile library (Section [[sec:forecast-pipeline]]) to ensure consistency between the training-phase percentile ranks and the operational forecast percentile mapping.
+
+*** ROC/AUC Analysis
+
+Predictor performance was quantified using the Area Under the Curve of the Receiver Operating Characteristic (AUC) [cite:@pontiusRecommendationsUsingRelative2014]. This is a signal-to-noise metric that measures the ability of the predictor to discriminate between "fire days" (days when a large fire ignited) and "non-fire days". An AUC of 1.0 indicates perfect prediction, and an AUC below 0.5 represents a predictor with worse performance than random chance (a coin flip).
+
+We prioritized the partial AUC (pAUC_{10}), which evaluates model performance specifically at a low false-positive rate (10%). This ensures the selected predictors are most accurate during the driest conditions when fire danger is high, which is the most critical period for management decisions.
+
+The optimal predictor varies geographically and between cover types (Figure [[fig:best-predictors-map]]), with no single variable dominating across all ecoregions.
+
+#+NAME: fig:best-predictors-map
+#+CAPTION: Best-performing predictor variable by ecoregion for forest (left) and non-forest (right) cover types, selected by pAUC_{10}.
+[[./img/map-pauc-predictors-1.png]]
+
+*** Empirical Cumulative Distribution Function (eCDF)
+
+For each selected predictor, we built an Empirical Cumulative Distribution Function (eCDF) that maps current dryness (expressed as a percentile of the historical record) to the /proportion of historical large fires that ignited at or below that dryness level/. The eCDF is constructed by pooling the percentile values observed at all MTBS fire centroids on their respective ignition dates within the ecoregion and cover type. The resulting step function (implemented using R's =ecdf()= function) is used directly as a lookup to convert any percentile of dryness to a fire danger value. For example, a fire danger value of 0.90 means that 90% of historical large fires in that ecoregion and cover type ignited when conditions were at least this dry.
+
+** <<sec:forecast-pipeline>> Forecast Generation Pipeline
+
+The operational forecasting pipeline is implemented as a containerized workflow (Docker) running in the AWS cloud. It executes daily at 10:00 MST through the following steps:
+
+1. **Forecast data retrieval:** Daily CFSv2-metdata forecasts are retrieved from the Northwest Knowledge THREDDS server. Four days of forecasts are retrieved and rotated each time new forecasts are available. This allows for the creation of a continuous time series with gridMET historical data, which is typically available through t-2 days but may lag to t-3 days or longer due to periodic availability issues. The final time series is constructed as gridMET (t-40 days to t-2 or t-3 days), followed by forecast files infilling from oldest to newest (f3 if needed, then f2, f1, f0) to create a continuous record through t+7 days. Failure tolerance is implemented should current CFSv2-metdata forecasts be unavailable on a current day; in this case the time series will be constructed from older forecasts and a stale data warning displayed on the website indicating that the current forecasts may be less reliable due to lack of up-to-date weather model information.
+2. **Rolling calculations:** The ecoregion/cover-specific rolling window (e.g., 15-day mean VPD) is applied to the climate time series.
+3. **Percentile Mapping:** The current and forecasted values are compared against a pre-computed "quantile library" (1984--2024) to determine the historical percentile of forecasted conditions. This quantile library enables efficient percentile estimation that would otherwise require loading the full multi-decade climate record at each pixel during every daily forecast run.
+4. **Danger Conversion:** The eCDF model converts the percentiles into fire danger values (0--1).
+5. **Product Synthesis:** The system generates static HTML reports, PNG map files, an interactive leaflet lightning-strike map, and NetCDF/COG outputs for use in GIS platforms.
+
+
+* Regional Variation in Predictability
+
+Fire danger forecasts are more reliable in some regions than others. The "predictability" of wildfire ignitions in an ecoregion is quantified by the Area Under the Curve of the Receiver Operating Characteristic (AUC), a statistical metric of classification skill from 0--1 where 0.5 represents random chance and 1.0 indicates perfect discrimination between fire and non-fire days.
+
+In high predictability ecoregions (AUC > 0.8), fire occurrence is strongly /climate-limited/ [cite:@meynEnvironmentalDriversLarge2007]. Conditions dry enough for ignition are rare and ignitions rarely grow into large fires unless high levels of dryness are present. When forecasted conditions are "dry", the likelihood of a large fire is high, and when "wet" it is low to zero. Managers can place higher confidence in forecasts for these ecoregions.
+
+In low to moderate predictability ecoregions (AUC \le 0.8), climate is a necessary but not always sufficient driver alone of wildfire ignition. These ecoregions tend to be located in areas with a large agricultural or otherwise developed presence, such as the Great Plains east of the Rocky Mountains. Fire-suppression policies likely introduce noise into the classification process, by artificially removing fires that might otherwise have grown large enough for inclusion in the MTBS database.
+
+Figure [[fig:predictability-map]] shows the geographic distribution of model performance (AUC) across all evaluated ecoregions. The highest predictability is found in the mountainous western ecoregions where fire regimes are strongly climate-limited, while lower predictability is generally observed in the Southeast and Great Plains. Table [[tab:predictability]] summarizes the operational predictor performance for the four currently deployed ecoregions, including comparison with unconstrained optimal predictors where they differ.
+
+#+NAME: fig:predictability-map
+#+CAPTION: Maximum AUC by cover type across all evaluated ecoregions. Lighter colors indicate higher overall discrimination between fire days and non-fire days. Ecoregion/cover type combinations with fewer than 20 large fires in the MTBS database were excluded from analysis and appear blank.
+[[./img/map-auc-1.png]]
+
+#+NAME: tab:predictability
+#+CAPTION: Predictor performance for currently operational ecoregions. The operational predictor was selected by pAUC_{10} from among variables derivable from the CFSv2 forecast system. Water balance variables (e.g., CWD, PET) from the NPS 1-km dataset were evaluated in the retrospective analysis but are unavailable as forecasts. Where the unconstrained optimal predictor differs, it is listed with its pAUC_{10} for comparison. All ecoregions have AUC > 0.84, indicating high predictability.
+#+ATTR_LATEX: :font \footnotesize
+| Ecoregion              | Cover      | Operational Predictor |  AUC | pAUC_{10} | Unconstrained Best | pAUC_{10} | Reason for Difference    |
+|------------------------+------------+-----------------------+------+-----------+--------------------+-----------+--------------------------|
+| Middle Rockies         | Forest     | VPD (15-day)          | 0.92 |     0.050 | CWD (13-day)       |     0.052 | CWD forecast unavailable |
+| Middle Rockies         | Non-forest | VPD (5-day)           | 0.90 |     0.040 | CWD (14-day)       |     0.049 | CWD forecast unavailable |
+| Southern Rockies       | Forest     | FM1000inv (5-day)     | 0.84 |     0.035 | —                  |         — |                          |
+| Southern Rockies       | Non-forest | FM1000inv (1-day)     | 0.88 |     0.040 | —                  |         — |                          |
+| Colorado Plateaus      | Forest     | FM1000inv (5-day)     | 0.86 |     0.034 | CWD (2-day)        |     0.041 | CWD forecast unavailable |
+| Colorado Plateaus      | Non-forest | VPD (27-day)          | 0.91 |     0.042 | CWD (20-day)       |     0.045 | CWD forecast unavailable |
+| Mojave Basin and Range | Non-forest | GDD_0 (27-day)        | 0.86 |     0.031 | PET (31-day)       |     0.032 | PET forecast unavailable |
+
+The Mojave Basin and Range ecoregion has only a non-forest model because insufficient large fires on forest cover were recorded in the MTBS database for that ecoregion.
+
+* Forecast Products and Interpretation
+
+The system generates a suite of forecast products daily (or hourly for lightning map integration) to support different management needs. This section describes each product and provides guidance on its interpretation.
+
+** Daily 7-day Forecast Maps
+
+The primary outputs of the system are maps at a 30-m resolution showing the predicted ignition danger for the next seven days (Figure [[fig:wildfire-forecast-map]]). These maps allow managers to visualize how danger is evolving across the landscape and to identify "hotspots" where fire danger is high.
+
+#+NAME: fig:wildfire-forecast-map
+#+CAPTION: Example 7-day wildfire ignition danger forecast for the Southern Rockies Ecoregion.
+[[./img/fire_danger_forecast.png]]
+
+*** How to read the maps
+- *Color scale:* The maps use a color-blind friendly scale (viridis "Inferno" color scale). Darker/purpler colors indicate lower danger, while brighter yellows/whites indicate extreme danger.
+- *Spatial resolution:* Data are presented at a 30-m resolution based on the LANDFIRE EVT data set. The overlaying climate data (gridMET/CFSv2-metdata) is 4-km, however. This creates a hybrid resolution data product where fire danger predictions are made for each forest/non-forest 30-m pixel within the larger 4-km climate data cells. While this 4-km climate data resolution captures major topographic climatic variations, users should be aware that local microclimates (e.g., deep canyons or north-facing slopes) may deviate from the pixel average conditions.
+- *Temporal Coverage:* Each daily forecast run produces 8 maps (today + 7-day forecast). This allows managers to visually track the rate of change in fire danger, identifying whether the landscape is drying out or experiencing localized spikes in fire danger.
+
+*** Interpreting wildfire ignition danger values
+
+The wildfire ignition danger values (0--1) represent the proportion of historical fires that occurred at or below the percentile of dryness occurring at that pixel. It is important to understand that a value of 0.85 on a forest cover pixel is /not/ a probability of wildfire ignition.
+
+- *Correct Interpretation:* "Historically, 85% of all large wildfires in this ecoregion on forests ignited when dryness was at this level or lower."
+- *Rare Events:* High values (e.g., \ge 0.95) represent "uncharted territory" where conditions are drier than those associated with nearly all past fires, signaling a potentially unprecedented level of ignition risk.
+- *Not Comparable Across Ecoregions:* A 0.90 in the Middle Rockies represents a different physical dryness level than a 0.90 in the Mojave Basin and Range, potentially represented by different climatic variables. The values for each ecoregion are calibrated strictly to its own historical fire regime.
+
+** Park-Specific Dashboards
+
+Dedicated analysis dashboards are created daily for individual National Park Service units. These dashboards provide a unit-level summary of wildfire danger, including the distribution of danger across the unit (Figure [[fig:distribution-danger]]), stacked bar charts, and threshold exceedance plots.
+
+#+NAME: fig:distribution-danger
+#+CAPTION: Example of distribution of fire danger for Rocky Mountain National Park (ROMO), Southern Rockies.
+[[./img/ROMO_fire_danger_forecast.png]]
+
+*** Stacked Bar Charts
+These charts summarize the condition of an entire park in a single graphic (Figure [[fig:stacked-bar]]).
+- *Interpretation:* Each vertical bar represents one day of the forecast. The colored segments show the percentage of the park's total area falling into each danger category (Table [[tab:fire-danger-categories]]).
+- *Example Use Case:* A manager can quickly see if a park is moving from 10% "Extreme" today to 80% "Extreme" by Day 4, indicating a widespread deterioration of conditions.
+
+#+NAME: fig:stacked-bar
+#+CAPTION: Example stacked bar chart for Rocky Mountain National Park showing the distribution of fire danger categories across the 8-day forecast period.
+[[./img/ROMO_stacked_bar.png]]
+
+*** Threshold Plots
+These plots track specific decision-relevant thresholds (e.g., 0.25, 0.50, 0.75).
+- *Interpretation:* The y-axis shows the percentage of the park exceeding the threshold (Figure [[fig:threshold-plot]]).
+- *Example use case:* If agency requires a wildland firefighting crew staffing increase when \ge50% of the park exceeds the "Very High" (0.90) threshold, this plot provides direct evidence needed to justify the request.
+
+#+NAME: fig:threshold-plot
+#+CAPTION: Example threshold plot showing the percentage of Rocky Mountain National Park at or above 0.25 fire danger across the 8-day forecast period.
+[[./img/ROMO_threshold_plot_0.25.png]]
+
+** Lightning Strike Maps
+
+Real-time lightning strike data are retrieved hourly from the [[https://www.weatherbit.io/][Weatherbit.io]] weather data API. These lightning strikes are overlaid over the current daily fire danger forecast to indicate the danger of a particular lightning strike causing an ignition (Figure [[fig:lightning-map]]). This can inform management decisions such as sending a field crew or drone to the location of the lightning strike to identify and extinguish ignitions at an early stage.
+
+#+NAME: fig:lightning-map
+#+CAPTION: Example of lightning data integration.
+[[./img/wildfire-forecast-lightning.png]]
+
+** GIS Integration
+
+For advanced users, the raw forecast data are exported in two GIS-ready formats, both in the WGS 84 geographic coordinate system (EPSG:4326) at approximately 30-m pixel resolution (matching the LANDFIRE EVT grid):
+
+- *NetCDF:* Each daily run produces a NetCDF file containing 8 time layers (today through today + 7 days). The single variable, =fire_danger=, stores the 0--1 fire danger index for that ecoregion across both forest and non-forest cover types. These files can be loaded in GIS software (ArcGIS, QGIS) or analyzed programmatically in R or Python to examine fire danger at specific coordinates or for areas of interest.
+- *Cloud-Optimized GeoTIFF (COG):* A single-band GeoTIFF containing only the current day's fire danger layer is generated to provide an alternative for users who may be unfamiliar with the NetCDF file format.
+
+* System Architecture
+
+The Wildfire Ignition Danger Forecasting System is deployed as a containerized, cloud-native application on Amazon Web Services (AWS). This architecture ensures high availability, automated execution, and the ability to process high-resolution geospatial data with minimal maintenance overhead. The system utilizes a serverless "Compute-on-Demand" model, where resources are only provisioned during active processing.
+
+-   *Compute (AWS Fargate):* All data processing is performed using Docker containers running on AWS Fargate. This allows the system to scale its memory and CPU resources dynamically based on the specific ecoregion being processed.
+-   *Orchestration (AWS Step Functions):* A state machine manages the multi-step daily pipeline, handling dependencies between data downloads and forecast generation while providing robust error handling and retry logic. A "fan-out" architecture is implemented, processing each ecoregion in a separate containerized instance, allowing efficient parallel processing of daily forecasts.
+-   *Storage (Amazon S3):* A centralized S3 bucket serves as the data storage for all historical climate data, pre-calibrated eCDF models, and generated forecast products.
+-   *Scheduling (Amazon EventBridge):* Automated triggers initiate the daily forecast pipeline at 10:00 MST and hourly lightning updates.
+
+** Data Flow
+
+The forecast generation pipeline is described in Section [[sec:forecast-pipeline]]. From an infrastructure perspective, the pipeline adds the following resilience and delivery mechanisms:
+
+- *Data caching:* Both CFSv2 forecast data and gridMET historical data are cached locally after retrieval. If either source is unavailable on a given day, cached data are used and the dashboard displays a stale data warning indicating reduced forecast reliability.
+- *Validation:* Before publishing, the system executes validation steps to ensure data range integrity [0, 1] of the forecasts.
+- *Storage and Hosting:* Final forecast PNG maps, NetCDF/COG files, and HTML dashboards are synced to S3 upon successful pipeline execution, then delivered to the ClimateAnalyzer website  ([[https://climateanalyzer.science/fire]]).
+
+* Limitations and Caveats
+
+** Focus on Large Fires
+The system is calibrated using the Monitoring Trends in Burn Severity (MTBS) dataset, which only includes fires \geq405 hectares (1,000 acres). Therefore, the model is optimized to predict conditions preceding ignition of large wildfires, and may not accurately model other fire regimes such as flashy fuel systems where smaller fires occur under less extreme climatic conditions.
+
+** Historical Stationarity
+The models are calibrated using fire and climate data from 1984 to 2024. As climate change continues to shift baseline conditions and fire regimes, these relationships that held historically may begin to drift. While the use of percentiles provides some degree of self-calibration, the performance of this system should be monitored under future climate conditions.
+
+** Spatial Resolution (4 km)
+The gridMET and CFSv2 climate data are provided at 4-km spatial resolution. This is sufficient to capture regional fire dynamics, but cannot account for fine-scale topographic effects, such as localized rain shadows, which may create small pockets of lower or higher fire danger than indicated on the map.
+
+** Fire Behavior
+The system predicts ignition potential, not fire behavior or size. The fire danger value indicates to what degree fuels are dry and ready to burn, not how fast a fire will spread or how intense it will be. Factors such as wind speed, fuel continuity, and suppression effort influence fire behavior and are also not captured.
+
+** Forecast Skill
+The system utilizes CFSv2 weather forecasts. Like all meteorological forecast products, the skill of these forecasts is higher in time periods closer to the present and decreases as forecast lead time approaches the 7-day forecast period and beyond. Notably, variables with longer memory---such as 1000-hour fuel moisture and variables that incorporate it such as ERC---retain significant forecast skill further into the future than flux variables like evaporative demand [cite:@abatzoglouDownscaledSubseasonalFire2023]. This has implications for ecoregions whose operational predictors are state variables (e.g., FM1000inv in the Southern Rockies) versus flux variables (e.g., VPD in the Middle Rockies).
+
+** Predictor Availability
+Some predictors identified as "optimal" in our retrospective analysis (e.g., water balance variables from the NPSWB dataset such as Climatic Water Deficit) are currently unavailable as near real-time forecasts. In cases where a water balance variable was identified as "optimal", the best-performing variable provided by the CFSv2 forecast system was selected instead for development of the operational forecasting system.
+
+* Future Development
+
+The Wildfire Ignition Danger Forecasting System is designed as a modular and extensible platform.
+
+A primary goal for future versions is the inclusion of additional ecoregions across the Coterminous United States (CONUS). These inclusions will prioritize ecoregions with high predictability and those with significant presence of National Park Service-managed land.
+
+As climate and weather data availability improves, the system will be updated to incorporate more skillful predictors. These will include water balance variables from the NPSWB dataset, which were identified as better performing predictors of wildfire ignition in some ecoregions, but for which forecasts are unavailable. Inclusion of these water balance variables will require development of an operational near-term forecasting system implementing the NPSWB model.
+
+The threshold plots currently use generic danger levels (0.25, 0.50, 0.75) that may not align with specific management decision thresholds. Future work will collaborate with park managers and FMOs to define operationally meaningful thresholds tailored to specific management objectives, such as identifying prescribed fire windows, triggering public safety communications (e.g., campfire bans), or initiating staffing and resource pre-positioning decisions.
+
+The system has been validated for retrospective data (1984--2024) and ongoing "prospective" validation is planned to monitor real-world forecasting accuracy. Operational forecasts are archived each day and these will be used to assess performance predicting actual wildfire ignitions during the forecast period. Unfortunately, archived historical forecasts from the CFSv2-metdata system are not publicly available, preventing retrospective validation of forecast skill.
+
+* Conclusion
+
+This report documents a wildfire ignition danger forecasting system that selects the optimal climatic predictor for each ecoregion and cover type, rather than applying a single index across all landscapes. The retrospective analysis demonstrates strong discrimination (AUC > 0.84) in all four operational ecoregions, with the system now delivering daily 7-day forecasts to NPS managers. Performance in some ecoregions could be further improved by developing operational forecast pipelines for water balance variables (CWD, PET), which outperformed the current gridMET-based predictors in the retrospective analysis but are not yet available as forecasts.
+
+* Acknowledgements
+
+This work was supported by funding provided by the National Park Service through an agreement with the Northern Rockies Conservation Cooperative. The operational forecasting system is available at [[https://climateanalyzer.science/fire]]. Source code is available at [[https://github.com/shuysman/climate-wildfire-ecoregions]].
+
+* References
+#+print_bibliography:
+
+* Appendix
+
+** Ecoregion Configuration
+
+Table [[tab:ecoregion-config]] summarizes the operational predictor configuration for each ecoregion currently in the system. These parameters were determined through the retrospective predictor selection process described in Section [[sec:predictor-selection]].
+
+#+NAME: tab:ecoregion-config
+#+CAPTION: Operational predictor configuration by ecoregion and cover type. Window refers to the rolling mean/sum period in days. Variable abbreviations: VPD = Vapor Pressure Deficit, FM1000inv = inverted 1000-hour dead fuel moisture (100 - FM1000), GDD_0 = Growing Degree Days (base 0°C).
+#+ATTR_LATEX: :font \footnotesize
+| Ecoregion               | ID | Cover Type | Variable  | Window (days) | Rolling Function |
+|-------------------------+----+------------+-----------+---------------+------------------|
+| Middle Rockies          | 17 | Forest     | VPD       |            15 | Mean             |
+| Middle Rockies          | 17 | Non-forest | VPD       |             5 | Mean             |
+| Southern Rockies        | 21 | Forest     | FM1000inv |             5 | Mean             |
+| Southern Rockies        | 21 | Non-forest | FM1000inv |             1 | Mean             |
+| Colorado Plateaus       | 20 | Forest     | FM1000inv |             5 | Mean             |
+| Colorado Plateaus       | 20 | Non-forest | VPD       |            27 | Mean             |
+| Mojave Basin and Range  | 14 | Non-forest | GDD_0     |            27 | Sum              |
+
+Table [[tab:ecoregion-parks]] lists the NPS units included in each ecoregion's park-level dashboard products. Parks that span multiple ecoregions (e.g., CURE, GRCA) appear under each relevant ecoregion. In these cases, only the portion of the park within that ecoregion is assessed, and the dashboard notes the percentage and area analyzed (e.g., "Showing 91% of park area within Southern Rockies (124.6 of 136.8 km²)").
+
+#+NAME: tab:ecoregion-parks
+#+CAPTION: NPS units with dedicated dashboard products by ecoregion.
+#+ATTR_LATEX: :font \footnotesize
+| Ecoregion              | NPS Unit Code | NPS Unit Name                               |
+|------------------------+---------------+---------------------------------------------|
+| Middle Rockies         | YELL          | Yellowstone National Park                   |
+| Middle Rockies         | GRTE          | Grand Teton National Park                   |
+| Middle Rockies         | JODR          | John D. Rockefeller Jr. Memorial Parkway    |
+| Middle Rockies         | JECA          | Jewel Cave National Monument                |
+| Middle Rockies         | GRKO          | Grant-Kohrs Ranch National Historic Site    |
+| Middle Rockies         | DETO          | Devils Tower National Monument              |
+| Middle Rockies         | WICA          | Wind Cave National Park                     |
+| Middle Rockies         | MORU          | Mount Rushmore National Memorial            |
+| Middle Rockies         | BICA          | Bighorn Canyon National Recreation Area     |
+| Middle Rockies         | CRMO          | Craters of the Moon National Monument       |
+| Middle Rockies         | NEPE          | Nez Perce National Historical Park          |
+| Southern Rockies       | ROMO          | Rocky Mountain National Park                |
+| Southern Rockies       | GRSA          | Great Sand Dunes National Park & Preserve   |
+| Southern Rockies       | CURE          | Curecanti National Recreation Area          |
+| Southern Rockies       | BAND          | Bandelier National Monument                 |
+| Southern Rockies       | PECO          | Pecos National Historical Park              |
+| Southern Rockies       | FLFO          | Florissant Fossil Beds National Monument    |
+| Colorado Plateaus      | DINO          | Dinosaur National Monument                  |
+| Colorado Plateaus      | CANY          | Canyonlands National Park                   |
+| Colorado Plateaus      | ARCH          | Arches National Park                        |
+| Colorado Plateaus      | BLCA          | Black Canyon of the Gunnison National Park  |
+| Colorado Plateaus      | COLM          | Colorado National Monument                  |
+| Colorado Plateaus      | CURE          | Curecanti National Recreation Area          |
+| Colorado Plateaus      | MEVE          | Mesa Verde National Park                    |
+| Colorado Plateaus      | HOVE          | Hovenweep National Monument                 |
+| Colorado Plateaus      | GLCA          | Glen Canyon National Recreation Area        |
+| Colorado Plateaus      | CARE          | Capitol Reef National Park                  |
+| Colorado Plateaus      | BRCA          | Bryce Canyon National Park                  |
+| Colorado Plateaus      | ZION          | Zion National Park                          |
+| Colorado Plateaus      | NABR          | Natural Bridges National Monument           |
+| Colorado Plateaus      | RABR          | Rainbow Bridge National Monument            |
+| Colorado Plateaus      | YUHO          | Yucca House National Monument               |
+| Colorado Plateaus      | PISP          | Pipe Spring National Monument               |
+| Colorado Plateaus      | GRCA          | Grand Canyon National Park                  |
+| Mojave Basin and Range | DEVA          | Death Valley National Park                  |
+| Mojave Basin and Range | GRCA          | Grand Canyon National Park                  |
+| Mojave Basin and Range | LAME          | Lake Mead National Recreation Area          |
+| Mojave Basin and Range | MOJA          | Mojave National Preserve                    |
+| Mojave Basin and Range | JOTR          | Joshua Tree National Park                   |
+
+** Best Predictors by Ecoregion
+
+Table [[tab:best-predictors]] presents the best-performing predictor for each EPA Level III ecoregion and cover type combination evaluated in the retrospective analysis. The best predictor was selected by maximizing pAUC_{10}, which evaluates classification performance specifically under the driest conditions (false positive rate ≤ 10%). Ecoregions where only one cover type is listed had insufficient fire history on the other cover type for analysis.
+
+#+NAME: tab:best-predictors
+#+CAPTION: Best predictor variable for each ecoregion and cover type, selected by pAUC_{10}. Window is the rolling sum/mean period in days.
+#+ATTR_LATEX: :font \scriptsize :environment longtable
+| ID | Ecoregion                                        | Cover      | Variable | Window | pAUC_{10} |
+|----+--------------------------------------------------+------------+----------+--------+-----------|
+|  1 | Coast Range                                      | Forest     | FM1000inv |     11 |     0.035 |
+|  4 | Cascades                                         | Forest     | GDD_15   |     20 |     0.058 |
+|  4 | Cascades                                         | Non-forest | VPD      |      4 |     0.045 |
+|  5 | Sierra Nevada                                    | Forest     | VPD      |      3 |     0.027 |
+|  5 | Sierra Nevada                                    | Non-forest | GDD_15   |     26 |     0.036 |
+|  6 | Central California Foothills and Coastal Mtns     | Forest     | CWD      |      2 |     0.022 |
+|  6 | Central California Foothills and Coastal Mtns     | Non-forest | PET      |      6 |     0.024 |
+|  7 | Central California Valley                        | Non-forest | PET      |     31 |     0.017 |
+|  8 | Southern California Mountains                    | Non-forest | VPD      |     28 |     0.028 |
+|  9 | Eastern Cascades Slopes and Foothills            | Forest     | VPD      |      1 |     0.051 |
+|  9 | Eastern Cascades Slopes and Foothills            | Non-forest | GDD_0    |      8 |     0.052 |
+| 10 | Columbia Plateau                                 | Non-forest | VPD      |      7 |     0.042 |
+| 11 | Blue Mountains                                   | Forest     | VPD      |     29 |     0.056 |
+| 11 | Blue Mountains                                   | Non-forest | VPD      |     10 |     0.055 |
+| 12 | Snake River Plain                                | Non-forest | VPD      |      3 |     0.036 |
+| 13 | Central Basin and Range                          | Non-forest | PET      |     30 |     0.034 |
+| 14 | Mojave Basin and Range                           | Non-forest | PET      |     31 |     0.032 |
+| 15 | Northern Rockies                                 | Forest     | CWD      |     25 |     0.067 |
+| 15 | Northern Rockies                                 | Non-forest | CWD      |     25 |     0.055 |
+| 16 | Idaho Batholith                                  | Forest     | VPD      |     10 |     0.052 |
+| 16 | Idaho Batholith                                  | Non-forest | CWD      |     14 |     0.049 |
+| 17 | Middle Rockies                                   | Forest     | CWD      |     13 |     0.052 |
+| 17 | Middle Rockies                                   | Non-forest | CWD      |     14 |     0.049 |
+| 18 | Wyoming Basin                                    | Non-forest | ERC      |      4 |     0.039 |
+| 19 | Wasatch and Uinta Mountains                      | Forest     | VPD      |     12 |     0.035 |
+| 19 | Wasatch and Uinta Mountains                      | Non-forest | CWD      |      7 |     0.038 |
+| 20 | Colorado Plateaus                                | Forest     | CWD      |      2 |     0.041 |
+| 20 | Colorado Plateaus                                | Non-forest | CWD      |     20 |     0.045 |
+| 21 | Southern Rockies                                 | Forest     | FM1000inv |      5 |     0.035 |
+| 21 | Southern Rockies                                 | Non-forest | FM1000inv |      1 |     0.040 |
+| 22 | Arizona/New Mexico Plateau                       | Non-forest | VPD      |     27 |     0.046 |
+| 23 | Arizona/New Mexico Mountains                     | Forest     | PET      |      7 |     0.026 |
+| 23 | Arizona/New Mexico Mountains                     | Non-forest | VPD      |      2 |     0.031 |
+| 24 | Chihuahuan Deserts                               | Non-forest | FM1000inv |     30 |     0.030 |
+| 25 | High Plains                                      | Non-forest | FM100inv |      1 |     0.026 |
+| 26 | Southwestern Tablelands                          | Non-forest | ERC      |     28 |     0.025 |
+| 27 | Central Great Plains                             | Non-forest | ERC      |      1 |     0.033 |
+| 28 | Flint Hills                                      | Non-forest | BI       |     21 |     0.021 |
+| 29 | Cross Timbers                                    | Forest     | RD       |      5 |     0.029 |
+| 29 | Cross Timbers                                    | Non-forest | ERC      |      1 |     0.031 |
+| 30 | Edwards Plateau                                  | Non-forest | ERC      |      6 |     0.028 |
+| 31 | Southern Texas Plains                            | Non-forest | BI       |      2 |     0.023 |
+| 34 | Western Gulf Coastal Plain                       | Non-forest | VPD      |      8 |     0.013 |
+| 35 | South Central Plains                             | Forest     | ERC      |      3 |     0.042 |
+| 36 | Ouachita Mountains                               | Forest     | BI       |      1 |     0.027 |
+| 37 | Arkansas Valley                                  | Forest     | RD       |     20 |     0.031 |
+| 38 | Boston Mountains                                 | Forest     | BI       |     10 |     0.030 |
+| 39 | Ozark Highlands                                  | Forest     | FM100inv |     31 |     0.030 |
+| 40 | Central Irregular Plains                         | Non-forest | BI       |     18 |     0.031 |
+| 41 | Canadian Rockies                                 | Forest     | FM1000inv |     28 |     0.063 |
+| 41 | Canadian Rockies                                 | Non-forest | CWD      |      4 |     0.050 |
+| 42 | Northwestern Glaciated Plains                    | Non-forest | ERC      |     23 |     0.034 |
+| 43 | Northwestern Great Plains                        | Non-forest | CWD      |     19 |     0.045 |
+| 44 | Nebraska Sand Hills                              | Non-forest | ERC      |      2 |     0.027 |
+| 45 | Piedmont                                         | Forest     | BI       |      3 |     0.043 |
+| 48 | Lake Agassiz Plain                               | Non-forest | ERC      |      1 |     0.035 |
+| 49 | Northern Minnesota Wetlands                      | Forest     | RD       |      1 |     0.051 |
+| 49 | Northern Minnesota Wetlands                      | Non-forest | ERC      |      6 |     0.030 |
+| 50 | Northern Lakes and Forests                       | Forest     | ERC      |      1 |     0.048 |
+| 50 | Northern Lakes and Forests                       | Non-forest | RD       |      6 |     0.042 |
+| 63 | Middle Atlantic Coastal Plain                    | Forest     | ERC      |      4 |     0.032 |
+| 63 | Middle Atlantic Coastal Plain                    | Non-forest | BI       |      4 |     0.035 |
+| 65 | Southeastern Plains                              | Forest     | FM100inv |      3 |     0.022 |
+| 65 | Southeastern Plains                              | Non-forest | ERC      |     12 |     0.023 |
+| 66 | Blue Ridge                                       | Forest     | ERC      |     15 |     0.041 |
+| 67 | Ridge and Valley                                 | Forest     | ERC      |      5 |     0.038 |
+| 68 | Southwestern Appalachians                        | Forest     | ERC      |      2 |     0.037 |
+| 69 | Central Appalachians                             | Forest     | ERC      |     10 |     0.034 |
+| 70 | Western Allegheny Plateau                        | Forest     | ERC      |      3 |     0.036 |
+| 75 | Southern Coastal Plain                           | Forest     | CWD      |      9 |     0.026 |
+| 75 | Southern Coastal Plain                           | Non-forest | ERC      |      2 |     0.017 |
+| 76 | Southern Florida Coastal Plain                   | Forest     | CWD      |      3 |     0.028 |
+| 76 | Southern Florida Coastal Plain                   | Non-forest | CWD      |      5 |     0.018 |
+| 77 | North Cascades                                   | Forest     | GDD_0    |      8 |     0.057 |
+| 77 | North Cascades                                   | Non-forest | GDD_0    |      8 |     0.042 |
+| 78 | Klamath Mountains/CA High North Coast Range      | Forest     | VPD      |      4 |     0.057 |
+| 78 | Klamath Mountains/CA High North Coast Range      | Non-forest | VPD      |      5 |     0.050 |
+| 79 | Madrean Archipelago                              | Forest     | VPD      |      4 |     0.037 |
+| 79 | Madrean Archipelago                              | Non-forest | VPD      |      8 |     0.034 |
+| 80 | Northern Basin and Range                         | Non-forest | VPD      |     22 |     0.042 |
+| 81 | Sonoran Basin and Range                          | Non-forest | VPD      |     31 |     0.024 |
+| 84 | Atlantic Coastal Pine Barrens                    | Forest     | ERC      |      2 |     0.022 |
+| 85 | Southern California/Northern Baja Coast          | Non-forest | VPD      |      8 |     0.024 |
+
+** Model Performance (AUC)
+
+Figure [[fig:pauc-map]] shows the maximum pAUC_{10} achieved in each ecoregion by cover type. While the AUC metric in Figure [[fig:predictability-map]] measures overall discrimination across all conditions, pAUC_{10} evaluates performance specifically at low false-positive rates (\le 10%), focusing on the driest conditions most relevant to management decisions.
+
+#+NAME: fig:pauc-map
+#+CAPTION: Maximum pAUC_{10} achieved in each ecoregion by cover type. Lighter colors indicate higher model performance (better discrimination of fire days under dry conditions). Ecoregion/cover type combinations with fewer than 20 large fires in the MTBS database were excluded from analysis and appear blank.
+[[./img/map-pauc-values-1.png]]
+
+Figure [[fig:auc-predictors-map]] shows the best-performing predictor selected by AUC (overall discrimination) rather than pAUC_{10} (low false-positive rate). Comparing with Figure [[fig:best-predictors-map]] reveals where the selection criterion changes the optimal predictor choice.
+
+#+NAME: fig:auc-predictors-map
+#+CAPTION: Best-performing predictor variable by ecoregion for forest (left) and non-forest (right) cover types, selected by maximum AUC. Compare with Figure [[fig:best-predictors-map]] (selected by pAUC_{10}).
+[[./img/map-predictors-1.png]]
+
+** <<sec:percentile-rank-code>> Custom Percentile Ranking Function
+
+The following R function implements the custom percentile ranking procedure described in the Percentile Ranking section of the Methods.
+
+#+begin_src R
+my_percent_rank <- function(x) {
+  ## Round to one decimal place
+  x2 <- round(x, 1)
+
+  ## Remove zeroes
+  x2[x2 == 0] <- NA
+
+  ## Rank unique values only
+  x2 <- unique(x2) %>% as.numeric()
+  ranks <- data.frame(x = x2, pct = percent_rank(x2))
+
+  ## Map ranks back to full time series
+  inds <- match(round(x, 1), ranks$x)
+  x3 <- ranks$pct[inds]
+
+  ## Restore zeroes as percentile 0
+  x3 <- replace_na(x3, 0)
+
+  return(x3)
+}
+#+end_src
+
+# Local Variables:
+# citar-bibliography: "Wildfire.bib"
+# End:
