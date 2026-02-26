@@ -1,3 +1,4 @@
+# Secrets
 .weatherbit_api_key
 *.pem
 *.key
@@ -6,3 +7,49 @@
 .env.local
 **/*credentials*
 **/*secret*
+
+# Generated/downloaded data (static shapefiles tracked via LFS)
+data/ecdf/
+data/classified_cover/
+data/forecasts/
+data/FPA-FODS/
+data/pyromes/
+data/gye_boundary/
+data/LF2023_EVT_240_CONUS/
+data/LF2023_EVT_240_CONUS.zip
+data/*.parquet
+data/*.csv
+data/*.txt
+data/*.zip
+data/*.gpkg
+
+# Generated outputs
+out/
+log/
+
+# R environment
+.Rhistory
+.Renviron
+.renvignore
+
+# Python/direnv
+.venv/
+.envrc
+
+# Generated plots (root)
+forest-predictors.png
+non_forest-predictors.png
+
+# LaTeX build artifacts
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz
+*.toc
+
+# Misc
+update-log.txt
+file-structure.txt
+**/#*#
