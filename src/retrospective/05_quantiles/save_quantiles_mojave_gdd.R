@@ -14,6 +14,11 @@ message("========================================")
 message("Generating Mojave Basin and Range GDD_0 quantile rasters")
 message("========================================")
 
+replace_duplicated <- function(x) {
+  x[duplicated(x)] <- NA
+  return(x)
+}
+
 terraOptions(
   verbose = TRUE,
   memfrac = 0.9
@@ -74,11 +79,15 @@ message("Computing non-forest quantiles (27-day rolling SUM)...")
 message("This may take a while for CONUS-scale data...")
 message("========================================")
 
-# IMPORTANT: GDD uses rolling SUM (not mean) because we're interested in cumulative heat
-# NOTE: GDD_0 uses dplyr::percent_rank() in 03_dryness.R (flux_vars)
-# which does NOT round, substitute zeros, or remove duplicates.
-# Do not apply those transformations here to match the eCDF training data.
+# IMPORTANT: GDD uses rolling SUM (not mean) because we're interested in cumulative heat.
+# GDD_0 is in flux_vars in dryness_roc_analysis.R, so it uses my_percent_rank():
+# round to 1 decimal, treat zeros as NA, and drop duplicated values before
+# calculating percentiles. Apply the same preprocessing here so quantile
+# breakpoints match the retrospective eCDF training data and forecast pipeline.
 non_forest_quants_rast <- terra::roll(gdd_0_data, n = 27, fun = sum, type = "to", circular = FALSE) %>%
+  terra::round(digits = 1) %>%
+  subst(0, NA) %>%
+  terra::app(function(x) replace_duplicated(x)) %>%
   terra::quantile(probs = probs, na.rm = TRUE)
 
 message("Writing non-forest quantile raster...")
