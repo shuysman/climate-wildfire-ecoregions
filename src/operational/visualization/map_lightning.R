@@ -1,3 +1,29 @@
+# ============================================================================
+# REFERENCE ONLY — NOT FUNCTIONAL AT ECOREGION SCALE
+# ============================================================================
+# This script was built against the Weatherbit lightning API and is retained
+# only as a reference implementation of the end-to-end workflow (ingestion,
+# alerting, handoff to the forecaster). It is NOT suitable for production use
+# at ecoregion scale for two reasons documented in the April 2026 handoff memo
+# (Huysman):
+#
+#   1. Weatherbit's lightning endpoint is capped at a 75 km radius per query.
+#      The demo was validated against Yellowstone NP, which fits in a single
+#      query. Covering a full ecoregion would require tiling overlapping
+#      requests and deduplicating strikes at tile seams.
+#
+#   2. Weatherbit does not distinguish cloud-to-ground (CG) strikes from
+#      intracloud/cloud-to-cloud activity. Only CG strikes are fire ignition
+#      sources, so an undifferentiated feed produces a high false-positive
+#      rate that makes the alerting operationally useless.
+#
+# Recommended path forward: replace Weatherbit with a commercial-grade feed
+# that provides CG/IC classification and no radius limit. Xweather (Vaisala
+# NLDN) is the primary candidate; Earth Networks is a secondary option. Both
+# require a sales engagement rather than self-serve signup. The existing
+# interface to the forecaster can be preserved — swap the client only.
+# ============================================================================
+
 library(terra)
 library(ncdf4)
 library(tidyverse)
@@ -143,8 +169,8 @@ if (is.null(api_key) || api_key == "") {
   stop("API key retrieved from Secrets Manager is null or empty.")
 }
 
-# Build lightning API URL using ecoregion bounding box
-api_url <- glue("https://api.weatherbit.io/v2.0/history/lightning?lat={lat_min}&lon={lon_min}&end_lat={lat_max}&end_lon={lon_max}&date={forecast_date_str}&key={api_key}")
+# Build lightning API URL
+api_url <- glue("https://api.weatherbit.io/v2.0/history/lightning?lat={lat_min}&lon={lon_min}&date={forecast_date_str}&key={api_key}")
 
 message(glue("Fetching lightning data from API..."))
 

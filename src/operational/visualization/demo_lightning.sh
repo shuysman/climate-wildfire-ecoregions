@@ -2,6 +2,22 @@
 #
 # demo_lightning.sh
 #
+# ============================================================================
+# REFERENCE ONLY — NOT FUNCTIONAL AT ECOREGION SCALE
+# ============================================================================
+# This demo wrapper is retained as a reference implementation only. The
+# underlying lightning warning system was built against the Weatherbit API
+# and is not suitable for production use at ecoregion scale. Per the April
+# 2026 handoff memo (Huysman), Weatherbit's lightning endpoint is capped at
+# a 75 km radius per query (requires tiling/deduplication to cover an
+# ecoregion) and does not distinguish cloud-to-ground from intracloud
+# strikes (yields a high false-positive rate for fire-ignition alerting).
+#
+# Path forward: replace the data source with a commercial-grade feed
+# (Xweather/Vaisala NLDN preferred; Earth Networks as secondary) behind the
+# existing forecaster interface. Procurement requires a sales engagement.
+# ============================================================================
+#
 # Convenience wrapper for running the lightning strike danger demonstration.
 # Builds the container and runs the demo, then offers to open the result.
 #

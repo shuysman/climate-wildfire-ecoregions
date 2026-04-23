@@ -2,6 +2,27 @@
 #
 # demo_lightning_map.R
 #
+# ============================================================================
+# REFERENCE ONLY — NOT FUNCTIONAL AT ECOREGION SCALE
+# ============================================================================
+# This demonstration script is retained as a reference implementation only.
+# The production sibling (map_lightning.R) was built against the Weatherbit
+# API and is not suitable for ecoregion-scale use. Per the April 2026
+# handoff memo (Huysman), Weatherbit's lightning endpoint is capped at a
+# 75 km radius per query (requires tiling/deduplication to cover a full
+# ecoregion) and does not distinguish cloud-to-ground from intracloud
+# strikes (only CG strikes ignite fires, so an undifferentiated feed yields
+# a high false-positive rate that makes alerting operationally useless).
+#
+# Because this demo uses synthetic/mock strikes, it does not surface either
+# limitation — but the visualization it exercises is the same one that
+# would need to be rewired to a new data source.
+#
+# Path forward: replace Weatherbit with a commercial-grade feed (Xweather /
+# Vaisala NLDN preferred; Earth Networks as secondary) behind the existing
+# forecaster interface. Procurement requires a sales engagement.
+# ============================================================================
+#
 # Demonstration script for the lightning strike danger visualization system.
 # This script generates a sample lightning map with mock data to showcase
 # the system without requiring Weatherbit API credentials.
