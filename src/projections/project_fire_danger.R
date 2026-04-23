@@ -1,7 +1,7 @@
 ## Project fire danger for Sierra Nevada using MACA climate projections
 ##
 ## Applies the pyrome-fire eCDF methodology to MACA CMIP5 projections:
-## 1. Load precomputed rolled VPD and GDD_15 (from precompute_gdd15.sh)
+## 1. Load precomputed rolled VPD (from precompute_rolled_vpd.sh)
 ## 2. Align grids and dates
 ## 3. Process year-by-year: percentile binning → eCDF → fire danger
 ## 4. Save separate forest/non-forest daily fire danger rasters
@@ -40,8 +40,8 @@ ecoregion_name_clean <- "sierra_nevada"
 ## Predictor configuration (from eCDF model selection)
 forest_window <- 3
 forest_variable <- "vpd"
-non_forest_window <- 26
-non_forest_variable <- "gdd_15"
+non_forest_window <- 17
+non_forest_variable <- "vpd"
 
 ## Paths
 maca_data_dir <- "/media/steve/THREDDS/data/MACA/sien/forecasts/daily"
@@ -93,22 +93,21 @@ non_forest_quants_rast <- rast(non_forest_quants_path)
 ## LOAD ALL MACA DATA AND COMPUTE DERIVED VARIABLES
 ## ============================================================================
 
-## Load precomputed rolled data (from precompute_gdd15.sh)
-## VPD: 3-day rolling mean, GDD_15: 26-day rolling sum
-message("Loading precomputed rolled VPD (3-day mean)...")
-vpd_rolled_file <- file.path(maca_data_dir, glue("vpd_rolled_{forest_window}_{model}_{scenario}_2006-2099_daily_sien.nc"))
-gdd15_rolled_file <- file.path(maca_data_dir, glue("gdd15_rolled_{non_forest_window}_{model}_{scenario}_2006-2099_daily_sien.nc"))
+## Load precomputed rolled data (from precompute script)
+## Forest: VPD 3-day rolling mean, Non-forest: VPD 17-day rolling mean
+message("Loading precomputed rolled VPD...")
+forest_vpd_file <- file.path(maca_data_dir, glue("vpd_rolled_{forest_window}_{model}_{scenario}_2006-2099_daily_sien.nc"))
+non_forest_vpd_file <- file.path(maca_data_dir, glue("vpd_rolled_{non_forest_window}_{model}_{scenario}_2006-2099_daily_sien.nc"))
 
-for (f in c(vpd_rolled_file, gdd15_rolled_file)) {
-  if (!file.exists(f)) stop(glue("File not found: {f}\nRun precompute_gdd15.sh first."))
+for (f in c(forest_vpd_file, non_forest_vpd_file)) {
+  if (!file.exists(f)) stop(glue("File not found: {f}\nRun precompute script first."))
 }
 
-forest_rolled <- rast(vpd_rolled_file)
-message(glue("  VPD rolled: {nlyr(forest_rolled)} days"))
+forest_rolled <- rast(forest_vpd_file)
+message(glue("  Forest VPD (window {forest_window}): {nlyr(forest_rolled)} days"))
 
-message("Loading precomputed rolled GDD_15 (26-day sum)...")
-non_forest_rolled <- rast(gdd15_rolled_file)
-message(glue("  GDD_15 rolled: {nlyr(non_forest_rolled)} days"))
+non_forest_rolled <- rast(non_forest_vpd_file)
+message(glue("  Non-forest VPD (window {non_forest_window}): {nlyr(non_forest_rolled)} days"))
 
 ## Align grids: MACA uses 0-360 longitude, quantile rasters use -180 to 180
 ## Resample quantile rasters (100 layers each) to match MACA grid (much faster than resampling 34k layers)
