@@ -10,6 +10,24 @@ climate projections over the Sierra Nevada ecoregion (ID 5).
 Non-forest originally used GDD_15 (26-day sum) but switched to VPD to avoid
 NA pixels at high-elevation cells where historical GDD_15 was always zero.
 
+## Grid handling — MACA vs gridMET
+
+MACA v2 metdata is bias-corrected to gridMET statistics at 1/24° CONUS, but
+its coordinate variables sit on a grid whose cell centers are offset ~611 m
+(~0.13 cell width) west of gridMET's. CFSv2 metdata and gridMET share their
+grid exactly, so the gridMET-native quantile raster is used unchanged by
+both the operational CFSv2 forecast pipeline and the MACA projection
+pipeline (one canonical artifact).
+
+`project_fire_danger.R` remaps MACA daily VPD onto the gridMET grid with
+nearest-neighbor resampling before percentile binning. This preserves raw
+MACA values (no bilinear blending) while absorbing the rigid ~0.13-cell
+offset; the ~611 m sub-pixel registration uncertainty is inherent to the
+MACA/gridMET grid mismatch. The offset is a long-standing property of
+MACA v2 metdata, verified against both the aggregated and per-year
+products on thredds.northwestknowledge.net and against a MACA download
+from November 2023.
+
 ## Prerequisites
 
 1. **gridMET historical data** at `/media/steve/THREDDS/gridmet/` (vpd, tmmx, tmmn)

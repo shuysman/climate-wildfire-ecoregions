@@ -109,12 +109,26 @@ message(glue("  Forest VPD (window {forest_window}): {nlyr(forest_rolled)} days"
 non_forest_rolled <- rast(non_forest_vpd_file)
 message(glue("  Non-forest VPD (window {non_forest_window}): {nlyr(non_forest_rolled)} days"))
 
-## Align grids: MACA uses 0-360 longitude, quantile rasters use -180 to 180
-## Resample quantile rasters (100 layers each) to match MACA grid (much faster than resampling 34k layers)
-message("Aligning quantile rasters to MACA grid...")
-maca_template <- subset(forest_rolled, 1)
-forest_quants_rast <- project(forest_quants_rast, maca_template)
-non_forest_quants_rast <- project(non_forest_quants_rast, maca_template)
+## Align MACA to the gridMET grid used by the quantile raster.
+##
+## Despite being bias-corrected to gridMET statistics at 1/24° CONUS, MACA v2
+## metdata's coordinate variables sit on a grid whose cell centers are offset
+## ~0.0055° (~611 m, ~0.13 cell width) west of gridMET's. Verified empirically
+## against both the aggregated and per-year MACA products at
+## thredds.northwestknowledge.net and against a 2023 MACA download — the shift
+## is a long-standing property of MACA v2 metdata, not a download artifact.
+## CFSv2 metdata and gridMET share their grid exactly, so one canonical
+## gridMET-grid quantile raster serves both the operational forecast pipeline
+## (CFSv2 → no regridding needed) and MACA projections (regrid here).
+##
+## Remap is nearest-neighbor to preserve raw MACA values without bilinear
+## blending. Since the offset is a consistent rigid shift, every MACA cell
+## maps cleanly onto exactly one gridMET cell — no averaging, no value change.
+## The ~611 m sub-pixel registration uncertainty is inherent to the MACA/
+## gridMET grid mismatch and cannot be reduced without interpolation.
+message("Remapping MACA rolled VPD to the gridMET grid (nearest-neighbor)...")
+forest_rolled <- resample(forest_rolled, forest_quants_rast, method = "near")
+non_forest_rolled <- resample(non_forest_rolled, non_forest_quants_rast, method = "near")
 
 load_elapsed <- round(difftime(Sys.time(), start_time, units = "mins"), 1)
 message(glue("Data loading complete in {load_elapsed} min"))
