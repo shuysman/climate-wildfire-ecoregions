@@ -4,7 +4,9 @@
 ## Usage: bash run_projections.sh [--parallel N]
 ##
 ## By default runs sequentially. Use --parallel N to run N jobs at a time.
-## Each GCM/scenario takes ~1-2 hours on 128GB RAM workstation.
+## Each GCM/scenario takes ~4 hours on 128GB RAM workstation. RSS is ~9 GB
+## per worker; 4-way is safe and leaves the box usable, 10-way is the
+## practical ceiling on 128 GB.
 
 PARALLEL=1
 

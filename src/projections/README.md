@@ -86,7 +86,7 @@ Per GCM/scenario, produces (in `/media/steve/THREDDS/data/MACA/sien/forecasts/da
 - `vpd_rolled_17_<MODEL>_<SCENARIO>_2006-2099_daily_sien.nc` (non-forest)
 - `gdd15_rolled_26_<MODEL>_<SCENARIO>_2006-2099_daily_sien.nc` (legacy, can ignore)
 
-### 4. Run fire danger projections (~24 h per GCM/scenario, parallelize)
+### 4. Run fire danger projections (~4 h per GCM/scenario, parallelize)
 
 For a single GCM/scenario:
 
@@ -97,10 +97,10 @@ podman run --rm \
   wildfire-forecast Rscript src/projections/project_fire_danger.R BNU-ESM rcp45
 ```
 
-For all 40 combos with 16-way parallelism:
+For all 40 combos with 4-way parallelism (safe default on a 128 GB box):
 
 ```bash
-bash src/projections/run_projections.sh --parallel 16
+bash src/projections/run_projections.sh --parallel 4
 ```
 
 Outputs per year (in `/media/steve/THREDDS/data/MACA/sien/projections/<MODEL>/<SCENARIO>/`):
@@ -126,10 +126,17 @@ Outputs per year: `<YEAR>_days_above_thresholds.tif` (30m GeoTIFF, ~15 MB, 4 thr
 
 ## Resource Requirements
 
-- **RAM**: ~3-6 GB per process (safe to run 16 in parallel on 128 GB)
+- **RAM**: ~9 GB RSS per process (measured on Sierra Nevada ecoregion after
+  the nearest-neighbor MACA→gridMET remap was added). Safe ceiling on a
+  128 GB box is ~10 parallel; the older "~3-6 GB, 16 parallel" figure in
+  prior revisions of this doc was pre-remap and no longer applies.
+  `--parallel 4` uses ~36 GB and leaves headroom for other work.
 - **CPU**: 1 core per process
 - **Disk**: ~150 GB total (raw MACA + rolled + projections + thresholds)
-- **Wall time**: ~3-5 days with 16 parallel jobs
+- **Wall time**: ~4 h per GCM/scenario × 40 combos ÷ N parallel workers.
+  `--parallel 4` → ~1.7 days; `--parallel 10` → ~16 h. Parallelism can be
+  raised mid-run — the skip logic preserves completed years, so the worst
+  case on restart is losing each worker's in-flight year (~2.5 min each).
 
 ## Monitoring Running Jobs
 
