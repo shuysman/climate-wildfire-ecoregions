@@ -32,6 +32,13 @@ case "$period_name" in
     *) echo "Unknown period: $period_name (expected near_term|mid_century|end_century)"; exit 1 ;;
 esac
 
+## CDO -P N enables OpenMP threading inside each operator. Default leaves a
+## couple of cores for the system; override via env var if running alongside
+## other heavy work, e.g. CDO_THREADS=8 bash compute_period_ensemble.sh ...
+NCPU=$(nproc)
+CDO_THREADS=${CDO_THREADS:-$(( NCPU > 4 ? NCPU - 2 : NCPU ))}
+echo "CDO threads: $CDO_THREADS  (host nproc=$NCPU)"
+
 proj_dir=/media/steve/THREDDS/data/MACA/sien/projections
 out_root=/media/steve/THREDDS/data/MACA/sien/ensemble_thresholds
 out_dir="$out_root/$scenario/4km"
@@ -70,7 +77,7 @@ for cover in forest non_forest; do
             continue
         fi
         out="$scratch/${g}_${cover}.nc"
-        cdo -s ensmean "${year_files[@]}" "$out"
+        cdo -s -P "$CDO_THREADS" ensmean "${year_files[@]}" "$out"
         per_gcm_files+=("$out")
     done
     echo "  per-GCM period means computed: ${#per_gcm_files[@]}/${#gcms[@]}"
@@ -89,7 +96,7 @@ for cover in forest non_forest; do
             q75)    op=enspctl,75 ;;
         esac
         out_file="$out_dir/${period_name}_ens_${stat}_${cover}.nc"
-        cdo -s -O $op "${per_gcm_files[@]}" "$out_file"
+        cdo -s -O -P "$CDO_THREADS" $op "${per_gcm_files[@]}" "$out_file"
         sz=$(du -k "$out_file" | cut -f1)
         echo "  wrote $(basename $out_file) (${sz} kB)"
     done
