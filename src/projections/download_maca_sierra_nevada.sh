@@ -24,6 +24,13 @@ out_dir="/media/steve/THREDDS/data/MACA/sien/forecasts/${timestep}"
 mkdir -p "$out_dir"
 
 for model in $gcms; do
+    ## CCSM4 is the only MACA GCM published under ensemble member r6i1p1;
+    ## all others use r1i1p1. Hitting the wrong member URL silently returns
+    ## HTTP 200 with an empty body (not 404), so the mismatch is easy to miss.
+    case $model in
+        CCSM4) ens="r6i1p1" ;;
+        *)     ens="r1i1p1" ;;
+    esac
     for scenario in $pathways; do
         for par in $var; do
             echo "$par $model $scenario"
@@ -35,13 +42,13 @@ for model in $gcms; do
             TMPFILE=$(mktemp) || exit 1
             case $par in
                 "vpd")
-                    wget -O "$TMPFILE" "http://thredds.northwestknowledge.net:8080/thredds/ncss/agg_macav2metdata_vpd_${model}_r1i1p1_${scenario}_2006_2099_CONUS_${timestep}.nc?var=vpd&north=${north}&west=${west}&east=${east}&south=${south}&disableProjSubset=on&horizStride=1&time_start=2006-01-01T00%3A00%3A00Z&time_end=2099-12-31T00%3A00%3A00Z&timeStride=1&accept=netcdf"
+                    wget -O "$TMPFILE" "http://thredds.northwestknowledge.net:8080/thredds/ncss/agg_macav2metdata_vpd_${model}_${ens}_${scenario}_2006_2099_CONUS_${timestep}.nc?var=vpd&north=${north}&west=${west}&east=${east}&south=${south}&disableProjSubset=on&horizStride=1&time_start=2006-01-01T00%3A00%3A00Z&time_end=2099-12-31T00%3A00%3A00Z&timeStride=1&accept=netcdf"
                     ;;
                 "tmmx")
-                    wget -O "$TMPFILE" "http://thredds.northwestknowledge.net:8080/thredds/ncss/agg_macav2metdata_tasmax_${model}_r1i1p1_${scenario}_2006_2099_CONUS_${timestep}.nc?var=air_temperature&north=${north}&west=${west}&east=${east}&south=${south}&disableProjSubset=on&horizStride=1&time_start=2006-01-01T00%3A00%3A00Z&time_end=2099-12-31T00%3A00%3A00Z&timeStride=1&accept=netcdf"
+                    wget -O "$TMPFILE" "http://thredds.northwestknowledge.net:8080/thredds/ncss/agg_macav2metdata_tasmax_${model}_${ens}_${scenario}_2006_2099_CONUS_${timestep}.nc?var=air_temperature&north=${north}&west=${west}&east=${east}&south=${south}&disableProjSubset=on&horizStride=1&time_start=2006-01-01T00%3A00%3A00Z&time_end=2099-12-31T00%3A00%3A00Z&timeStride=1&accept=netcdf"
                     ;;
                 "tmmn")
-                    wget -O "$TMPFILE" "http://thredds.northwestknowledge.net:8080/thredds/ncss/agg_macav2metdata_tasmin_${model}_r1i1p1_${scenario}_2006_2099_CONUS_${timestep}.nc?var=air_temperature&north=${north}&west=${west}&east=${east}&south=${south}&disableProjSubset=on&horizStride=1&time_start=2006-01-01T00%3A00%3A00Z&time_end=2099-12-31T00%3A00%3A00Z&timeStride=1&accept=netcdf"
+                    wget -O "$TMPFILE" "http://thredds.northwestknowledge.net:8080/thredds/ncss/agg_macav2metdata_tasmin_${model}_${ens}_${scenario}_2006_2099_CONUS_${timestep}.nc?var=air_temperature&north=${north}&west=${west}&east=${east}&south=${south}&disableProjSubset=on&horizStride=1&time_start=2006-01-01T00%3A00%3A00Z&time_end=2099-12-31T00%3A00%3A00Z&timeStride=1&accept=netcdf"
                     ;;
             esac
             if [ $? -eq 0 ] && [ -s "$TMPFILE" ]; then
