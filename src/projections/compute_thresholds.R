@@ -1,7 +1,11 @@
 ## Compute days-above-threshold summaries from daily fire danger projections
 ##
-## Post-processing step: combines separate forest/non-forest daily fire danger
-## rasters via 30m classified cover to produce annual threshold summaries.
+## Per-GCM/scenario step: writes one 4km NetCDF per cover type per year, each
+## with a band per threshold. The 30m resample + cover-mask combine is
+## intentionally deferred to the ensemble step (`ensemble_thresholds.R`),
+## where it runs once per ensemble product instead of once per
+## (GCM × scenario × year). This keeps per-year cost ~tens of seconds and
+## peak RSS ~3-5 GB, so the full sweep parallelizes safely across GCMs.
 ##
 ## Usage: Rscript compute_thresholds.R <model> <scenario> [start_year] [end_year]
 ## Example: Rscript compute_thresholds.R BNU-ESM rcp45
@@ -27,30 +31,14 @@ message(glue("========================================"))
 
 start_time <- Sys.time()
 
-terraOptions(verbose = FALSE, memfrac = 0.9)
+terraOptions(verbose = FALSE, memfrac = 0.6)
 
 ## ============================================================================
 ## CONFIGURATION
 ## ============================================================================
 
-ecoregion_id <- 5
-
 projections_dir <- file.path("/media/steve/THREDDS/data/MACA/sien/projections", model, scenario)
 thresholds <- c(0.50, 0.75, 0.90, 0.95)
-
-## ============================================================================
-## LOAD CLASSIFIED COVER
-## ============================================================================
-
-message("Loading classified cover raster...")
-classified_rast <- rast(glue("data/classified_cover/ecoregion_{ecoregion_id}_classified.tif"))
-
-## Project to match MACA CRS (0-360 longitude)
-## Use a fire danger file as template for the target CRS
-sample_files <- list.files(projections_dir, pattern = "_fire_danger_forest\\.nc$", full.names = TRUE)
-if (length(sample_files) == 0) stop(glue("No fire danger files found in {projections_dir}"))
-maca_crs <- crs(rast(sample_files[1]))
-classified_rast <- project(classified_rast, maca_crs)
 
 ## ============================================================================
 ## FIND YEARS TO PROCESS
@@ -65,64 +53,58 @@ if (!is.null(end_year)) available_years <- available_years[available_years <= en
 message(glue("Years to process: {min(available_years)}-{max(available_years)} ({length(available_years)} years)"))
 
 ## ============================================================================
-## PROCESS EACH YEAR
+## PROCESS EACH YEAR — write one 4km NetCDF per cover type
 ## ============================================================================
+
+count_days_above <- function(daily_rast, thresholds) {
+  out <- rast(lapply(thresholds, function(t) {
+    app(daily_rast > t, fun = sum, na.rm = TRUE)
+  }))
+  names(out) <- paste0("days_above_", thresholds)
+  out
+}
 
 for (yr in available_years) {
   yr_start <- Sys.time()
 
-  forest_file <- file.path(projections_dir, glue("{yr}_fire_danger_forest.nc"))
-  non_forest_file <- file.path(projections_dir, glue("{yr}_fire_danger_non_forest.nc"))
-  threshold_file <- file.path(projections_dir, glue("{yr}_days_above_thresholds.tif"))
+  forest_in <- file.path(projections_dir, glue("{yr}_fire_danger_forest.nc"))
+  non_forest_in <- file.path(projections_dir, glue("{yr}_fire_danger_non_forest.nc"))
+  forest_out <- file.path(projections_dir, glue("{yr}_days_above_thresholds_forest.nc"))
+  non_forest_out <- file.path(projections_dir, glue("{yr}_days_above_thresholds_non_forest.nc"))
 
-  if (file.exists(threshold_file)) {
+  if (file.exists(forest_out) && file.exists(non_forest_out)) {
     message(glue("  {yr}: already exists, skipping."))
     next
   }
 
-  if (!file.exists(forest_file) || !file.exists(non_forest_file)) {
+  if (!file.exists(forest_in) || !file.exists(non_forest_in)) {
     message(glue("  {yr}: missing fire danger files, skipping."))
     next
   }
 
   message(glue("--- Year {yr} ---"))
 
-  forest_daily <- rast(forest_file)
-  non_forest_daily <- rast(non_forest_file)
+  forest_daily <- rast(forest_in)
+  non_forest_daily <- rast(non_forest_in)
 
-  threshold_layers <- list()
-  for (thresh in thresholds) {
-    ## Count days above threshold at MACA resolution (fast)
-    forest_days <- app(forest_daily > thresh, fun = sum, na.rm = TRUE)
-    nonforest_days <- app(non_forest_daily > thresh, fun = sum, na.rm = TRUE)
+  forest_counts <- count_days_above(forest_daily, thresholds)
+  nonforest_counts <- count_days_above(non_forest_daily, thresholds)
 
-    ## Resample single-layer results to classified cover resolution (30m)
-    ## Nearest-neighbor preserves integer day-counts (bilinear creates fractional values)
-    forest_days_hr <- resample(forest_days, classified_rast, method = "near")
-    nonforest_days_hr <- resample(nonforest_days, classified_rast, method = "near")
+  writeCDF(forest_counts, forest_out, overwrite = TRUE,
+           varname = "days_above_thresholds", compression = 4)
+  writeCDF(nonforest_counts, non_forest_out, overwrite = TRUE,
+           varname = "days_above_thresholds", compression = 4)
 
-    ## Combine via cover type
-    combined <- ifel(classified_rast == "forest", forest_days_hr, nonforest_days_hr)
-    combined <- mask(combined, !is.na(classified_rast), maskvalues = FALSE)
-    names(combined) <- glue("days_above_{thresh}")
-    threshold_layers <- c(threshold_layers, list(combined))
-  }
-
-  ## Write as GeoTIFF (preserves CRS, better compression for categorical-ish data)
-  out_rast <- rast(threshold_layers)
-  writeRaster(out_rast, threshold_file, overwrite = TRUE, datatype = "INT2U",
-              gdal = c("COMPRESS=DEFLATE", "ZLEVEL=9"))
-
-  rm(forest_daily, non_forest_daily, threshold_layers, out_rast)
+  rm(forest_daily, non_forest_daily, forest_counts, nonforest_counts)
   gc()
 
-  yr_elapsed <- round(difftime(Sys.time(), yr_start, units = "mins"), 1)
-  fsize <- round(file.size(threshold_file) / 1024 / 1024, 1)
-  message(glue("  Year {yr} complete in {yr_elapsed} min ({fsize} MB)"))
+  yr_elapsed <- round(as.numeric(difftime(Sys.time(), yr_start, units = "secs")), 1)
+  fsize_kb <- round((file.size(forest_out) + file.size(non_forest_out)) / 1024, 1)
+  message(glue("  Year {yr} complete in {yr_elapsed} s ({fsize_kb} kB total)"))
 }
 
-elapsed <- round(difftime(Sys.time(), start_time, units = "hours"), 2)
+elapsed <- round(difftime(Sys.time(), start_time, units = "mins"), 1)
 message(glue("========================================"))
 message(glue("Threshold computation complete: {model} {scenario}"))
-message(glue("Elapsed time: {elapsed} hours"))
+message(glue("Elapsed time: {elapsed} min"))
 message(glue("========================================"))
