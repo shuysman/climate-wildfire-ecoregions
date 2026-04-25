@@ -56,11 +56,18 @@ message(glue("Years to process: {min(available_years)}-{max(available_years)} ({
 ## PROCESS EACH YEAR — write one 4km NetCDF per cover type
 ## ============================================================================
 
+## Return a SpatRasterDataset with one variable per threshold so the band
+## labels round-trip through NetCDF. writeCDF on a multi-band SpatRaster
+## collapses bands into an auto-named Z dim (e.g. days_above_thresholds_Z1=1)
+## and loses our threshold labels. SDS writes each variable separately,
+## preserving the names. Variable names use whole-percent (50/75/90/95) to
+## avoid dots in CF variable names.
 count_days_above <- function(daily_rast, thresholds) {
-  out <- rast(lapply(thresholds, function(t) {
+  layers <- lapply(thresholds, function(t) {
     app(daily_rast > t, fun = sum, na.rm = TRUE)
-  }))
-  names(out) <- paste0("days_above_", thresholds)
+  })
+  out <- sds(layers)
+  names(out) <- paste0("days_above_", as.integer(round(thresholds * 100)))
   out
 }
 
@@ -90,10 +97,10 @@ for (yr in available_years) {
   forest_counts <- count_days_above(forest_daily, thresholds)
   nonforest_counts <- count_days_above(non_forest_daily, thresholds)
 
-  writeCDF(forest_counts, forest_out, overwrite = TRUE,
-           varname = "days_above_thresholds", compression = 4)
-  writeCDF(nonforest_counts, non_forest_out, overwrite = TRUE,
-           varname = "days_above_thresholds", compression = 4)
+  ## writeCDF on an sds writes one CF variable per element of the sds,
+  ## using its names. No `varname=` here — that arg is for SpatRaster, not sds.
+  writeCDF(forest_counts, forest_out, overwrite = TRUE, compression = 4)
+  writeCDF(nonforest_counts, non_forest_out, overwrite = TRUE, compression = 4)
 
   rm(forest_daily, non_forest_daily, forest_counts, nonforest_counts)
   gc()

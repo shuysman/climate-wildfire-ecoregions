@@ -50,6 +50,7 @@ ecoregion_id    <- 5
 projections_dir <- "/media/steve/THREDDS/data/MACA/sien/projections"
 out_base_dir    <- "/media/steve/THREDDS/data/MACA/sien/ensemble_thresholds"
 thresholds      <- c(0.50, 0.75, 0.90, 0.95)
+threshold_names <- paste0("days_above_", as.integer(round(thresholds * 100)))  # matches compute_thresholds.R
 stats           <- c("median", "mean", "q25", "q75")
 
 stat_funcs <- list(
@@ -129,15 +130,18 @@ for (yr in available_years) {
   ## For each cover type, compute ensemble stats per threshold at 4km.
   ## per_thresh_stacks is a list of length(thresholds) of N-layer 4km rasters
   ## (one layer per GCM). Each app() call collapses across the GCM dim,
-  ## producing a single 4km layer per (cover, threshold, stat).
+  ## producing a single 4km layer per (cover, threshold, stat). Inputs are
+  ## NetCDFs with one CF variable per threshold (named e.g. days_above_50);
+  ## index by variable name rather than integer position to be robust to
+  ## threshold reordering.
   compute_per_cover_stats <- function(paths) {
-    per_thresh_stacks <- lapply(seq_along(thresholds), function(ti) {
-      rast(lapply(paths, function(p) rast(p, lyrs = ti)))
+    per_thresh_stacks <- lapply(threshold_names, function(vname) {
+      rast(lapply(paths, function(p) rast(p, subds = vname)))
     })
     out <- list()
     for (s in stats) {
       out[[s]] <- rast(lapply(per_thresh_stacks, function(stk) app(stk, fun = stat_funcs[[s]])))
-      names(out[[s]]) <- glue("{s}_days_above_{thresholds}")
+      names(out[[s]]) <- paste0(s, "_", threshold_names)
     }
     out
   }
@@ -160,7 +164,7 @@ for (yr in available_years) {
                           fun = function(f, n, m) ifelse(m == 1, f, n))
     }
     out_rast <- rast(layers)
-    names(out_rast) <- glue("{s}_days_above_{thresholds}")
+    names(out_rast) <- paste0(s, "_", threshold_names)
 
     ## FLT4S because mean / q25 / q75 produce non-integer values (median can
     ## also be x.5 for even N). ZLEVEL=2 + tiling compresses NA-heavy 30m
