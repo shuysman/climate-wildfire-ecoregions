@@ -18,9 +18,10 @@ terraOptions(verbose = TRUE)
 
 source("src/retrospective/snapshot_config.R")
 
-## Defensive: catch the "regenerated parquet but forgot to update RETROSPECTIVE_END_DATE" mistake
+## Defensive: catch the "regenerated snapshot but forgot to update snapshot_config.R" mistake
 ## at the start of the run rather than letting it silently shift the analysis window.
 local({
+  ## Climate parquets — calendar-bounded
   for (path in c("data/gridmet_long_data.parquet", "data/npswb_long_data.parquet")) {
     if (!file.exists(path)) next
     max_d <- arrow::open_dataset(path) |>
@@ -31,6 +32,18 @@ local({
       stop(sprintf(
         "Snapshot mismatch: %s ends %s but RETROSPECTIVE_END_DATE is %s. Update src/retrospective/snapshot_config.R, or re-extract the parquet to match.",
         path, as.character(max_d), as.character(RETROSPECTIVE_END_DATE)
+      ))
+    }
+  }
+
+  ## MTBS perimeters — last fire in the release, not a calendar bound
+  mtbs_path <- "data/mtbs_polys_plus_cover_ecoregion.gpkg"
+  if (file.exists(mtbs_path)) {
+    mtbs_max <- as.Date(max(sf::st_read(mtbs_path, quiet = TRUE)$Ig_Date, na.rm = TRUE))
+    if (mtbs_max != RETROSPECTIVE_MTBS_END_DATE) {
+      stop(sprintf(
+        "MTBS snapshot mismatch: %s last fire is %s but RETROSPECTIVE_MTBS_END_DATE is %s. Update src/retrospective/snapshot_config.R, or re-extract from a matching MTBS release.",
+        mtbs_path, as.character(mtbs_max), as.character(RETROSPECTIVE_MTBS_END_DATE)
       ))
     }
   }
