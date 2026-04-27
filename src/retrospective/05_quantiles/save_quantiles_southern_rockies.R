@@ -11,6 +11,8 @@ library(terra)
 library(tidyterra)
 library(glue)
 
+source("src/retrospective/snapshot_config.R")
+
 message("========================================")
 message("Generating Southern Rockies quantile rasters")
 message("========================================")
@@ -40,8 +42,8 @@ fm1000_data <- rast(fm1000_data_files) %>%
   mask(project(southern_rockies, crs(.)))
 
 time(fm1000_data) <- as_date(depth(fm1000_data), origin = "1900-01-01")
-
-message(glue("Loaded {nlyr(fm1000_data)} days of FM1000 data"))
+fm1000_data <- fm1000_data[[time(fm1000_data) <= RETROSPECTIVE_END_DATE]]
+message(glue("Pinned to {nlyr(fm1000_data)} layers ending {RETROSPECTIVE_END_DATE} (RETROSPECTIVE_END_DATE)"))
 
 # Invert FM1000: higher moisture (lower fire risk) -> lower inverted value (lower percentile)
 # This inverts the relationship so that higher inverted FM1000 = higher fire risk (matching other variables)

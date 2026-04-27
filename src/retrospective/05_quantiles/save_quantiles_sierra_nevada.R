@@ -7,6 +7,8 @@ library(terra)
 library(tidyterra)
 library(glue)
 
+source("src/retrospective/snapshot_config.R")
+
 message("========================================")
 message("Generating Sierra Nevada quantile rasters")
 message("========================================")
@@ -47,7 +49,8 @@ vpd_data <- rast(vpd_data_files) %>%
   mask(project(sierra_nevada, crs(.)))
 
 time(vpd_data) <- as_date(depth(vpd_data), origin = "1900-01-01")
-message(glue("Loaded {nlyr(vpd_data)} days of VPD data"))
+vpd_data <- vpd_data[[time(vpd_data) <= RETROSPECTIVE_END_DATE]]
+message(glue("Pinned to {nlyr(vpd_data)} layers ending {RETROSPECTIVE_END_DATE} (RETROSPECTIVE_END_DATE)"))
 
 message("Computing forest quantiles (3-day rolling MEAN)...")
 ## VPD is a state variable: round, substitute zeros, remove duplicates before quantile
@@ -85,7 +88,8 @@ vpd_data <- rast(vpd_data_files) %>%
   mask(project(sierra_nevada, crs(.)))
 
 time(vpd_data) <- as_date(depth(vpd_data), origin = "1900-01-01")
-message(glue("Loaded {nlyr(vpd_data)} days of VPD data"))
+vpd_data <- vpd_data[[time(vpd_data) <= RETROSPECTIVE_END_DATE]]
+message(glue("Pinned to {nlyr(vpd_data)} layers ending {RETROSPECTIVE_END_DATE} (RETROSPECTIVE_END_DATE)"))
 
 message("Computing non-forest quantiles (17-day rolling MEAN)...")
 ## VPD is a state variable: round, substitute zeros, remove duplicates before quantile

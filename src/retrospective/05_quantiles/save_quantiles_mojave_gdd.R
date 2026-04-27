@@ -10,6 +10,8 @@ library(terra)
 library(tidyterra)
 library(glue)
 
+source("src/retrospective/snapshot_config.R")
+
 message("========================================")
 message("Generating Mojave Basin and Range GDD_0 quantile rasters")
 message("========================================")
@@ -45,7 +47,8 @@ tmax_data <- rast(tmax_files) %>%
   mask(project(mojave, crs(.)))
 
 time(tmax_data) <- as_date(depth(tmax_data), origin = "1900-01-01")
-message(glue("Loaded {nlyr(tmax_data)} days of tmax data"))
+tmax_data <- tmax_data[[time(tmax_data) <= RETROSPECTIVE_END_DATE]]
+message(glue("Pinned tmax to {nlyr(tmax_data)} layers ending {RETROSPECTIVE_END_DATE}"))
 
 # Load tmin files
 tmin_files <- list.files(gridmet_data_dir, pattern = "tmmn_.*.nc", full.names = TRUE)
@@ -56,7 +59,8 @@ tmin_data <- rast(tmin_files) %>%
   mask(project(mojave, crs(.)))
 
 time(tmin_data) <- as_date(depth(tmin_data), origin = "1900-01-01")
-message(glue("Loaded {nlyr(tmin_data)} days of tmin data"))
+tmin_data <- tmin_data[[time(tmin_data) <= RETROSPECTIVE_END_DATE]]
+message(glue("Pinned tmin to {nlyr(tmin_data)} layers ending {RETROSPECTIVE_END_DATE}"))
 
 # Verify tmax and tmin have same dates
 if (!identical(time(tmax_data), time(tmin_data))) {

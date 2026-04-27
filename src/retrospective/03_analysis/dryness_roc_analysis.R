@@ -16,6 +16,8 @@ plan(multisession, workers = 4) ## Runs take about ~25G of memory each, dependin
 
 terraOptions(verbose = TRUE)
 
+source("src/retrospective/snapshot_config.R")
+
 my_percent_rank <- function(x) {
   ### Custom percent rank formula
   ### Implemented to fix the "pixelation" issue that was showing
@@ -58,10 +60,10 @@ prepare_climate_data_for_ecoregion <- function(mtbs_polys, flux_vars, state_vars
   event_ids <- mtbs_polys$Event_ID
 
   gridmet_ecoregion <- gridmet_data %>%
-    filter(Event_ID %in% event_ids) %>%
+    filter(Event_ID %in% event_ids, date <= RETROSPECTIVE_END_DATE) %>%
     collect()
   npswb_ecoregion <- npswb_data %>%
-    filter(Event_ID %in% event_ids) %>%
+    filter(Event_ID %in% event_ids, date <= RETROSPECTIVE_END_DATE) %>%
     collect()
 
   climate_ecoregion <- bind_rows(npswb_ecoregion, gridmet_ecoregion) %>%

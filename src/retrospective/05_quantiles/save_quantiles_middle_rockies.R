@@ -17,6 +17,8 @@ library(tidyterra)
 library(glue)
 library(maptiles)
 
+source("src/retrospective/snapshot_config.R")
+
 replace_duplicated <- function(x) {
   x[duplicated(x)] <- NA
   return(x)
@@ -42,6 +44,9 @@ vpd_data <- rast(vpd_data_files) %>%
   mask(project(middle_rockies, crs(.)))
 
 time(vpd_data) <- as_date(depth(vpd_data), origin = "1900-01-01")
+vpd_data <- vpd_data[[time(vpd_data) <= RETROSPECTIVE_END_DATE]]
+message(sprintf("Pinned to %d layers ending %s (RETROSPECTIVE_END_DATE)",
+                nlyr(vpd_data), as.character(RETROSPECTIVE_END_DATE)))
 
 forest_quants_rast <- terra::roll(vpd_data, n = 15, fun = mean, type = "to", circular = FALSE, overwrite = TRUE) %>%
   terra::round(digits = 1) %>%
