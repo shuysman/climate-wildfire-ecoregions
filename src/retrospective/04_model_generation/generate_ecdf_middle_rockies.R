@@ -1,11 +1,16 @@
-### Script for generating ecdf curves for specific combinations of
-### var/window/cover/ecoregion, in case the "best" predictor found in
-### the main run isn't what you want to use. For example: CWD is
-### "best" predictor but isn't available in gridmet forecasts so we
-### use this to generate curves with VPD to use.
+### Generate eCDF models for Middle Rockies (forest 15-day VPD,
+### non-forest 5-day VPD).
 ###
-### Can use the post-run QC script to identify which predictors also
-### perform well.
+### This is also the canonical TEMPLATE for adding a new ecoregion when
+### the batch ROC run's "best" predictor (e.g. CWD) is not operationally
+### forecastable. Copy this file to
+### `generate_ecdf_<ecoregion>_<cover>_<variable>.R` and adapt:
+###   - US_L3CODE filter (line ~17)
+###   - cover type (`maj_veg_cl == "forest"` or `"non_forest"`)
+###   - var_name and window in generate_ecdf(...)
+###   - output path in saveRDS(...)
+### For inverted variables see generate_ecdf_fm1000.R; for derived/flux
+### variables (GDD_*) see generate_ecdf_mojave_gdd.R.
 
 source("./src/retrospective/03_analysis/dryness_roc_analysis.R")
 

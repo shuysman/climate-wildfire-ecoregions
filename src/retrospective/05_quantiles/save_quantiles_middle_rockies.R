@@ -1,4 +1,15 @@
-## Write quantiles layer for forest and non-forest cover types in YELL, JODR, and GRTE for n-day rolling averages of VPD
+## Generate quantile rasters for Middle Rockies (forest 15-day rolling
+## mean VPD, non-forest 5-day rolling mean VPD).
+##
+## This is also the canonical TEMPLATE for a new ecoregion using a plain
+## state variable (VPD, RD, BI, ERC). Copy to
+## `save_quantiles_<ecoregion>.R` and adapt:
+##   - US_L3NAME filter
+##   - rolling window (n=) per cover type
+##   - input variable file pattern (e.g. "vpd.*.nc" -> "rmin.*.nc")
+##   - output paths and <VAR> token in writeCDF()
+## For inverted variables (FM1000INV) see save_quantiles_southern_rockies.R.
+## For flux/derived variables (GDD_*) see save_quantiles_mojave_gdd.R.
 
 library(tidyverse)
 library(terra)
