@@ -12,6 +12,7 @@
 ### For inverted variables see generate_ecdf_fm1000.R; for derived/flux
 ### variables (GDD_*) see generate_ecdf_mojave_gdd.R.
 
+source("./src/retrospective/snapshot_config.R")
 source("./src/retrospective/03_analysis/dryness_roc_analysis.R")
 
 ## 1. Load the MTBS fire data and filter for your target ecoregion and cover

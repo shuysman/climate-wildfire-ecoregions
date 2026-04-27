@@ -7,6 +7,7 @@
 ### - Non-forest: 27-day rolling sum
 ### - Forest: N/A (not present in Mojave Basin)
 
+source("./src/retrospective/snapshot_config.R")
 source("./src/retrospective/03_analysis/dryness_roc_analysis.R")
 
 ## 1. Load the MTBS fire data and filter for Mojave Basin and Range non-forest

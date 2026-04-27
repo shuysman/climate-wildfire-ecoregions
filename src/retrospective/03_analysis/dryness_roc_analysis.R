@@ -18,6 +18,24 @@ terraOptions(verbose = TRUE)
 
 source("src/retrospective/snapshot_config.R")
 
+## Defensive: catch the "regenerated parquet but forgot to update RETROSPECTIVE_END_DATE" mistake
+## at the start of the run rather than letting it silently shift the analysis window.
+local({
+  for (path in c("data/gridmet_long_data.parquet", "data/npswb_long_data.parquet")) {
+    if (!file.exists(path)) next
+    max_d <- arrow::open_dataset(path) |>
+      dplyr::summarise(d = max(date, na.rm = TRUE)) |>
+      dplyr::collect() |>
+      dplyr::pull(d)
+    if (max_d != RETROSPECTIVE_END_DATE) {
+      stop(sprintf(
+        "Snapshot mismatch: %s ends %s but RETROSPECTIVE_END_DATE is %s. Update src/retrospective/snapshot_config.R, or re-extract the parquet to match.",
+        path, as.character(max_d), as.character(RETROSPECTIVE_END_DATE)
+      ))
+    }
+  }
+})
+
 my_percent_rank <- function(x) {
   ### Custom percent rank formula
   ### Implemented to fix the "pixelation" issue that was showing

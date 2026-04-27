@@ -1,6 +1,7 @@
 ## Generate eCDF for Sierra Nevada non-forest using VPD 17-day mean
 ## Switching from GDD_15 to VPD to avoid NA pixels at high-elevation cells
 
+source("./src/retrospective/snapshot_config.R")
 source("./src/retrospective/03_analysis/dryness_roc_analysis.R")
 
 mtbs_polys_veg <- st_read("./data/mtbs_polys_plus_cover_ecoregion.gpkg")
