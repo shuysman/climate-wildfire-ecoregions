@@ -4,7 +4,9 @@
 ###############################################################################
 
 YEARS=$(seq 1979 2024)
-OUT_DIR="${HOME}/data/gridmet"
+THREDDS_ROOT="${THREDDS_ROOT:-/media/steve/THREDDS}"
+OUT_DIR="${OUT_DIR:-${THREDDS_ROOT}/gridmet}"
+mkdir -p "$OUT_DIR"
 
 wget -P "$OUT_DIR" -nc -c -nd  https://www.northwestknowledge.net/metdata/data/pdsi.nc
 
