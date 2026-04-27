@@ -44,8 +44,9 @@ non_forest_window <- 17
 non_forest_variable <- "vpd"
 
 ## Paths
-maca_data_dir <- "/media/steve/THREDDS/data/MACA/sien/forecasts/daily"
-out_base_dir <- "/media/steve/THREDDS/data/MACA/sien/projections"
+thredds_root <- Sys.getenv("THREDDS_ROOT", "/media/steve/THREDDS")
+maca_data_dir <- file.path(thredds_root, "data/MACA/sien/forecasts/daily")
+out_base_dir <- file.path(thredds_root, "data/MACA/sien/projections")
 
 probs <- seq(.01, 1.0, by = .01)
 

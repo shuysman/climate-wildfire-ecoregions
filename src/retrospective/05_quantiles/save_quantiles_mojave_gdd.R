@@ -33,7 +33,8 @@ mojave <- vect("data/us_eco_l3/us_eco_l3.shp") %>%
 
 # Load gridMET temperature data
 message("Loading gridMET tmax and tmin historical data...")
-gridmet_data_dir <- "/media/steve/THREDDS/gridmet/"
+thredds_root <- Sys.getenv("THREDDS_ROOT", "/media/steve/THREDDS")
+gridmet_data_dir <- file.path(thredds_root, "gridmet")
 
 # Load tmax files
 tmax_files <- list.files(gridmet_data_dir, pattern = "tmmx_.*.nc", full.names = TRUE)

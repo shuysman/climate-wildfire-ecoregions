@@ -21,7 +21,8 @@ mtbs_centroids <- vect("data/mtbs/mtbs_perims_DD.shp") %>%
   filter(Incid_Type == "Wildfire") %>%
   crop(metdata_elev)
 
-npswb_data_dir <- "/media/steve/THREDDS/daily_or_monthly/v2_historical/"
+thredds_root <- Sys.getenv("THREDDS_ROOT", "/media/steve/THREDDS")
+npswb_data_dir <- file.path(thredds_root, "daily_or_monthly/v2_historical")
 
 # 1. Create a temporary directory to store intermediate files
 temp_dir <- "/tmp/tmp_parquet"

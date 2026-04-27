@@ -30,8 +30,8 @@ from November 2023.
 
 ## Prerequisites
 
-1. **gridMET historical data** at `/media/steve/THREDDS/gridmet/` (vpd, tmmx, tmmn)
-2. **MACA v2 downloads** at `/media/steve/THREDDS/data/MACA/sien/forecasts/daily/`
+1. **gridMET historical data** at `$THREDDS_ROOT/gridmet/` (vpd, tmmx, tmmn)
+2. **MACA v2 downloads** at `$THREDDS_ROOT/data/MACA/sien/forecasts/daily/`
    (120 files: 20 GCMs × 2 scenarios × 3 vars)
 3. **Ecoregion shapefile** at `data/us_eco_l3/us_eco_l3.shp`
 4. **MTBS fire polygons** at `data/mtbs_polys_plus_cover_ecoregion.gpkg`
@@ -39,6 +39,13 @@ from November 2023.
 
 All commands run in the `wildfire-forecast` podman container. Rebuild after any
 code changes: `podman build -t wildfire-forecast .`
+
+`THREDDS_ROOT` is the local directory where bulk climate data files live —
+gridMET historical NetCDFs, NPSWB historical NetCDFs, and MACA v2 projection
+inputs/outputs. These datasets total ~150 GB for this pipeline alone, so the
+directory typically sits on external or network storage. All scripts read
+this env var and default to `/media/steve/THREDDS` if unset; override it (and
+bind-mount the matching path into the container) to point at a different mount.
 
 ## Pipeline Steps
 
@@ -51,7 +58,8 @@ eCDF training path.
 ```bash
 podman run --rm \
   -v $(pwd)/data:/app/data \
-  -v /media/steve/THREDDS:/media/steve/THREDDS \
+  -v "${THREDDS_ROOT:-/media/steve/THREDDS}:${THREDDS_ROOT:-/media/steve/THREDDS}" \
+  -e THREDDS_ROOT="${THREDDS_ROOT:-/media/steve/THREDDS}" \
   wildfire-forecast Rscript src/retrospective/05_quantiles/save_quantiles_sierra_nevada.R
 ```
 
@@ -81,7 +89,7 @@ Uses CDO to compute rolling means/sums on raw MACA downloads. Output files are
 bash src/projections/precompute_rolled_vpd.sh
 ```
 
-Per GCM/scenario, produces (in `/media/steve/THREDDS/data/MACA/sien/forecasts/daily/`):
+Per GCM/scenario, produces (in `$THREDDS_ROOT/data/MACA/sien/forecasts/daily/`):
 - `vpd_rolled_3_<MODEL>_<SCENARIO>_2006-2099_daily_sien.nc` (forest)
 - `vpd_rolled_17_<MODEL>_<SCENARIO>_2006-2099_daily_sien.nc` (non-forest)
 - `gdd15_rolled_26_<MODEL>_<SCENARIO>_2006-2099_daily_sien.nc` (legacy, can ignore)
@@ -93,7 +101,8 @@ For a single GCM/scenario:
 ```bash
 podman run --rm \
   -v $(pwd)/data:/app/data \
-  -v /media/steve/THREDDS:/media/steve/THREDDS \
+  -v "${THREDDS_ROOT:-/media/steve/THREDDS}:${THREDDS_ROOT:-/media/steve/THREDDS}" \
+  -e THREDDS_ROOT="${THREDDS_ROOT:-/media/steve/THREDDS}" \
   wildfire-forecast Rscript src/projections/project_fire_danger.R BNU-ESM rcp45
 ```
 
@@ -103,7 +112,7 @@ For all 40 combos with 4-way parallelism (safe default on a 128 GB box):
 bash src/projections/run_projections.sh --parallel 4
 ```
 
-Outputs per year (in `/media/steve/THREDDS/data/MACA/sien/projections/<MODEL>/<SCENARIO>/`):
+Outputs per year (in `$THREDDS_ROOT/data/MACA/sien/projections/<MODEL>/<SCENARIO>/`):
 - `<YEAR>_fire_danger_forest.nc` — daily forest fire danger (4km NetCDF, ~1 MB)
 - `<YEAR>_fire_danger_non_forest.nc` — daily non-forest fire danger (4km NetCDF, ~1 MB)
 
@@ -116,7 +125,8 @@ Combines forest/non-forest at 30m LANDFIRE resolution using classified cover:
 ```bash
 podman run --rm \
   -v $(pwd)/data:/app/data \
-  -v /media/steve/THREDDS:/media/steve/THREDDS \
+  -v "${THREDDS_ROOT:-/media/steve/THREDDS}:${THREDDS_ROOT:-/media/steve/THREDDS}" \
+  -e THREDDS_ROOT="${THREDDS_ROOT:-/media/steve/THREDDS}" \
   wildfire-forecast Rscript src/projections/compute_thresholds.R BNU-ESM rcp45
 ```
 
@@ -148,7 +158,7 @@ podman ps
 podman logs --tail 20 <CONTAINER_ID>
 
 # Check downloaded output files
-ls -lh /media/steve/THREDDS/data/MACA/sien/projections/<MODEL>/<SCENARIO>/
+ls -lh $THREDDS_ROOT/data/MACA/sien/projections/<MODEL>/<SCENARIO>/
 ```
 
 ## Stopping and Resuming

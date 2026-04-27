@@ -29,7 +29,8 @@ southern_rockies <- vect("data/us_eco_l3/us_eco_l3.shp") %>%
 
 # Load FM1000 historical data
 message("Loading FM1000 historical data...")
-fm1000_data_dir <- "/media/steve/THREDDS/gridmet/"
+thredds_root <- Sys.getenv("THREDDS_ROOT", "/media/steve/THREDDS")
+fm1000_data_dir <- file.path(thredds_root, "gridmet")
 fm1000_data_files <- list.files(fm1000_data_dir, pattern = "fm1000_.*.nc", full.names = TRUE)
 
 message(glue("Found {length(fm1000_data_files)} FM1000 files"))

@@ -23,7 +23,8 @@ probs <- seq(.01, 1.0, by = .01)
 middle_rockies <- vect("data/us_eco_l3/us_eco_l3.shp") %>%
   filter(US_L3NAME == "Middle Rockies")
 
-vpd_data_dir <- file.path("/media/steve/THREDDS/gridmet/")
+thredds_root <- Sys.getenv("THREDDS_ROOT", "/media/steve/THREDDS")
+vpd_data_dir <- file.path(thredds_root, "gridmet")
 vpd_data_files <- list.files(vpd_data_dir, pattern = "vpd.*.nc", full.names = TRUE)
 vpd_data <- rast(vpd_data_files) %>%
   crop(project(middle_rockies, crs(.))) %>%

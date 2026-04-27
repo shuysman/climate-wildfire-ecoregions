@@ -37,7 +37,8 @@ terraOptions(verbose = FALSE, memfrac = 0.6)
 ## CONFIGURATION
 ## ============================================================================
 
-projections_dir <- file.path("/media/steve/THREDDS/data/MACA/sien/projections", model, scenario)
+thredds_root <- Sys.getenv("THREDDS_ROOT", "/media/steve/THREDDS")
+projections_dir <- file.path(thredds_root, "data/MACA/sien/projections", model, scenario)
 thresholds <- c(0.50, 0.75, 0.90, 0.95)
 
 ## ============================================================================

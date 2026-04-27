@@ -13,7 +13,8 @@
 ## Usage: bash precompute_rolled_vpd.sh
 ## Prerequisites: MACA vpd downloads available in $data_dir
 
-data_dir="/media/steve/THREDDS/data/MACA/sien/forecasts/daily"
+THREDDS_ROOT="${THREDDS_ROOT:-/media/steve/THREDDS}"
+data_dir="${THREDDS_ROOT}/data/MACA/sien/forecasts/daily"
 
 echo "========================================="
 echo "Precomputing rolled VPD (3-day, 17-day)"

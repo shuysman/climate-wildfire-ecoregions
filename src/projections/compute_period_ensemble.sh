@@ -39,8 +39,9 @@ NCPU=$(nproc)
 CDO_THREADS=${CDO_THREADS:-$(( NCPU > 4 ? NCPU - 2 : NCPU ))}
 echo "CDO threads: $CDO_THREADS  (host nproc=$NCPU)"
 
-proj_dir=/media/steve/THREDDS/data/MACA/sien/projections
-out_root=/media/steve/THREDDS/data/MACA/sien/ensemble_thresholds
+THREDDS_ROOT="${THREDDS_ROOT:-/media/steve/THREDDS}"
+proj_dir="${THREDDS_ROOT}/data/MACA/sien/projections"
+out_root="${THREDDS_ROOT}/data/MACA/sien/ensemble_thresholds"
 out_dir="$out_root/$scenario/4km"
 mkdir -p "$out_dir"
 

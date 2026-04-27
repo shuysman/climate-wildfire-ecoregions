@@ -28,7 +28,8 @@ start_time <- Sys.time()
 terraOptions(verbose = FALSE, memfrac = 0.5)
 
 ecoregion_id    <- 5
-ens_root        <- "/media/steve/THREDDS/data/MACA/sien/ensemble_thresholds"
+thredds_root    <- Sys.getenv("THREDDS_ROOT", "/media/steve/THREDDS")
+ens_root        <- file.path(thredds_root, "data/MACA/sien/ensemble_thresholds")
 in_dir          <- file.path(ens_root, scenario, "4km")
 out_dir         <- file.path(ens_root, scenario)
 threshold_names <- paste0("days_above_", c(50, 75, 90, 95))

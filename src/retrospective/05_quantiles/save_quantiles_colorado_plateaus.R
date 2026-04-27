@@ -46,9 +46,12 @@ message("========================================")
 message("Processing FOREST: FM1000 inverted (5-day rolling mean)")
 message("========================================")
 
+thredds_root <- Sys.getenv("THREDDS_ROOT", "/media/steve/THREDDS")
+gridmet_data_dir <- file.path(thredds_root, "gridmet")
+
 # Load FM1000 historical data
 message("Loading FM1000 historical data...")
-fm1000_data_dir <- "/media/steve/THREDDS/gridmet/"
+fm1000_data_dir <- gridmet_data_dir
 fm1000_data_files <- list.files(fm1000_data_dir, pattern = "fm1000_.*.nc", full.names = TRUE)
 
 message(glue("Found {length(fm1000_data_files)} FM1000 files"))
@@ -98,7 +101,7 @@ message("========================================")
 
 # Load VPD historical data
 message("Loading VPD historical data...")
-vpd_data_dir <- "/media/steve/THREDDS/gridmet/"
+vpd_data_dir <- gridmet_data_dir
 vpd_data_files <- list.files(vpd_data_dir, pattern = "vpd.*.nc", full.names = TRUE)
 
 message(glue("Found {length(vpd_data_files)} VPD files"))

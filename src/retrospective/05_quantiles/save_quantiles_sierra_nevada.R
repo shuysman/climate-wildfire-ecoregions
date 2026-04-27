@@ -28,7 +28,8 @@ message("Loading Sierra Nevada boundary...")
 sierra_nevada <- vect("data/us_eco_l3/us_eco_l3.shp") %>%
   filter(US_L3NAME == "Sierra Nevada")
 
-gridmet_data_dir <- "/media/steve/THREDDS/gridmet/"
+thredds_root <- Sys.getenv("THREDDS_ROOT", "/media/steve/THREDDS")
+gridmet_data_dir <- file.path(thredds_root, "gridmet")
 
 ## ============================================================================
 ## FOREST: 3-day rolling MEAN VPD

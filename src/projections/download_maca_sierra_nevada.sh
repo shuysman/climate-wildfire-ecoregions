@@ -4,9 +4,11 @@
 ## Variables: VPD, tasmax (tmmx), tasmin (tmmn)
 ## Source: http://thredds.northwestknowledge.net:8080/thredds/reacch_climate_CMIP5_aggregated_macav2_catalog.html
 ## Spatial subset to Sierra Nevada bounding box
-## Output follows same naming convention as GYE downloads in /media/steve/THREDDS/data/MACA/gye/
+## Output follows same naming convention as GYE downloads in $THREDDS_ROOT/data/MACA/gye/
 
 trap 'rm -f "$TMPFILE"' EXIT
+
+THREDDS_ROOT="${THREDDS_ROOT:-/media/steve/THREDDS}"
 
 var="vpd tmmx tmmn"
 pathways="rcp45 rcp85"
@@ -20,7 +22,7 @@ west=-121.63545
 east=-117.87015
 south=34.81587
 
-out_dir="/media/steve/THREDDS/data/MACA/sien/forecasts/${timestep}"
+out_dir="${THREDDS_ROOT}/data/MACA/sien/forecasts/${timestep}"
 mkdir -p "$out_dir"
 
 for model in $gcms; do

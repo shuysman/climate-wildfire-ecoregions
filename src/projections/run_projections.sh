@@ -14,6 +14,9 @@ if [ "$1" == "--parallel" ] && [ -n "$2" ]; then
     PARALLEL=$2
 fi
 
+THREDDS_ROOT="${THREDDS_ROOT:-/media/steve/THREDDS}"
+log_dir="${THREDDS_ROOT}/data/MACA/sien/projections"
+
 gcms="BNU-ESM CNRM-CM5 CSIRO-Mk3-6-0 bcc-csm1-1 CanESM2 GFDL-ESM2G GFDL-ESM2M HadGEM2-CC365 HadGEM2-ES365 inmcm4 MIROC5 MIROC-ESM MIROC-ESM-CHEM MRI-CGCM3 IPSL-CM5A-LR IPSL-CM5A-MR IPSL-CM5B-LR CCSM4 NorESM1-M bcc-csm1-1-m"
 scenarios="rcp45 rcp85"
 
@@ -38,7 +41,7 @@ for model in $gcms; do
         echo "[$count/$total] Starting: $model $scenario"
 
         Rscript src/projections/project_fire_danger.R "$model" "$scenario" \
-            > "/media/steve/THREDDS/data/MACA/sien/projections/${model}_${scenario}.log" 2>&1 &
+            > "${log_dir}/${model}_${scenario}.log" 2>&1 &
 
         running=$((running + 1))
 
