@@ -65,6 +65,9 @@ report/auto/
 report/figs/
 report/predictor_auc_analysis_files/
 
+# Sensitive — operator manual kept local only
+report/operator_manual/
+
 # Misc
 update-log.txt
 file-structure.txt
